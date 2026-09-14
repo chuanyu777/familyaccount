@@ -159,3 +159,6 @@ curl http://localhost/api/family                            # 5 冒烟
 ```bash
 docker compose -f deploy/docker-compose.prod.yml exec mysql   mysql -uroot -p"$DB_PASSWORD" -e "SELECT version,name,applied_at FROM family_ledger.schema_migration ORDER BY version;"
 ```
+
+> 提示：zip 包不保留可执行权限，服务器上首次使用前先执行一次
+> `chmod +x deploy/*.sh`；或者直接用 `bash deploy/backup.sh` 调用。
