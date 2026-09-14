@@ -1,0 +1,686 @@
+/* ============================================================
+   家庭账簿 · 设计系统
+   方向：温润有机 / 纸质账簿感 / 纯浅色
+   ============================================================ */
+
+@layer tokens, base, components;
+
+@layer tokens {
+  :root {
+    /* —— 底：冷白微蓝，像雨后放晴的天光 —— */
+    --paper: oklch(98.6% 0.006 248);
+    --paper-raised: oklch(99.8% 0.002 248);
+    --paper-sunken: oklch(95.8% 0.013 248);
+    --desk: oklch(93.6% 0.014 248);
+
+    /* —— 墨：中性色一律偏冷调，不用纯灰 —— */
+    --ink: oklch(24% 0.024 252);
+    --ink-2: oklch(43% 0.024 252);
+    --ink-3: oklch(59% 0.019 252);
+    --rule: oklch(90.5% 0.015 248);
+    --rule-soft: oklch(94.6% 0.009 248);
+
+    /* —— 主色：雾蓝 —— */
+    --brand: oklch(48% 0.090 245);
+    --brand-deep: oklch(39% 0.078 245);
+    --brand-wash: oklch(95.6% 0.021 245);
+
+    /* —— 收支：支出红、收入绿（中国习惯） —— */
+    --expense: oklch(55% 0.135 32);
+    --expense-deep: oklch(45% 0.122 30);
+    --expense-wash: oklch(96.4% 0.019 32);
+    --income: oklch(52% 0.110 152);
+    --income-deep: oklch(42% 0.095 152);
+    --income-wash: oklch(96.4% 0.020 152);
+
+    /* —— 提示与中性标记 —— */
+    --warn: oklch(66% 0.100 78);
+    --warn-deep: oklch(48% 0.090 70);
+    --warn-wash: oklch(96.6% 0.030 80);
+    --slate: oklch(48% 0.046 255); /* 还款等中性标记 */
+    --slate-wash: oklch(96% 0.013 255);
+
+    /* —— 字 —— */
+    --font-serif: "Songti SC", "STSong", "Source Han Serif SC", "Noto Serif CJK SC",
+      "SimSun", Georgia, serif;
+    --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+      "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+    --font-num: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua",
+      Georgia, var(--font-serif);
+
+    /* —— 排版尺度（1.25 比率，移动端略收） —— */
+    --text-xs: 0.75rem;
+    --text-sm: 0.8125rem;
+    --text-base: 0.9375rem;
+    --text-lg: 1.0625rem;
+    --text-xl: 1.375rem;
+    --text-2xl: 1.75rem;
+    --text-amount: 2.25rem;
+
+    /* —— 空间（8px 栅格，行高 24 为垂直节奏基准） —— */
+    --sp-1: 4px;
+    --sp-2: 8px;
+    --sp-3: 12px;
+    --sp-4: 16px;
+    --sp-5: 24px;
+    --sp-6: 32px;
+    --sp-7: 48px;
+
+    --radius-sm: 4px;
+    --radius: 7px;
+    --radius-lg: 12px;
+
+    /* —— 纸感阴影：极低对比、偏暖，不用通用灰阴影 —— */
+    --lift-1: 0 1px 1px oklch(40% 0.02 60 / 0.04), 0 2px 6px oklch(40% 0.02 60 / 0.05);
+    --lift-2: 0 2px 4px oklch(40% 0.02 60 / 0.06), 0 12px 28px oklch(40% 0.02 60 / 0.09);
+    --lift-sheet: 0 -6px 32px oklch(35% 0.02 60 / 0.16);
+
+    /* —— 动效：只用于状态变化，指数缓出 —— */
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --dur-fast: 140ms;
+    --dur: 220ms;
+    --dur-slow: 340ms;
+
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+    --shell-max: 480px;
+  }
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+    line-height: 1.55;
+    color: var(--ink);
+    background: var(--paper);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-kerning: normal;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    margin: 0;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  p {
+    margin: 0;
+  }
+
+  button {
+    font: inherit;
+    color: inherit;
+  }
+
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+
+  /* 焦点环：雾蓝细环，键盘可见但鼠标不打扰 */
+  :focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  /* —— 应用外壳：桌面是一张纸摊在桌面上 —— */
+  .shell {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-height: 100dvh;
+    width: 100%;
+    max-width: var(--shell-max);
+    margin: 0 auto;
+    background: var(--paper);
+  }
+
+  @media (min-width: 640px) {
+    body {
+      background: var(--desk);
+    }
+
+    .shell {
+      min-height: 100vh;
+      box-shadow: var(--lift-2);
+    }
+  }
+
+  .shell-main {
+    flex: 1;
+    padding: var(--sp-4) var(--sp-4) calc(var(--safe-bottom) + var(--sp-7));
+    padding-bottom: calc(var(--safe-bottom) + var(--sp-6));
+  }
+
+  /* —— 页头：左「家庭财务」，右家庭名，不加任何图标 —— */
+  .shell-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    padding: calc(var(--safe-top) + var(--sp-4)) var(--sp-4) var(--sp-3);
+    background: var(--paper);
+  }
+
+  .shell-header__title {
+    font-family: var(--font-serif);
+    font-size: var(--text-xl);
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+
+  .shell-header__family {
+    max-width: 48%;
+    font-size: var(--text-sm);
+    color: var(--ink-3);
+    letter-spacing: 0.04em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@layer components {
+  /* —— 区块标题 —— */
+  .section {
+    margin-top: var(--sp-5);
+  }
+
+  .section:first-child {
+    margin-top: 0;
+  }
+
+  .section__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sp-2);
+    margin-bottom: var(--sp-3);
+  }
+
+  .section__title {
+    font-family: var(--font-serif);
+    font-size: var(--text-lg);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+
+  .section__title::after {
+    content: "";
+    display: block;
+    width: 18px;
+    height: 2px;
+    margin-top: 5px;
+    border-radius: 1px;
+    background: var(--brand);
+    opacity: 0.75;
+  }
+
+  .section__aside {
+    font-size: var(--text-sm);
+    color: var(--ink-3);
+  }
+
+  /* —— 纸卡：细边框 + 暖白，不用通用阴影堆 —— */
+  .card {
+    background: var(--paper-raised);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    padding: var(--sp-4);
+  }
+
+  .card--flush {
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .card--sunken {
+    background: var(--paper-sunken);
+    border-color: var(--rule-soft);
+  }
+
+  /* —— 金额 —— */
+  .money {
+    font-family: var(--font-num);
+    font-variant-numeric: tabular-nums lining-nums;
+    letter-spacing: -0.01em;
+    font-feature-settings: "tnum" 1;
+    /* 中文断行会把「-¥999.00」的负号单独折到上一行，这里禁止金额折行 */
+    white-space: nowrap;
+  }
+
+  .money--income {
+    color: var(--income-deep);
+  }
+
+  .money--expense {
+    color: var(--expense-deep);
+  }
+
+  .money--neutral {
+    color: var(--ink);
+  }
+
+  .money--muted {
+    color: var(--ink-3);
+  }
+
+  .money--lg {
+    font-size: var(--text-amount);
+    line-height: 1.1;
+  }
+
+  /* —— 按钮 —— */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-2);
+    min-height: 40px;
+    padding: 0 var(--sp-4);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    background: var(--paper-raised);
+    color: var(--ink);
+    font-size: var(--text-base);
+    cursor: pointer;
+    transition:
+      background var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out),
+      transform var(--dur-fast) var(--ease-out);
+  }
+
+  .btn:hover {
+    border-color: var(--ink-3);
+  }
+
+  .btn:active {
+    transform: scale(0.985);
+  }
+
+  .btn--primary {
+    background: var(--brand);
+    border-color: var(--brand);
+    color: #fff;
+    font-weight: 500;
+  }
+
+  .btn--primary:hover {
+    background: var(--brand-deep);
+    border-color: var(--brand-deep);
+  }
+
+  .btn--ghost {
+    background: transparent;
+    border-color: transparent;
+    color: var(--ink-2);
+    padding: 0 var(--sp-2);
+  }
+
+  .btn--ghost:hover {
+    background: var(--paper-sunken);
+    border-color: transparent;
+  }
+
+  .btn--danger {
+    color: var(--expense-deep);
+    border-color: oklch(82% 0.06 30);
+  }
+
+  .btn--danger:hover {
+    background: var(--expense-wash);
+    border-color: var(--expense);
+  }
+
+  .btn--block {
+    width: 100%;
+  }
+
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .btn--sm {
+    min-height: 32px;
+    padding: 0 var(--sp-3);
+    font-size: var(--text-sm);
+  }
+
+  /* —— 表单 —— */
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-bottom: var(--sp-3);
+  }
+
+  .field__label {
+    font-size: var(--text-sm);
+    color: var(--ink-3);
+    letter-spacing: 0.03em;
+  }
+
+  .field__control {
+    width: 100%;
+    min-height: 42px;
+    padding: 0 var(--sp-3);
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    background: var(--paper-raised);
+    color: var(--ink);
+    transition: border-color var(--dur-fast) var(--ease-out);
+  }
+
+  .field__control:hover {
+    border-color: var(--ink-3);
+  }
+
+  .field__control:focus {
+    border-color: var(--brand);
+    outline: none;
+  }
+
+  select.field__control {
+    appearance: none;
+    padding-right: var(--sp-6);
+    background-image: linear-gradient(45deg, transparent 50%, var(--ink-3) 50%),
+      linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);
+    background-position:
+      calc(100% - 16px) 19px,
+      calc(100% - 11px) 19px;
+    background-size:
+      5px 5px,
+      5px 5px;
+    background-repeat: no-repeat;
+  }
+
+  .field__hint {
+    font-size: var(--text-xs);
+    color: var(--ink-3);
+  }
+
+  .form-error {
+    margin: var(--sp-2) 0 0;
+    font-size: var(--text-sm);
+    color: var(--expense-deep);
+  }
+
+  /* —— 分段控件：像账簿上的标签页 —— */
+  .segmented {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    background: var(--paper-sunken);
+    border: 1px solid var(--rule-soft);
+    border-radius: var(--radius);
+  }
+
+  .segmented__item {
+    flex: 1;
+    min-height: 34px;
+    padding: 0 var(--sp-2);
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--ink-3);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition:
+      background var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out);
+    white-space: nowrap;
+  }
+
+  .segmented__item[aria-pressed="true"],
+  .segmented__item.is-active {
+    background: var(--paper-raised);
+    color: var(--ink);
+    font-weight: 500;
+    box-shadow: var(--lift-1);
+  }
+
+  /* —— 标签 —— */
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 7px;
+    border-radius: var(--radius-sm);
+    font-size: var(--text-xs);
+    line-height: 1.5;
+    letter-spacing: 0.02em;
+    background: var(--paper-sunken);
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+
+  .tag--debt {
+    background: var(--slate-wash);
+    color: var(--slate);
+  }
+
+  .tag--warn {
+    background: var(--warn-wash);
+    color: var(--warn-deep);
+  }
+
+  .tag--income {
+    background: var(--income-wash);
+    color: var(--income-deep);
+  }
+
+  .tag--expense {
+    background: var(--expense-wash);
+    color: var(--expense-deep);
+  }
+
+  /* —— 空状态 —— */
+  .empty {
+    padding: var(--sp-6) var(--sp-4);
+    text-align: center;
+  }
+
+  .empty__mark {
+    font-family: var(--font-serif);
+    font-size: 2rem;
+    color: var(--rule);
+    line-height: 1;
+    margin-bottom: var(--sp-3);
+  }
+
+  .empty__title {
+    font-family: var(--font-serif);
+    font-size: var(--text-lg);
+    color: var(--ink-2);
+  }
+
+  .empty__hint {
+    margin-top: var(--sp-2);
+    font-size: var(--text-sm);
+    color: var(--ink-3);
+    line-height: 1.7;
+  }
+
+  /* —— 遮罩与底部弹层 —— */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: oklch(30% 0.02 60 / 0.32);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+  }
+
+  .overlay--center {
+    align-items: center;
+  }
+
+  .sheet {
+    width: 100%;
+    max-width: var(--shell-max);
+    max-height: 88vh;
+    overflow-y: auto;
+    background: var(--paper-raised);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding: var(--sp-4) var(--sp-4) calc(var(--safe-bottom) + var(--sp-4));
+    box-shadow: var(--lift-sheet);
+  }
+
+  .sheet__grip {
+    width: 36px;
+    height: 4px;
+    margin: 0 auto var(--sp-3);
+    border-radius: 2px;
+    background: var(--rule);
+  }
+
+  .sheet__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-4);
+  }
+
+  .sheet__title {
+    font-family: var(--font-serif);
+    font-size: var(--text-lg);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+
+  .dialog {
+    width: min(88%, 340px);
+    background: var(--paper-raised);
+    border-radius: var(--radius);
+    padding: var(--sp-5) var(--sp-4) var(--sp-4);
+    box-shadow: var(--lift-2);
+  }
+
+  .dialog__title {
+    font-family: var(--font-serif);
+    font-size: var(--text-lg);
+    font-weight: 600;
+  }
+
+  .dialog__desc {
+    margin-top: var(--sp-2);
+    font-size: var(--text-base);
+    color: var(--ink-2);
+    line-height: 1.7;
+  }
+
+  .dialog__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--sp-2);
+    margin-top: var(--sp-5);
+  }
+
+  /* —— 详情列表：弹层里展示一条记录的字段 —— */
+  .detail {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .detail__row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sp-4);
+    padding: var(--sp-3) 0;
+    border-bottom: 1px solid var(--rule-soft);
+  }
+
+  .detail__row dt {
+    flex: none;
+    font-size: var(--text-sm);
+    color: var(--ink-3);
+    letter-spacing: 0.04em;
+  }
+
+  .detail__row dd {
+    margin: 0;
+    text-align: right;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .detail__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    justify-content: flex-end;
+    margin-top: var(--sp-5);
+  }
+
+  /* —— 过渡 —— */
+  .fade-enter-active,
+  .fade-leave-active {
+    transition: opacity var(--dur) var(--ease-out);
+  }
+
+  .fade-enter-from,
+  .fade-leave-to {
+    opacity: 0;
+  }
+
+  .sheet-enter-active,
+  .sheet-leave-active {
+    transition: transform var(--dur-slow) var(--ease-out), opacity var(--dur) var(--ease-out);
+  }
+
+  .sheet-enter-from,
+  .sheet-leave-to {
+    transform: translateY(14%);
+    opacity: 0;
+  }
+
+  .pop-enter-active,
+  .pop-leave-active {
+    transition: transform var(--dur) var(--ease-out), opacity var(--dur-fast) var(--ease-out);
+  }
+
+  .pop-enter-from,
+  .pop-leave-to {
+    transform: scale(0.96);
+    opacity: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

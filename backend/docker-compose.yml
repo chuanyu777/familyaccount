@@ -1,0 +1,40 @@
+# 一键启动 MySQL 8 + 后端应用。前端仍用本地 vite dev（http://localhost:5173）。
+# 用法：docker compose up --build
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: family-ledger-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root123456
+      MYSQL_DATABASE: family_ledger
+      TZ: Asia/Shanghai
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot123456"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build: .
+    container_name: family-ledger-app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_NAME: family_ledger
+      DB_USER: root
+      DB_PASSWORD: root123456
+    ports:
+      - "3001:3001"
+
+volumes:
+  mysql-data:

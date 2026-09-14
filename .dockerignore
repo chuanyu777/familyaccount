@@ -1,0 +1,8 @@
+# 前端镜像构建忽略项（build context 为项目根）
+node_modules
+backend
+server
+.git
+.workbuddy
+web/dist
+*.md
