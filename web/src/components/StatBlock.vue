@@ -39,19 +39,16 @@ defineProps<{ label: string; hint?: string }>();
   min-width: 0;
   font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
-  /* 随宽度缩放：短金额保持大字，长金额自动收小，不换行也不溢出 */
-  font-size: clamp(0.9375rem, 4.4vw, var(--text-xl));
+  /* 同一组卡片由容器统一给 --stat-size，保证三个数字字号永远相等；
+     不给时退回默认字号。不裁剪、不省略号，靠缩字号把长金额完整显示出来。 */
+  font-size: var(--stat-size, var(--text-xl));
   line-height: 1.25;
   color: var(--ink);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .stat__value :deep(.money) {
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .stat__hint {

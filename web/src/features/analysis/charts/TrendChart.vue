@@ -12,10 +12,10 @@ export interface TrendPoint {
 const props = defineProps<{ data: TrendPoint[] }>();
 
 const W = 320;
-const H = 208;
+const H = 188;
 const PAD_X = 10;
 const PAD_TOP = 16;
-const PAD_BOTTOM = 44; /* 下方要放月份 + 结余两行 */
+const PAD_BOTTOM = 24;
 const plotW = W - PAD_X * 2;
 const plotH = H - PAD_TOP - PAD_BOTTOM;
 const base = PAD_TOP + plotH;
@@ -40,22 +40,12 @@ const bars = computed(() =>
       exY: base - exH,
       inH,
       exH,
-      netCents: d.netCents,
       labelX: gx + groupW.value / 2,
     };
   }),
 );
 
 const maxLabel = computed(() => formatMoney(max.value));
-
-/** 结余小字：柱子下面一行，大额折成「万」，保证 6 个月都塞得下 */
-function netLabel(cents: number): string {
-  const v = cents / 100;
-  const sign = v < 0 ? '-' : '';
-  const abs = Math.abs(v);
-  if (abs >= 10000) return `${sign}${(abs / 10000).toFixed(1)}万`;
-  return `${sign}${Math.round(abs)}`;
-}
 
 function shortMonth(month: string): string {
   const m = month.split('-')[1] ?? month;
@@ -94,17 +84,8 @@ function shortMonth(month: string): string {
         fill="var(--expense)"
         rx="1.5"
       />
-      <text :x="b.labelX" :y="base + 16" text-anchor="middle" class="x-label">
+      <text :x="b.labelX" :y="H - 8" text-anchor="middle" class="x-label">
         {{ shortMonth(b.month) }}
-      </text>
-      <text
-        :x="b.labelX"
-        :y="base + 31"
-        text-anchor="middle"
-        class="net-label"
-        :class="b.netCents < 0 ? 'is-expense' : 'is-income'"
-      >
-        {{ netLabel(b.netCents) }}
       </text>
     </g>
   </svg>
@@ -138,20 +119,5 @@ function shortMonth(month: string): string {
   fill: var(--ink-2);
   font-size: 11px;
   font-family: var(--font-sans);
-}
-
-/* 结余小字：绿正红负，放在月份下面 */
-.net-label {
-  font-size: 10px;
-  font-family: var(--font-num);
-  font-variant-numeric: tabular-nums;
-}
-
-.net-label.is-income {
-  fill: var(--income-deep);
-}
-
-.net-label.is-expense {
-  fill: var(--expense-deep);
 }
 </style>

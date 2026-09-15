@@ -66,6 +66,23 @@ const error = ref<string | null>(null);
 
 const isCurrentMonth = computed(() => month.value === currentMonth());
 
+/**
+ * 资产负债三个数字共用一套字号：按最长那串的字符数整体降档，
+ * 保证三者永远一样大，也不会被省略号截断。
+ */
+const balanceFontSize = computed(() => {
+  const texts = [
+    formatMoney(snapshot.value.totalAssetsCents),
+    formatMoney(snapshot.value.totalLiabilitiesCents),
+    formatMoney(snapshot.value.netWorthCents),
+  ];
+  const longest = Math.max(...texts.map((t) => t.length));
+  if (longest <= 9) return '1.0625rem';
+  if (longest <= 11) return '0.9375rem';
+  if (longest <= 13) return '0.8125rem';
+  return '0.75rem';
+});
+
 async function load(force = false) {
   error.value = null;
   try {
@@ -126,17 +143,14 @@ onMounted(() => void load());
         </span>
       </template>
 
-      <div v-if="!error" class="stats">
+      <div v-if="!error" class="stats" :style="{ '--stat-size': balanceFontSize }">
         <StatBlock label="总资产">
           <MoneyText :cents="snapshot.totalAssetsCents" />
         </StatBlock>
         <StatBlock label="总负债">
           <MoneyText :cents="snapshot.totalLiabilitiesCents" tone="expense" />
         </StatBlock>
-        <StatBlock
-          label="净资产"
-          :hint="`月供合计 ${formatMoney(snapshot.monthlyPaymentTotalCents)}`"
-        >
+        <StatBlock label="净资产">
           <MoneyText
             class="net-worth"
             :cents="snapshot.netWorthCents"
@@ -173,7 +187,6 @@ onMounted(() => void load());
       </div>
       <div v-else class="card card--flush chart-card">
         <TrendChart :data="trend" />
-        <p class="chart-note">柱下方小字为该月结余（负数为红）</p>
       </div>
     </SectionBlock>
 
@@ -279,13 +292,6 @@ onMounted(() => void load());
 
 .chart-card {
   padding: var(--sp-3) var(--sp-2) var(--sp-2);
-}
-
-.chart-note {
-  margin-top: var(--sp-1);
-  text-align: center;
-  font-size: var(--text-xs);
-  color: var(--ink-2);
 }
 
 .donut-row {
