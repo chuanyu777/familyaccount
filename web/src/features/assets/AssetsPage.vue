@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import MoneyText from '../../components/MoneyText.vue';
-import StatBlock from '../../components/StatBlock.vue';
+import StatHero from '../../components/StatHero.vue';
 import SegmentedControl from '../../components/SegmentedControl.vue';
 import SectionBlock from '../../components/SectionBlock.vue';
 import EmptyState from '../../components/EmptyState.vue';
@@ -234,17 +234,20 @@ onMounted(() => void load());
 
 <template>
   <div class="assets">
-    <div class="stats">
-      <StatBlock label="总资产">
-        <MoneyText :cents="summary.totalAssetsCents" />
-      </StatBlock>
-      <StatBlock label="账户合计">
-        <MoneyText :cents="summary.accountsTotalCents" :tone="summary.accountsTotalCents < 0 ? 'expense' : 'neutral'" />
-      </StatBlock>
-      <StatBlock label="资产合计">
+    <StatHero
+      label="净资产"
+      :cents="summary.netWorthCents"
+      :tone="summary.netWorthCents < 0 ? 'expense' : 'neutral'"
+      :bubbles="[
+        { label: '总资产', cents: summary.totalAssetsCents, tone: 'income' },
+        { label: '总负债', cents: -summary.totalLiabilitiesCents, tone: 'expense' },
+      ]"
+    >
+      <p class="hero-split">
+        资金账户 <MoneyText :cents="summary.accountsTotalCents" /> · 资产项
         <MoneyText :cents="summary.assetsTotalCents" />
-      </StatBlock>
-    </div>
+      </p>
+    </StatHero>
 
     <SectionBlock title="资金账户">
       <template #aside>
@@ -257,9 +260,10 @@ onMounted(() => void load());
         <EmptyState title="还没有资金账户" hint="点「新增账户」记下你的第一个账户。" mark="○" />
       </div>
 
-      <ul v-else class="card card--flush list">
+      <ul v-else class="list">
         <li v-for="a in accounts" :key="a.id">
-          <button type="button" class="row" @click="detailAccount = a">
+          <button type="button" class="row card" @click="detailAccount = a">
+            <span class="row__bubble" aria-hidden="true">{{ a.name.slice(0, 1) }}</span>
             <span class="row__main">
               <span class="row__title">
                 {{ a.name }}
@@ -275,7 +279,6 @@ onMounted(() => void load());
               :tone="a.balance_cents < 0 ? 'expense' : 'neutral'"
               class="row__amount"
             />
-            <span class="row__chevron" aria-hidden="true">›</span>
           </button>
         </li>
       </ul>
@@ -287,10 +290,10 @@ onMounted(() => void load());
         <button type="button" class="btn btn--sm" @click="openAsset()">新增资产</button>
       </template>
 
-      <div v-if="assetView !== 'detail'" class="card card--flush">
+      <div v-if="assetView !== 'detail'">
         <ul class="list">
           <li v-for="g in groups" :key="g.key">
-            <div class="row row--static">
+            <div class="row row--static card">
               <span class="row__title">{{ g.label }}</span>
               <MoneyText :cents="g.cents" class="row__amount" />
             </div>
@@ -303,9 +306,10 @@ onMounted(() => void load());
           <EmptyState title="还没有资产项" hint="点「新增资产」记录房产、投资等市值。" mark="○" />
         </div>
 
-        <ul v-else class="card card--flush list">
+        <ul v-else class="list">
           <li v-for="a in assets" :key="a.id">
-            <button type="button" class="row" @click="openAssetDetail(a)">
+            <button type="button" class="row card" @click="openAssetDetail(a)">
+              <span class="row__bubble" aria-hidden="true">{{ (a.kind || a.name).slice(0, 1) }}</span>
               <span class="row__main">
                 <span class="row__title">{{ a.name }}</span>
                 <span class="row__meta">
@@ -314,7 +318,6 @@ onMounted(() => void load());
                 </span>
               </span>
               <MoneyText :cents="a.value_cents" class="row__amount" />
-              <span class="row__chevron" aria-hidden="true">›</span>
             </button>
           </li>
         </ul>
@@ -466,17 +469,20 @@ onMounted(() => void load());
   flex-direction: column;
 }
 
-.stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--sp-2);
-  margin-bottom: var(--sp-5);
+.hero-split {
+  margin-top: var(--sp-2);
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
 }
 
 .list {
   list-style: none;
   margin: 0;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
 }
 
 .row {
@@ -484,21 +490,26 @@ onMounted(() => void load());
   align-items: center;
   gap: var(--sp-3);
   width: 100%;
-  padding: 11px var(--sp-4);
-  border: none;
-  border-bottom: 1px solid var(--rule-soft);
-  background: none;
+  padding: 11px var(--sp-3);
   text-align: left;
   cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out);
+  transition: transform var(--dur-fast) var(--ease-out);
 }
 
-.list li:last-child .row {
-  border-bottom: none;
+.row:active {
+  transform: scale(0.98);
 }
 
-.row:hover {
-  background: var(--paper-sunken);
+.row__bubble {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--brand-wash);
+  color: var(--brand-2);
+  font-size: var(--text-sm);
 }
 
 /* 汇总行不可点，去掉交互反馈 */
@@ -507,8 +518,8 @@ onMounted(() => void load());
   justify-content: space-between;
 }
 
-.row--static:hover {
-  background: none;
+.row--static:active {
+  transform: none;
 }
 
 .row__main {
@@ -537,7 +548,7 @@ onMounted(() => void load());
   gap: var(--sp-2);
   min-width: 0;
   font-size: var(--text-xs);
-  color: var(--ink-3);
+  color: var(--ink-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -546,6 +557,7 @@ onMounted(() => void load());
 .row__amount {
   flex: none;
   font-size: var(--text-lg);
+  font-weight: 500;
 }
 
 /* 市值记录：一条一行，删除只在悬停/聚焦时才明显 */
@@ -564,7 +576,7 @@ onMounted(() => void load());
 .history__empty {
   margin: 0;
   font-size: var(--text-sm);
-  color: var(--ink-3);
+  color: var(--ink-2);
 }
 
 .history__list {
@@ -604,7 +616,7 @@ onMounted(() => void load());
 .history__note {
   flex: 1;
   min-width: 0;
-  color: var(--ink-3);
+  color: var(--ink-2);
   font-size: var(--text-xs);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -613,12 +625,12 @@ onMounted(() => void load());
 
 .history__del {
   flex: none;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border: none;
   border-radius: 50%;
   background: none;
-  color: var(--ink-3);
+  color: var(--ink-2);
   font-size: 1rem;
   line-height: 1;
   cursor: pointer;
@@ -632,14 +644,5 @@ onMounted(() => void load());
   opacity: 1;
   background: var(--expense-wash);
   color: var(--expense-deep);
-}
-
-/* 可点的暗示：一枚极轻的右尖角 */
-.row__chevron {
-  flex: none;
-  margin-right: -4px;
-  font-size: 1.125rem;
-  line-height: 1;
-  color: var(--rule);
 }
 </style>

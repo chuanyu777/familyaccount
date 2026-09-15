@@ -146,19 +146,20 @@ function step(delta: number) {
   gap: var(--sp-2);
 }
 
+/* 月份胶囊：右对齐在页面顶栏位置 */
 .monthbar__label {
   display: inline-flex;
   align-items: baseline;
   gap: 6px;
-  padding: 4px var(--sp-3);
-  border: 1px solid transparent;
-  border-radius: var(--radius);
-  background: none;
+  padding: 7px var(--sp-4);
+  border: 1px solid var(--rule-soft);
+  border-radius: var(--radius-pill);
+  background: var(--paper-sunken);
   font-family: var(--font-serif);
-  font-size: var(--text-xl);
+  font-size: var(--text-base);
   font-weight: 600;
-  letter-spacing: 0.06em;
-  color: var(--ink);
+  letter-spacing: 0.04em;
+  color: var(--brand);
   cursor: pointer;
   transition:
     background var(--dur-fast) var(--ease-out),
@@ -166,18 +167,17 @@ function step(delta: number) {
 }
 
 .monthbar__label:hover {
-  background: var(--paper-sunken);
-  border-color: var(--rule);
+  border-color: var(--brand-2);
 }
 
 .monthbar__caret {
-  font-size: var(--text-sm);
-  color: var(--ink-3);
+  font-size: var(--text-xs);
+  color: var(--brand-2);
 }
 
 .monthbar__nav {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   display: grid;
   place-items: center;
   border: 1px solid var(--rule);
@@ -193,8 +193,8 @@ function step(delta: number) {
 }
 
 .monthbar__nav:hover:not(:disabled) {
-  border-color: var(--brand);
-  color: var(--brand-deep);
+  border-color: var(--brand-2);
+  color: var(--brand);
 }
 
 .monthbar__nav:disabled {
@@ -223,8 +223,8 @@ function step(delta: number) {
 }
 
 .picker__nav {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   display: grid;
   place-items: center;
   border: 1px solid var(--rule);
@@ -237,8 +237,8 @@ function step(delta: number) {
 }
 
 .picker__nav:hover {
-  border-color: var(--brand);
-  color: var(--brand-deep);
+  border-color: var(--brand-2);
+  color: var(--brand);
 }
 
 .picker__grid {
@@ -263,8 +263,8 @@ function step(delta: number) {
 }
 
 .picker__cell:hover:not(:disabled) {
-  border-color: var(--brand);
-  color: var(--brand-deep);
+  border-color: var(--brand-2);
+  color: var(--brand);
 }
 
 .picker__cell:disabled {
@@ -273,7 +273,7 @@ function step(delta: number) {
 }
 
 .picker__cell.is-now {
-  border-color: var(--brand);
+  border-color: var(--brand-2);
 }
 
 .picker__cell.is-active {

@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import MoneyText from '../../components/MoneyText.vue';
-import StatBlock from '../../components/StatBlock.vue';
-import SegmentedControl from '../../components/SegmentedControl.vue';
-import SectionBlock from '../../components/SectionBlock.vue';
+import StatHero from '../../components/StatHero.vue';
 import EmptyState from '../../components/EmptyState.vue';
 import AppSheet from '../../components/AppSheet.vue';
 import ConfirmDialog from '../../components/ConfirmDialog.vue';
@@ -11,6 +9,7 @@ import MonthPicker from '../../components/MonthPicker.vue';
 import TransactionForm from './TransactionForm.vue';
 import { cachedGet, apiDelete } from '../../lib/api';
 import { revision } from '../../lib/revision';
+import { showToast } from '../../lib/toast';
 import { currentMonth, dayLabel } from '../../lib/format';
 import type {
   Account,
@@ -57,6 +56,11 @@ const detailId = ref<number | null>(null);
 const confirmDeleteId = ref<number | null>(null);
 
 const hasMore = computed(() => items.value.length < total.value);
+
+/** 支出/收入比，驱动结余卡上的迷你环形；没有收入就不画 */
+const spendRatio = computed(() =>
+  totals.value.income > 0 ? totals.value.expense / totals.value.income : null,
+);
 
 const detailTxn = computed(() => items.value.find((t) => t.id === detailId.value) ?? null);
 
@@ -163,6 +167,7 @@ function openEdit(t: Transaction) {
 
 function handleSaved() {
   formOpen.value = false;
+  showToast(formMode.value === 'edit' ? '已更新' : '已记一笔');
   // 直接强制重拉（不等 revision 传播），保证「记下就立刻出现」
   void loadRefs(true);
   page.value = 1;
@@ -178,6 +183,7 @@ async function doDelete() {
   if (confirmDeleteId.value == null) return;
   try {
     await apiDelete(`/api/transactions/${confirmDeleteId.value}`);
+    showToast('已删除');
   } catch {
     /* 删除失败时保持列表不动，由用户重试 */
   }
@@ -210,8 +216,28 @@ onMounted(() => {
   <div class="accounting">
     <MonthPicker v-model="month" class="monthpick" />
 
+    <StatHero
+      label="这个月还剩"
+      :cents="totals.net"
+      :tone="totals.net < 0 ? 'expense' : 'income'"
+      :bubbles="[
+        { label: '收入', cents: totals.income, tone: 'income' },
+        { label: '支出', cents: -totals.expense, tone: 'expense' },
+      ]"
+      :ratio="spendRatio"
+    />
+
     <div class="filterbar">
-      <SegmentedControl v-model="type" :options="TYPE_OPTIONS" label="账目类型" />
+      <button
+        v-for="opt in TYPE_OPTIONS"
+        :key="opt.value"
+        type="button"
+        class="chip"
+        :class="{ 'is-active': type === opt.value }"
+        @click="type = opt.value"
+      >
+        {{ opt.label }}
+      </button>
       <button
         type="button"
         class="btn btn--ghost btn--sm filterbar__more"
@@ -239,71 +265,59 @@ onMounted(() => {
       </label>
     </div>
 
-    <div class="stats">
-      <StatBlock label="收入">
-        <MoneyText :cents="totals.income" tone="income" />
-      </StatBlock>
-      <StatBlock label="支出">
-        <MoneyText :cents="-totals.expense" tone="expense" />
-      </StatBlock>
-      <StatBlock label="结余">
-        <MoneyText :cents="totals.net" :tone="totals.net < 0 ? 'expense' : 'income'" />
-      </StatBlock>
+    <div v-if="loading && items.length === 0" class="skeleton-list" aria-label="加载中">
+      <div v-for="i in 4" :key="i" class="skeleton skeleton-row" />
     </div>
 
-    <SectionBlock title="账目" :aside="total ? `共 ${total} 笔` : ''">
-      <div v-if="loading && items.length === 0" class="card card--flush">
-        <EmptyState title="正在翻页…" mark="·" />
-      </div>
+    <div v-else-if="items.length === 0" class="card card--flush">
+      <EmptyState
+        title="本月还没有记过账"
+        hint="点右下角「＋」，先记下今天的第一笔。"
+        mark="○"
+      />
+    </div>
 
-      <div v-else-if="items.length === 0" class="card card--flush">
-        <EmptyState
-          title="本月还没有记过账"
-          hint="点右下角「记一笔」，先记下今天的第一笔。"
-          mark="○"
-        />
-      </div>
-
-      <div v-else class="card card--flush">
-        <div v-for="group in dayGroups" :key="group.date" class="day">
-          <div class="day__head">
-            <span class="day__date">{{ group.label }}</span>
-            <span class="day__sum">
-              <template v-if="group.expense > 0">
-                支出 <MoneyText :cents="-group.expense" tone="expense" />
-              </template>
-              <template v-if="group.income > 0">
-                收 <MoneyText :cents="group.income" tone="income" />
-              </template>
-            </span>
-          </div>
-          <ul class="txn-list">
-            <li v-for="t in group.list" :key="t.id">
-              <button type="button" class="txn" @click="detailId = t.id">
-                <span class="txn__dot" :class="`is-${t.type}`" aria-hidden="true" />
-                <span class="txn__main">
-                  <span class="txn__title">
-                    {{ sourceOf(t) }}
-                    <span v-if="t.sourceType === 'repayment'" class="tag tag--debt">还款</span>
-                  </span>
-                  <span class="txn__meta">
-                    {{ [t.memberName, t.accountName].filter(Boolean).join(' · ') }}
-                    <template v-if="t.note"> · {{ t.note }}</template>
-                  </span>
-                </span>
-                <MoneyText :cents="signedCents(t)" :tone="toneOf(t)" class="txn__amount" />
-              </button>
-            </li>
-          </ul>
+    <template v-else>
+      <div v-for="group in dayGroups" :key="group.date" class="day">
+        <div class="day__head">
+          <span class="day__pill">{{ group.label }}</span>
+          <span class="day__sum">
+            <template v-if="group.expense > 0">
+              支 <MoneyText :cents="-group.expense" tone="expense" />
+            </template>
+            <template v-if="group.income > 0">
+              收 <MoneyText :cents="group.income" tone="income" />
+            </template>
+          </span>
         </div>
+        <ul class="txn-list">
+          <li v-for="t in group.list" :key="t.id">
+            <button type="button" class="txn card" @click="detailId = t.id">
+              <span class="txn__bubble" :class="`is-${t.type}`" aria-hidden="true">
+                {{ sourceOf(t).slice(0, 1) }}
+              </span>
+              <span class="txn__main">
+                <span class="txn__title">
+                  {{ sourceOf(t) }}
+                  <span v-if="t.sourceType === 'repayment'" class="tag tag--debt">还款</span>
+                </span>
+                <span class="txn__meta">
+                  {{ [t.memberName, t.accountName].filter(Boolean).join(' · ') }}
+                  <template v-if="t.note"> · {{ t.note }}</template>
+                </span>
+              </span>
+              <MoneyText :cents="signedCents(t)" :tone="toneOf(t)" class="txn__amount" />
+            </button>
+          </li>
+        </ul>
       </div>
+    </template>
 
-      <button v-if="hasMore" type="button" class="btn btn--block more" @click="loadMore">
-        载入更早的账目
-      </button>
-    </SectionBlock>
+    <button v-if="hasMore" type="button" class="btn btn--block more" @click="loadMore">
+      载入更早的账目
+    </button>
 
-    <button type="button" class="fab" @click="openCreate">＋ 记一笔</button>
+    <button type="button" class="fab" aria-label="记一笔" @click="openCreate">＋</button>
 
     <AppSheet
       v-if="detailTxn"
@@ -395,15 +409,13 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  margin-bottom: var(--sp-3);
-}
-
-.filterbar :deep(.segmented) {
-  flex: 1;
+  margin-bottom: var(--sp-4);
+  overflow-x: auto;
 }
 
 .filterbar__more {
   flex: none;
+  margin-left: auto;
 }
 
 .filtergrid {
@@ -417,48 +429,58 @@ onMounted(() => {
   margin-bottom: 0;
 }
 
-.stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
+/* —— 骨架屏 —— */
+.skeleton-list {
+  display: flex;
+  flex-direction: column;
   gap: var(--sp-2);
-  margin-bottom: var(--sp-5);
 }
 
-/* 日期分组：整条下沉色带，和下面的账目行一眼分得开 */
+.skeleton-row {
+  height: 62px;
+}
+
+/* —— 日期分组：轻量小胶囊 —— */
+.day {
+  margin-bottom: var(--sp-2);
+}
+
 .day__head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: var(--sp-2);
-  padding: 7px var(--sp-4);
+  padding: var(--sp-1) var(--sp-1);
+}
+
+.day__pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px var(--sp-3);
+  border-radius: var(--radius-pill);
   background: var(--paper-sunken);
-  border-bottom: 1px solid var(--rule-soft);
-}
-
-.day + .day .day__head {
-  border-top: 1px solid var(--rule-soft);
-}
-
-.day__date {
   font-size: var(--text-xs);
-  font-weight: 500;
-  letter-spacing: 0.08em;
   color: var(--ink-2);
+  letter-spacing: 0.04em;
   white-space: nowrap;
 }
 
 .day__sum {
   font-size: var(--text-xs);
-  color: var(--ink-3);
+  color: var(--ink-2);
   display: inline-flex;
   gap: var(--sp-3);
   white-space: nowrap;
 }
 
+/* —— 流水行：每条一张白卡 —— */
 .txn-list {
   list-style: none;
   margin: 0;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
 }
 
 .txn {
@@ -466,42 +488,37 @@ onMounted(() => {
   align-items: center;
   gap: var(--sp-3);
   width: 100%;
-  padding: 11px var(--sp-4);
-  border: none;
-  border-bottom: 1px solid var(--rule-soft);
-  background: none;
+  padding: 11px var(--sp-3);
   text-align: left;
   cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out);
+  transition: transform var(--dur-fast) var(--ease-out);
 }
 
-.txn-list li:last-child .txn {
-  border-bottom: none;
+.txn:active {
+  transform: scale(0.98);
 }
 
-.txn:hover {
-  background: var(--paper-sunken);
-}
-
-/* 收支类型色点：不占额外空间就能扫出类型 */
-.txn__dot {
+/* 收支泡泡：支出红泡、收入绿泡、转账焦糖泡 */
+.txn__bubble {
   flex: none;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--rule);
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  background: var(--expense-wash);
+  color: var(--expense-deep);
 }
 
-.txn__dot.is-expense {
-  background: var(--expense);
+.txn__bubble.is-income {
+  background: var(--income-wash);
+  color: var(--income-deep);
 }
 
-.txn__dot.is-income {
-  background: var(--income);
-}
-
-.txn__dot.is-transfer {
-  background: var(--brand);
+.txn__bubble.is-transfer {
+  background: var(--brand-wash);
+  color: var(--brand-2);
 }
 
 .txn__main {
@@ -526,7 +543,7 @@ onMounted(() => {
 
 .txn__meta {
   font-size: var(--text-xs);
-  color: var(--ink-3);
+  color: var(--ink-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -535,6 +552,7 @@ onMounted(() => {
 .txn__amount {
   flex: none;
   font-size: var(--text-lg);
+  font-weight: 500;
 }
 
 .more {
@@ -545,39 +563,9 @@ onMounted(() => {
   margin-top: var(--sp-4);
   padding: var(--sp-3);
   background: var(--slate-wash);
-  border-left: 2px solid var(--slate);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  border-radius: var(--radius-sm);
   font-size: var(--text-sm);
   color: var(--slate);
   line-height: 1.7;
-}
-
-.fab {
-  position: fixed;
-  right: max(var(--sp-4), calc(50% - var(--shell-max) / 2 + var(--sp-4)));
-  bottom: calc(var(--safe-bottom) + 78px);
-  z-index: 30;
-  height: 48px;
-  padding: 0 var(--sp-5);
-  border: none;
-  border-radius: 24px;
-  background: var(--brand);
-  color: #fff;
-  font-size: var(--text-base);
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  cursor: pointer;
-  box-shadow: 0 4px 14px oklch(48% 0.09 245 / 0.3);
-  transition:
-    transform var(--dur-fast) var(--ease-out),
-    background var(--dur-fast) var(--ease-out);
-}
-
-.fab:hover {
-  background: var(--brand-deep);
-}
-
-.fab:active {
-  transform: scale(0.96);
 }
 </style>

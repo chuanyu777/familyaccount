@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, shallowRef, watch } from 'vue';
 import TabBar from './components/TabBar.vue';
+import AppToast from './components/AppToast.vue';
 import AccountingPage from './features/accounting/AccountingPage.vue';
 import AssetsPage from './features/assets/AssetsPage.vue';
 import LiabilitiesPage from './features/liabilities/LiabilitiesPage.vue';
@@ -64,9 +65,12 @@ watch(revision, loadFamily);
     </header>
 
     <main class="shell-main">
-      <component :is="current" />
+      <Transition name="page" mode="out-in">
+        <component :is="current" :key="active" />
+      </Transition>
     </main>
 
     <TabBar :model-value="active" :tabs="TABS" @update:model-value="switchTab" />
+    <AppToast />
   </div>
 </template>

@@ -158,10 +158,14 @@ function clickBtnInSheet(label: string) {
   clickBtn(label, actions);
 }
 function statValue(label: string): string {
-  const stat = Array.from(document.querySelectorAll('.stat')).find(
-    (s) => s.querySelector('.stat__label')?.textContent?.trim() === label,
+  const bubble = Array.from(document.querySelectorAll('.hero__bubble')).find(
+    (s) => s.querySelector('.hero__bubble-label')?.textContent?.trim() === label,
   );
-  return stat?.querySelector('.money')?.textContent ?? '';
+  return bubble?.querySelector('.money')?.textContent ?? '';
+}
+
+function heroAmount(): string {
+  return document.querySelector('.hero__amount')?.textContent ?? '';
 }
 
 let wrapper: ReturnType<typeof mount> | null = null;
@@ -185,14 +189,17 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-describe('AC-01 顶部三格统计', () => {
-  it('显示总资产/账户合计/资产合计', async () => {
+describe('AC-01 顶部总览卡', () => {
+  it('显示净资产/总资产/总负债与账户·资产项拆分', async () => {
     wrapper = mount(AssetsPage, { attachTo: document.body });
     await settle();
-    expect(findByText('总资产')).toBeTruthy();
+    expect(findByText('净资产')).toBeTruthy();
+    expect(heroAmount()).toBe(formatMoney(summary.netWorthCents));
     expect(statValue('总资产')).toBe(formatMoney(summary.totalAssetsCents));
-    expect(statValue('账户合计')).toBe(formatMoney(summary.accountsTotalCents));
-    expect(statValue('资产合计')).toBe(formatMoney(summary.assetsTotalCents));
+    expect(statValue('总负债')).toBe(formatMoney(-summary.totalLiabilitiesCents));
+    const split = document.querySelector('.hero-split')?.textContent ?? '';
+    expect(split).toContain(formatMoney(summary.accountsTotalCents));
+    expect(split).toContain(formatMoney(summary.assetsTotalCents));
   });
 });
 

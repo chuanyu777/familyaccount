@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import MoneyText from '../../components/MoneyText.vue';
 import StatBlock from '../../components/StatBlock.vue';
+import StatHero from '../../components/StatHero.vue';
 import SectionBlock from '../../components/SectionBlock.vue';
 import EmptyState from '../../components/EmptyState.vue';
 import MonthPicker from '../../components/MonthPicker.vue';
@@ -105,20 +106,17 @@ onMounted(() => void load());
         <EmptyState :title="error" mark="!" />
       </div>
 
-      <div v-else class="stats">
-        <StatBlock label="收入">
-          <MoneyText :cents="snapshot.incomeCents" tone="income" />
-        </StatBlock>
-        <StatBlock label="支出">
-          <MoneyText :cents="-snapshot.expenseCents" tone="expense" />
-        </StatBlock>
-        <StatBlock label="结余">
-          <MoneyText
-            :cents="snapshot.netCents"
-            :tone="snapshot.netCents < 0 ? 'expense' : 'income'"
-          />
-        </StatBlock>
-      </div>
+      <StatHero
+        v-else
+        :label="`${monthLabel(month)}结余`"
+        :cents="snapshot.netCents"
+        :tone="snapshot.netCents < 0 ? 'expense' : 'income'"
+        :bubbles="[
+          { label: '收入', cents: snapshot.incomeCents, tone: 'income' },
+          { label: '支出', cents: -snapshot.expenseCents, tone: 'expense' },
+        ]"
+        :ratio="snapshot.incomeCents > 0 ? snapshot.expenseCents / snapshot.incomeCents : null"
+      />
     </SectionBlock>
 
     <SectionBlock title="资产负债">

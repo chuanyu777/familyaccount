@@ -117,10 +117,14 @@ function liByText(text: string): HTMLElement | null {
   );
 }
 function statValue(label: string): string {
-  const stat = Array.from(document.querySelectorAll('.stat')).find(
-    (s) => s.querySelector('.stat__label')?.textContent?.trim() === label,
+  const bubble = Array.from(document.querySelectorAll('.hero__bubble')).find(
+    (s) => s.querySelector('.hero__bubble-label')?.textContent?.trim() === label,
   );
-  return stat?.querySelector('.money')?.textContent ?? '';
+  return bubble?.querySelector('.money')?.textContent ?? '';
+}
+
+function heroAmount(): string {
+  return document.querySelector('.hero__amount')?.textContent ?? '';
 }
 function rowByText(text: string, cls: string): Element | null {
   return (
@@ -163,14 +167,14 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-describe('AC-01 顶部统计', () => {
+describe('AC-01 顶部总览卡', () => {
   it('显示总负债与月供合计', async () => {
     wrapper = mount(LiabilitiesPage, { attachTo: document.body });
     await settle();
     expect(document.body.textContent).toContain('总负债');
     expect(document.body.textContent).toContain('月供合计');
-    expect(statValue('总负债')).toBe(formatMoney(summary.totalLiabilitiesCents));
-    expect(statValue('月供合计')).toBe(formatMoney(summary.monthlyPaymentTotalCents));
+    expect(heroAmount()).toBe(formatMoney(-summary.totalLiabilitiesCents));
+    expect(statValue('月供合计')).toBe(formatMoney(-summary.monthlyPaymentTotalCents));
   });
 });
 

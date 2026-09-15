@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue';
 import MoneyText from '../../components/MoneyText.vue';
-import StatBlock from '../../components/StatBlock.vue';
+import StatHero from '../../components/StatHero.vue';
 import SectionBlock from '../../components/SectionBlock.vue';
 import EmptyState from '../../components/EmptyState.vue';
 import AppSheet from '../../components/AppSheet.vue';
@@ -47,6 +47,18 @@ function remainingCents(l: Liability): number {
 
 function monthlyCents(l: Liability): number {
   return parseYuanToCents(l.monthlyPayment) ?? 0;
+}
+
+/** 已还比例：已还 / (已还 + 剩余)，驱动行卡上的进度条 */
+function progressOf(l: Liability): number {
+  const repaid = repaymentsOf(l.id).reduce((sum, r) => sum + r.amount_cents, 0);
+  const total = repaid + remainingCents(l);
+  if (total <= 0) return 0;
+  return Math.min(1, Math.max(0, repaid / total));
+}
+
+function repaidCents(l: Liability): number {
+  return repaymentsOf(l.id).reduce((sum, r) => sum + r.amount_cents, 0);
 }
 
 async function load(force = false) {
@@ -159,14 +171,12 @@ onMounted(() => void load());
 
 <template>
   <div class="liabilities">
-    <div class="stats">
-      <StatBlock label="总负债">
-        <MoneyText :cents="summary.totalLiabilitiesCents" tone="expense" />
-      </StatBlock>
-      <StatBlock label="月供合计">
-        <MoneyText :cents="summary.monthlyPaymentTotalCents" tone="expense" />
-      </StatBlock>
-    </div>
+    <StatHero
+      label="总负债"
+      :cents="-summary.totalLiabilitiesCents"
+      tone="expense"
+      :bubbles="[{ label: '月供合计', cents: -summary.monthlyPaymentTotalCents, tone: 'expense' }]"
+    />
 
     <SectionBlock title="负债">
       <template #aside>
@@ -177,8 +187,8 @@ onMounted(() => void load());
         <EmptyState title="还没有负债" hint="点「新增负债」记录房贷、车贷等。" mark="○" />
       </div>
 
-      <ul v-else class="card card--flush list">
-        <li v-for="l in liabilities" :key="l.id" class="liab">
+      <ul v-else class="list">
+        <li v-for="l in liabilities" :key="l.id" class="liab card">
           <button type="button" class="liab__hit" @click="detailLiability = l">
             <span class="liab__main">
               <span class="liab__title">{{ l.name }}</span>
@@ -186,6 +196,13 @@ onMounted(() => void load());
                 <span>月供 <MoneyText :cents="monthlyCents(l)" tone="expense" /></span>
                 <span v-if="l.payment_day">{{ l.payment_day }} 日/月</span>
                 <span>{{ memberName(members, l.member_id) }}</span>
+              </span>
+              <span class="liab__progress" role="img" :aria-label="`已还 ${Math.round(progressOf(l) * 100)}%`">
+                <span class="liab__progress-fill" :style="{ width: `${progressOf(l) * 100}%` }" />
+              </span>
+              <span class="liab__progress-meta">
+                已还 <MoneyText :cents="repaidCents(l)" tone="income" />
+                （{{ Math.round(progressOf(l) * 100) }}%）
               </span>
             </span>
             <span class="liab__amount">
@@ -285,29 +302,20 @@ onMounted(() => void load());
   flex-direction: column;
 }
 
-.stats {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--sp-2);
-  margin-bottom: var(--sp-5);
-}
-
 .list {
   list-style: none;
   margin: 0;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
 }
 
 .liab {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  padding: 9px var(--sp-3) 9px var(--sp-4);
-  border-bottom: 1px solid var(--rule-soft);
-}
-
-.list li:last-child .liab {
-  border-bottom: none;
+  padding: var(--sp-3);
 }
 
 .liab__hit {
@@ -328,11 +336,12 @@ onMounted(() => void load());
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .liab__title {
   font-size: var(--text-base);
+  font-weight: 500;
   color: var(--ink);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -345,10 +354,32 @@ onMounted(() => void load());
   gap: var(--sp-2);
   min-width: 0;
   font-size: var(--text-xs);
-  color: var(--ink-3);
+  color: var(--ink-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 还款进度条：焦糖填充、浅底 */
+.liab__progress {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--paper-sunken);
+  overflow: hidden;
+}
+
+.liab__progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--brand-2);
+  transition: width var(--dur) var(--ease-out);
+}
+
+.liab__progress-meta {
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
 }
 
 .liab__amount {
@@ -361,16 +392,18 @@ onMounted(() => void load());
 
 .liab__amount-label {
   font-size: var(--text-xs);
-  color: var(--ink-3);
+  color: var(--ink-2);
   letter-spacing: 0.06em;
 }
 
 .liab__amount-value {
-  font-size: var(--text-base);
+  font-size: var(--text-lg);
+  font-weight: 500;
 }
 
 .liab__repay {
   flex: none;
+  align-self: flex-start;
 }
 
 .reps {
@@ -379,7 +412,7 @@ onMounted(() => void load());
 
 .reps__title {
   font-size: var(--text-xs);
-  color: var(--ink-3);
+  color: var(--ink-2);
   letter-spacing: 0.06em;
 }
 </style>

@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import AppSheet from '../../components/AppSheet.vue';
 import SegmentedControl from '../../components/SegmentedControl.vue';
+import NumpadKeyboard from '../../components/NumpadKeyboard.vue';
 import { apiPatch, apiPost } from '../../lib/api';
 import { centsToInput, todayISO } from '../../lib/format';
 import {
@@ -45,6 +46,7 @@ const categoryId = ref<number | undefined>(undefined);
 const memberId = ref<number | undefined>(undefined);
 const note = ref('');
 const newCatName = ref('');
+const newCatOpen = ref(false);
 const error = ref<string | null>(null);
 const saving = ref(false);
 
@@ -86,6 +88,7 @@ function initFields() {
     note.value = '';
   }
   newCatName.value = '';
+  newCatOpen.value = false;
   error.value = null;
   saving.value = false;
 }
@@ -95,6 +98,18 @@ initFields();
 const kind = computed(() => (type.value === 'income' ? 'income' : 'expense'));
 const currentCats = computed(() => (kind.value === 'income' ? localIncome.value : localExpense.value));
 const title = computed(() => (props.mode === 'edit' ? '修改账目' : '记一笔'));
+
+const amountDisplay = computed(() => amount.value || '');
+const amountValid = computed(() => {
+  const v = parseFloat(amount.value);
+  return amount.value !== '' && !Number.isNaN(v) && v > 0;
+});
+const transferValid = computed(
+  () =>
+    type.value !== 'transfer' ||
+    (toAccountId.value !== '' && Number(toAccountId.value) !== accountId.value),
+);
+const canSubmit = computed(() => amountValid.value && transferValid.value && !saving.value);
 
 watch(
   () => [props.expenseCategories, props.incomeCategories],
@@ -112,6 +127,33 @@ function handleTypeChange(v: TransactionType) {
   error.value = null;
 }
 
+// —— 数字键盘输入 ——
+function pressDigit(d: string) {
+  const cur = amount.value;
+  if (cur.includes('.')) {
+    const decimals = cur.split('.')[1] ?? '';
+    if (decimals.length >= 2) return;
+  }
+  if (cur === '0') {
+    amount.value = d;
+    return;
+  }
+  if (cur.replace('.', '').length >= 9) return;
+  amount.value = cur + d;
+}
+
+function pressDot() {
+  if (amount.value === '') {
+    amount.value = '0.';
+    return;
+  }
+  if (!amount.value.includes('.')) amount.value += '.';
+}
+
+function pressBackspace() {
+  amount.value = amount.value.slice(0, -1);
+}
+
 async function handleCreateCategory() {
   const name = newCatName.value.trim();
   if (!name) return;
@@ -120,6 +162,7 @@ async function handleCreateCategory() {
   if (existing) {
     categoryId.value = existing.id;
     newCatName.value = '';
+    newCatOpen.value = false;
     return;
   }
   try {
@@ -128,6 +171,7 @@ async function handleCreateCategory() {
     else localExpense.value = [...localExpense.value, created];
     categoryId.value = created.id;
     newCatName.value = '';
+    newCatOpen.value = false;
     emit('created-category', created);
   } catch {
     error.value = '新建分类失败，请重试';
@@ -136,22 +180,17 @@ async function handleCreateCategory() {
 
 async function handleSubmit() {
   error.value = null;
-  const amt = parseFloat(amount.value);
-  if (!amount.value || Number.isNaN(amt) || amt <= 0) {
+  if (!amountValid.value) {
     error.value = '先填个金额吧';
     return;
   }
-  if (type.value === 'transfer') {
-    if (!toAccountId.value) {
-      error.value = '选一个转入账户';
-      return;
-    }
-    if (Number(toAccountId.value) === accountId.value) {
-      error.value = '转入账户不能和转出账户一样';
-      return;
-    }
+  if (!transferValid.value) {
+    error.value =
+      toAccountId.value === '' ? '选一个转入账户' : '转入账户不能和转出账户一样';
+    return;
   }
 
+  const amt = parseFloat(amount.value);
   const payload: Record<string, unknown> = {
     type: type.value,
     amount: amt,
@@ -196,148 +235,311 @@ async function handleSubmit() {
       @update:model-value="handleTypeChange"
     />
 
-    <div class="amount">
+    <!-- 大金额区：只读展示 + 数字键盘输入 -->
+    <div class="amount" :class="{ 'is-empty': !amountDisplay }">
       <span class="amount__sign" aria-hidden="true">¥</span>
-      <input
-        v-model="amount"
-        class="amount__input"
-        type="number"
-        inputmode="decimal"
-        step="0.01"
-        min="0"
-        placeholder="0.00"
-        aria-label="金额"
-      />
+      <span class="amount__value" aria-live="polite">{{ amountDisplay || '0.00' }}</span>
+      <span class="amount__caret" aria-hidden="true" />
     </div>
 
-    <label class="field">
-      <span class="field__label">日期</span>
-      <input v-model="occurredOn" class="field__control" type="date" aria-label="日期" />
-    </label>
-
-    <label class="field">
-      <span class="field__label">{{ type === 'transfer' ? '转出账户' : '账户' }}</span>
-      <select
-        v-model="accountId"
-        class="field__control"
-        aria-label="账户"
-      >
-        <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.name }}</option>
-      </select>
-    </label>
-
-    <label v-if="type === 'transfer'" class="field">
-      <span class="field__label">转入账户</span>
-      <select v-model="toAccountId" class="field__control" aria-label="转入账户">
-        <option value="">请选择</option>
-        <option v-for="a in accounts" :key="a.id" :value="String(a.id)">{{ a.name }}</option>
-      </select>
-    </label>
-
-    <div v-else class="field">
-      <span class="field__label">分类</span>
-      <select v-model="categoryId" class="field__control" aria-label="分类">
-        <option value="">请选择</option>
-        <option v-for="c in currentCats" :key="c.id" :value="c.id">{{ c.name }}</option>
-      </select>
-      <div class="catnew">
-        <input
-          v-model="newCatName"
-          class="field__control"
-          type="text"
-          placeholder="没有合适的？直接写个新分类"
-          aria-label="新建分类名称"
-        />
-        <button
-          type="button"
-          class="btn btn--sm"
-          :disabled="!newCatName.trim()"
-          @click="handleCreateCategory"
-        >
-          添加
-        </button>
+    <!-- 分类宫格（转账时换成两个账户选择） -->
+    <template v-if="type === 'transfer'">
+      <div class="attrs">
+        <label class="attr">
+          <span class="attr__label">转出</span>
+          <select v-model="accountId" class="attr__control" aria-label="转出账户">
+            <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.name }}</option>
+          </select>
+        </label>
+        <label class="attr">
+          <span class="attr__label">转入</span>
+          <select v-model="toAccountId" class="attr__control" aria-label="转入账户">
+            <option value="">请选择</option>
+            <option v-for="a in accounts" :key="a.id" :value="String(a.id)">{{ a.name }}</option>
+          </select>
+        </label>
       </div>
+    </template>
+
+    <div v-else class="cats" role="group" aria-label="分类">
+      <button
+        v-for="c in currentCats"
+        :key="c.id"
+        type="button"
+        class="cat"
+        :class="{ 'is-active': categoryId === c.id }"
+        @click="categoryId = c.id"
+      >
+        <span class="cat__bubble" aria-hidden="true">{{ c.name.slice(0, 1) }}</span>
+        <span class="cat__name">{{ c.name }}</span>
+      </button>
+      <button
+        type="button"
+        class="cat cat--new"
+        :class="{ 'is-active': newCatOpen }"
+        @click="newCatOpen = !newCatOpen"
+      >
+        <span class="cat__bubble cat__bubble--new" aria-hidden="true">＋</span>
+        <span class="cat__name">新分类</span>
+      </button>
     </div>
 
-    <label class="field">
-      <span class="field__label">成员</span>
-      <select v-model="memberId" class="field__control" aria-label="成员">
-        <option v-for="m in members" :key="m.id" :value="m.id">{{ m.name }}</option>
-      </select>
-    </label>
+    <div v-if="newCatOpen && type !== 'transfer'" class="catnew">
+      <input
+        v-model="newCatName"
+        class="field__control"
+        type="text"
+        placeholder="新分类名称"
+        aria-label="新建分类名称"
+        @keyup.enter="handleCreateCategory"
+      />
+      <button
+        type="button"
+        class="btn btn--sm btn--primary"
+        :disabled="!newCatName.trim()"
+        @click="handleCreateCategory"
+      >
+        添加
+      </button>
+    </div>
 
-    <label class="field">
-      <span class="field__label">备注（可不填）</span>
-      <input v-model="note" class="field__control" type="text" aria-label="备注" />
-    </label>
+    <!-- 属性 chips：账户 / 成员 / 日期 -->
+    <div class="attrs">
+      <label v-if="type !== 'transfer'" class="attr">
+        <span class="attr__label">账户</span>
+        <select v-model="accountId" class="attr__control" aria-label="账户">
+          <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.name }}</option>
+        </select>
+      </label>
+      <label class="attr">
+        <span class="attr__label">成员</span>
+        <select v-model="memberId" class="attr__control" aria-label="成员">
+          <option v-for="m in members" :key="m.id" :value="m.id">{{ m.name }}</option>
+        </select>
+      </label>
+      <label class="attr">
+        <span class="attr__label">日期</span>
+        <input v-model="occurredOn" class="attr__control" type="date" aria-label="日期" />
+      </label>
+    </div>
+
+    <input
+      v-model="note"
+      class="note-input"
+      type="text"
+      placeholder="写点什么…（可不填）"
+      aria-label="备注"
+    />
 
     <p v-if="error" class="form-error">{{ error }}</p>
 
-    <div class="actions">
-      <button type="button" class="btn" :disabled="saving" @click="emit('close')">取消</button>
-      <button type="button" class="btn btn--primary" :disabled="saving" @click="handleSubmit">
-        {{ mode === 'edit' ? '更新' : '记下' }}
-      </button>
-    </div>
+    <NumpadKeyboard
+      class="pad"
+      :done-disabled="!canSubmit"
+      @input="pressDigit"
+      @dot="pressDot"
+      @backspace="pressBackspace"
+      @done="handleSubmit"
+    />
   </AppSheet>
 </template>
 
 <style scoped>
 :deep(.segmented) {
-  margin-bottom: var(--sp-4);
+  margin-bottom: var(--sp-3);
 }
 
+/* —— 大金额区 —— */
 .amount {
   display: flex;
   align-items: baseline;
+  justify-content: center;
   gap: var(--sp-2);
-  padding: var(--sp-3) 0 var(--sp-4);
-  border-bottom: 1px solid var(--rule);
-  margin-bottom: var(--sp-4);
+  padding: var(--sp-2) 0 var(--sp-4);
 }
 
 .amount__sign {
-  font-family: var(--font-num);
   font-size: var(--text-xl);
+  color: var(--ink-2);
+}
+
+.amount__value {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-amount);
+  font-weight: 500;
+  line-height: 1.1;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+.amount.is-empty .amount__value {
   color: var(--ink-3);
 }
 
-.amount__input {
-  flex: 1;
-  min-width: 0;
-  border: none;
+.amount__caret {
+  width: 2px;
+  height: 1.6rem;
+  align-self: center;
+  background: var(--brand-2);
+  animation: caret-blink 1s step-end infinite;
+}
+
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* —— 分类宫格 —— */
+.cats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sp-2);
+  padding: var(--sp-2) 0 var(--sp-3);
+  border-top: 1px solid var(--rule-soft);
+}
+
+.cat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: var(--sp-2) 2px;
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  background: none;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
+}
+
+.cat.is-active {
+  border-color: var(--brand);
+  background: var(--brand-wash);
+}
+
+.cat__bubble {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--paper-sunken);
+  color: var(--brand-2);
+  font-size: var(--text-base);
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+
+.cat.is-active .cat__bubble {
+  background: var(--brand);
+  color: #fff;
+}
+
+.cat__bubble--new {
   background: transparent;
-  font-family: var(--font-num);
-  font-variant-numeric: tabular-nums;
-  font-size: var(--text-amount);
-  line-height: 1.1;
-  color: var(--ink);
+  border: 1.5px dashed var(--ink-3);
+  color: var(--ink-2);
 }
 
-.amount__input:focus {
-  outline: none;
+.cat__name {
+  max-width: 100%;
+  font-size: 11px;
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.amount__input::placeholder {
-  color: var(--rule);
+.cat.is-active .cat__name {
+  color: var(--brand);
+  font-weight: 500;
 }
 
 .catnew {
   display: flex;
   gap: var(--sp-2);
-  margin-top: var(--sp-2);
+  margin-bottom: var(--sp-3);
 }
 
 .catnew .field__control {
   flex: 1;
-  min-height: 34px;
+}
+
+/* —— 属性 chips —— */
+.attrs {
+  display: flex;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+  overflow-x: auto;
+}
+
+.attr {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-pill);
+  background: var(--paper-raised);
+}
+
+.attr__label {
+  flex: none;
+  font-size: var(--text-xs);
+  color: var(--ink-2);
+}
+
+.attr__control {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  padding: 0;
+}
+
+.attr__control:focus {
+  outline: none;
+}
+
+select.attr__control {
+  appearance: none;
+}
+
+input[type='date'].attr__control {
+  font-variant-numeric: tabular-nums;
+}
+
+/* —— 备注 —— */
+.note-input {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 var(--sp-3);
+  margin-bottom: var(--sp-3);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-pill);
+  background: var(--paper-raised);
+  color: var(--ink);
   font-size: var(--text-sm);
 }
 
-.actions {
-  display: flex;
-  gap: var(--sp-2);
-  justify-content: flex-end;
-  margin-top: var(--sp-5);
+.note-input:focus {
+  border-color: var(--brand-2);
+  outline: none;
+}
+
+.note-input::placeholder {
+  color: var(--ink-3);
+}
+
+.pad {
+  margin-top: var(--sp-1);
 }
 </style>
