@@ -2,7 +2,6 @@
 import { computed, ref, watch } from 'vue';
 import AppSheet from '../../components/AppSheet.vue';
 import SegmentedControl from '../../components/SegmentedControl.vue';
-import NumpadKeyboard from '../../components/NumpadKeyboard.vue';
 import { apiPatch, apiPost } from '../../lib/api';
 import { centsToInput, todayISO } from '../../lib/format';
 import {
@@ -99,7 +98,6 @@ const kind = computed(() => (type.value === 'income' ? 'income' : 'expense'));
 const currentCats = computed(() => (kind.value === 'income' ? localIncome.value : localExpense.value));
 const title = computed(() => (props.mode === 'edit' ? '修改账目' : '记一笔'));
 
-const amountDisplay = computed(() => amount.value || '');
 const amountValid = computed(() => {
   const v = parseFloat(amount.value);
   return amount.value !== '' && !Number.isNaN(v) && v > 0;
@@ -127,31 +125,16 @@ function handleTypeChange(v: TransactionType) {
   error.value = null;
 }
 
-// —— 数字键盘输入 ——
-function pressDigit(d: string) {
-  const cur = amount.value;
-  if (cur.includes('.')) {
-    const decimals = cur.split('.')[1] ?? '';
-    if (decimals.length >= 2) return;
-  }
-  if (cur === '0') {
-    amount.value = d;
-    return;
-  }
-  if (cur.replace('.', '').length >= 9) return;
-  amount.value = cur + d;
-}
-
-function pressDot() {
-  if (amount.value === '') {
-    amount.value = '0.';
-    return;
-  }
-  if (!amount.value.includes('.')) amount.value += '.';
-}
-
-function pressBackspace() {
-  amount.value = amount.value.slice(0, -1);
+/** 金额只接受数字与两位小数，避免输入框里塞进乱七八糟的字符 */
+function onAmountInput(e: Event) {
+  const raw = (e.target as HTMLInputElement).value;
+  const cleaned = raw.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1');
+  const [intPart = '', decPart] = cleaned.split('.');
+  const next = cleaned.includes('.')
+    ? `${intPart.slice(0, 9)}.${(decPart ?? '').slice(0, 2)}`
+    : intPart.slice(0, 9);
+  amount.value = next;
+  if (next !== raw) (e.target as HTMLInputElement).value = next;
 }
 
 async function handleCreateCategory() {
@@ -235,11 +218,18 @@ async function handleSubmit() {
       @update:model-value="handleTypeChange"
     />
 
-    <!-- 大金额区：只读展示 + 数字键盘输入 -->
-    <div class="amount" :class="{ 'is-empty': !amountDisplay }">
+    <!-- 大金额区：唤起系统数字键盘，不用自绘键盘 -->
+    <div class="amount">
       <span class="amount__sign" aria-hidden="true">¥</span>
-      <span class="amount__value" aria-live="polite">{{ amountDisplay || '0.00' }}</span>
-      <span class="amount__caret" aria-hidden="true" />
+      <input
+        :value="amount"
+        class="amount__input"
+        type="text"
+        inputmode="decimal"
+        placeholder="0.00"
+        aria-label="金额"
+        @input="onAmountInput"
+      />
     </div>
 
     <!-- 分类宫格（转账时换成两个账户选择） -->
@@ -333,14 +323,17 @@ async function handleSubmit() {
 
     <p v-if="error" class="form-error">{{ error }}</p>
 
-    <NumpadKeyboard
-      class="pad"
-      :done-disabled="!canSubmit"
-      @input="pressDigit"
-      @dot="pressDot"
-      @backspace="pressBackspace"
-      @done="handleSubmit"
-    />
+    <div class="actions">
+      <button type="button" class="btn" :disabled="saving" @click="emit('close')">取消</button>
+      <button
+        type="button"
+        class="btn btn--primary"
+        :disabled="!canSubmit"
+        @click="handleSubmit"
+      >
+        {{ mode === 'edit' ? '更新' : '记下' }}
+      </button>
+    </div>
   </AppSheet>
 </template>
 
@@ -353,9 +346,10 @@ async function handleSubmit() {
 .amount {
   display: flex;
   align-items: baseline;
-  justify-content: center;
   gap: var(--sp-2);
   padding: var(--sp-2) 0 var(--sp-4);
+  border-bottom: 1px solid var(--rule-soft);
+  margin-bottom: var(--sp-3);
 }
 
 .amount__sign {
@@ -363,31 +357,32 @@ async function handleSubmit() {
   color: var(--ink-2);
 }
 
-.amount__value {
+.amount__input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
   font-variant-numeric: tabular-nums;
   font-size: var(--text-amount);
   font-weight: 500;
   line-height: 1.1;
-  color: var(--ink);
   letter-spacing: -0.01em;
+  color: var(--ink);
 }
 
-.amount.is-empty .amount__value {
+.amount__input:focus {
+  outline: none;
+}
+
+.amount__input::placeholder {
   color: var(--ink-3);
 }
 
-.amount__caret {
-  width: 2px;
-  height: 1.6rem;
-  align-self: center;
-  background: var(--brand-2);
-  animation: caret-blink 1s step-end infinite;
-}
-
-@keyframes caret-blink {
-  50% {
-    opacity: 0;
-  }
+.actions {
+  display: flex;
+  gap: var(--sp-2);
+  justify-content: flex-end;
+  margin-top: var(--sp-4);
 }
 
 /* —— 分类宫格 —— */
@@ -539,7 +534,4 @@ input[type='date'].attr__control {
   color: var(--ink-3);
 }
 
-.pad {
-  margin-top: var(--sp-1);
-}
 </style>

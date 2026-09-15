@@ -161,7 +161,6 @@ onMounted(() => void load());
         <span class="legend">
           <span class="legend__item"><i class="dot dot--income" />收入</span>
           <span class="legend__item"><i class="dot dot--expense" />支出</span>
-          <span class="legend__item"><i class="dot dot--net" />结余</span>
         </span>
       </template>
 
@@ -174,6 +173,7 @@ onMounted(() => void load());
       </div>
       <div v-else class="card card--flush chart-card">
         <TrendChart :data="trend" />
+        <p class="chart-note">柱下方小字为该月结余（负数为红）</p>
       </div>
     </SectionBlock>
 
@@ -222,7 +222,7 @@ onMounted(() => void load());
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--sp-2);
 }
 
@@ -277,12 +277,15 @@ onMounted(() => void load());
   background: var(--expense);
 }
 
-.dot--net {
-  background: var(--slate);
-}
-
 .chart-card {
   padding: var(--sp-3) var(--sp-2) var(--sp-2);
+}
+
+.chart-note {
+  margin-top: var(--sp-1);
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--ink-2);
 }
 
 .donut-row {

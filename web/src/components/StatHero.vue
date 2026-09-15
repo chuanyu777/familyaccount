@@ -96,11 +96,15 @@ const ratioText = computed(() => `${Math.round(ratioClamped.value * 100)}%`);
 
 .hero__amount {
   display: block;
+  min-width: 0;
   font-family: var(--font-serif);
-  font-size: var(--text-2xl);
+  /* 百万级金额也要塞得下：宽度不够时自动收小 */
+  font-size: clamp(1.375rem, 7vw, var(--text-2xl));
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: 0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hero__bubbles {
