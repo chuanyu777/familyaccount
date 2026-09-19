@@ -48,6 +48,7 @@ describe('App', () => {
   beforeEach(() => {
     get.mockClear();
     document.body.innerHTML = '';
+    window.location.hash = '#accounting';
   });
 
   it('页头显示「家庭财务」与家庭名，不再显示净资产', async () => {
@@ -60,21 +61,30 @@ describe('App', () => {
     wrapper.unmount();
   });
 
-  it('五个 Tab 都可切换，切换后渲染对应页面', async () => {
+  it('reads a valid initial tab from the URL hash', async () => {
+    window.location.hash = '#analysis';
     const wrapper = mount(App, { attachTo: document.body });
     await flush();
+    expect(wrapper.find('[data-page="analysis"]').exists()).toBe(true);
+    expect(wrapper.get('[aria-current="page"]').text()).toContain('分析');
+    wrapper.unmount();
+  });
 
-    const tabs = wrapper.findAll('.tabbar__item');
-    expect(tabs.map((t) => t.text())).toEqual(['记账', '资产', '负债', '分析', '设置']);
-
-    const target = tabs.find((t) => t.text() === '分析');
-    expect(target).toBeTruthy();
-    await target!.trigger('click');
+  it('updates the hash from either responsive navigation', async () => {
+    const wrapper = mount(App, { attachTo: document.body });
     await flush();
+    await wrapper.get('[data-mobile-tab="assets"]').trigger('click');
+    expect(window.location.hash).toBe('#assets');
+    expect(wrapper.find('[data-page="assets"]').exists()).toBe(true);
+    wrapper.unmount();
+  });
 
-    const active = wrapper.findAll('.tabbar__item').find((t) => t.text() === '分析');
-    expect(active!.classes()).toContain('is-active');
-    expect(document.body.textContent).toContain('净资产');
+  it('renders five labeled mobile icons with a single active item', async () => {
+    const wrapper = mount(App, { attachTo: document.body });
+    await flush();
+    expect(wrapper.findAll('.mobile-tabbar__item')).toHaveLength(5);
+    expect(wrapper.findAll('.mobile-tabbar__icon')).toHaveLength(5);
+    expect(wrapper.findAll('.mobile-tabbar__item[aria-current="page"]')).toHaveLength(1);
     wrapper.unmount();
   });
 

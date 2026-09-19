@@ -1,7 +1,10 @@
 <script setup lang="ts">
-import { onMounted, ref, shallowRef, watch } from 'vue';
-import TabBar from './components/TabBar.vue';
+import { computed, onMounted, ref, watch } from 'vue';
+import AppShell from './components/AppShell.vue';
+import DesktopNav from './components/DesktopNav.vue';
+import MobileTabBar from './components/MobileTabBar.vue';
 import AppToast from './components/AppToast.vue';
+import { useHashTab } from './composables/useHashTab';
 import AccountingPage from './features/accounting/AccountingPage.vue';
 import AssetsPage from './features/assets/AssetsPage.vue';
 import LiabilitiesPage from './features/liabilities/LiabilitiesPage.vue';
@@ -15,14 +18,6 @@ interface Family {
   name: string;
 }
 
-const TABS = [
-  { key: 'accounting', label: '记账' },
-  { key: 'assets', label: '资产' },
-  { key: 'liabilities', label: '负债' },
-  { key: 'analysis', label: '分析' },
-  { key: 'settings', label: '设置' },
-];
-
 const PAGES = {
   accounting: AccountingPage,
   assets: AssetsPage,
@@ -31,12 +26,9 @@ const PAGES = {
   settings: SettingsPage,
 } as const;
 
-type TabKey = keyof typeof PAGES;
-
-const active = ref<TabKey>('accounting');
+const { activeTab, setActiveTab } = useHashTab('accounting');
 const familyName = ref('我的家');
-
-const current = shallowRef(PAGES[active.value]);
+const currentPage = computed(() => PAGES[activeTab.value]);
 
 async function loadFamily() {
   try {
@@ -47,30 +39,28 @@ async function loadFamily() {
   }
 }
 
-function switchTab(key: string) {
-  active.value = key as TabKey;
-  current.value = PAGES[active.value];
-}
-
 onMounted(loadFamily);
 // 设置里改了家庭名，标题栏跟着变
 watch(revision, loadFamily);
 </script>
 
 <template>
-  <div class="shell">
-    <header class="shell-header">
-      <h1 class="shell-header__title">家庭财务</h1>
-      <span class="shell-header__family">{{ familyName }}</span>
-    </header>
+  <AppShell>
+    <template #desktop-nav>
+      <DesktopNav :model-value="activeTab" :family-name="familyName" @update:model-value="setActiveTab" />
+    </template>
 
-    <main class="shell-main">
+    <template #default>
       <Transition name="page" mode="out-in">
-        <component :is="current" :key="active" />
+        <div :key="activeTab" class="page-layout" :data-page="activeTab">
+          <component :is="currentPage" />
+        </div>
       </Transition>
-    </main>
+    </template>
 
-    <TabBar :model-value="active" :tabs="TABS" @update:model-value="switchTab" />
-    <AppToast />
-  </div>
+    <template #mobile-nav>
+      <MobileTabBar :model-value="activeTab" @update:model-value="setActiveTab" />
+    </template>
+  </AppShell>
+  <AppToast />
 </template>
