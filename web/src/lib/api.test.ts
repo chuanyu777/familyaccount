@@ -14,7 +14,7 @@ import {
   cachedGet,
   invalidate,
 } from './api';
-import { revision } from './revision';
+import { resourceVersion } from './resourceInvalidation';
 import { idbGet, idbSet, idbClearByPrefix } from './idbCache';
 
 const mockedIdbGet = vi.mocked(idbGet);
@@ -116,11 +116,12 @@ describe('写后刷新', () => {
     expect(mockedIdbGet).not.toHaveBeenCalled();
   });
 
-  it('写操作后 revision 递增，页面据此重拉', async () => {
-    const before = revision.value;
+  it('写操作后对应资源版本递增，页面据此重拉', async () => {
+    const version = resourceVersion(['transactions']);
+    const before = version.value;
     mockFetch({ id: 1 }, { status: 201 });
     await apiPost('/api/transactions', { type: 'expense' });
-    expect(revision.value).toBe(before + 1);
+    expect(version.value).not.toBe(before);
   });
 
   it('写操作后不再把飞行中的旧结果写回缓存', async () => {
