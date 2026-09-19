@@ -133,7 +133,7 @@ export function apiGet<T>(path: string, params?: Record<string, unknown>): Promi
 
 /** 写操作收尾：清除相关缓存 + 通知依赖对应资源的页面重新拉取。 */
 async function afterWrite(path: string, method: string): Promise<void> {
-  const resources = resourcesForMutation(path, method);
+  const resources = resourcesForMutation(fullPath(path), method);
   const prefixes = resources.map((resource) => `/api/${resource === 'statistics' ? 'stats' : resource}`);
   await Promise.all(prefixes.map((prefix) => invalidate(prefix)));
   publishResources(resources);

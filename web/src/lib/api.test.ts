@@ -81,6 +81,17 @@ describe('写操作触发 invalidate', () => {
     expect(mockedClear).toHaveBeenCalled();
   });
 
+  it('相对路径写操作清除并发布对应资源', async () => {
+    const version = resourceVersion(['transactions']);
+    const before = version.value;
+    mockFetch({ id: 1 }, { status: 201 });
+
+    await apiPost('transactions', { type: 'expense' });
+
+    expect(mockedClear).toHaveBeenCalledWith('/api/transactions');
+    expect(version.value).not.toBe(before);
+  });
+
   it('invalidate 清空指定前缀', async () => {
     await invalidate('/api/transactions');
     expect(mockedClear).toHaveBeenCalledWith('/api/transactions');
