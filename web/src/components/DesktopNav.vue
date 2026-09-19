@@ -71,7 +71,7 @@ defineEmits<{
   padding: 0 16px;
   border: 0;
   background: transparent;
-  color: #b9c0d0;
+  color: rgba(255, 255, 255, 0.72);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -103,7 +103,7 @@ defineEmits<{
   justify-self: end;
   max-width: 100%;
   overflow: hidden;
-  color: #b9c0d0;
+  color: rgba(255, 255, 255, 0.72);
   font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;

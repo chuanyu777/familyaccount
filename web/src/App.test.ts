@@ -1,6 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import App from './App.vue';
+import desktopNavSource from './components/DesktopNav.vue?raw';
+import statHeroSource from './components/StatHero.vue?raw';
+import accountingPageSource from './features/accounting/AccountingPage.vue?raw';
+import liabilitiesPageSource from './features/liabilities/LiabilitiesPage.vue?raw';
+import chartPaletteSource from './features/analysis/charts/palette.ts?raw';
+
+const baseCss = readFileSync(resolve(process.cwd(), 'web/src/styles/base.css'), 'utf8');
 
 const family = { id: 1, name: '我们的家' };
 const summary = {
@@ -86,6 +95,57 @@ describe('App', () => {
     expect(wrapper.findAll('.mobile-tabbar__icon')).toHaveLength(5);
     expect(wrapper.findAll('.mobile-tabbar__item[aria-current="page"]')).toHaveLength(1);
     wrapper.unmount();
+  });
+
+  it('keeps compact shared controls within the approved target and radius geometry', () => {
+    expect(baseCss).toMatch(/\.btn--sm\s*{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/s);
+    expect(baseCss).toMatch(/\.chip\s*{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/s);
+    expect(baseCss).toMatch(/\.segmented__item\s*{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/s);
+    expect(baseCss).toMatch(/\.field__control\s*{[^}]*border-radius:\s*var\(--radius-sm\);/s);
+  });
+
+  it('keeps action blue out of financial visualizations', () => {
+    expect(baseCss).toContain('--action: var(--primary);');
+    expect(baseCss).toContain('--brand: var(--action);');
+    expect(statHeroSource).toContain('stroke="var(--expense)"');
+    expect(liabilitiesPageSource).toContain('background: var(--chart-accent);');
+    expect(accountingPageSource).toContain('background: var(--surface-accent);');
+    expect(accountingPageSource).toContain('color: var(--muted);');
+    expect([statHeroSource, liabilitiesPageSource, accountingPageSource, chartPaletteSource].join('\n')).not.toMatch(
+      /var\(--brand(?:-2|-deep|-wash)?\)/,
+    );
+  });
+
+  it('uses only approved C3 color literals in the shared shell', () => {
+    const approvedHex = new Set([
+      '#f4f6f9',
+      '#ffffff',
+      '#e6ebfb',
+      '#131722',
+      '#697080',
+      '#dce1e9',
+      '#121a2d',
+      '#3159d7',
+      '#294bb5',
+      '#19765d',
+      '#e4f1ed',
+      '#b84543',
+      '#f7e9e8',
+      '#d49f2f',
+    ]);
+    const shellSource = `${baseCss}\n${desktopNavSource}`;
+    const hexLiterals = [...shellSource.matchAll(/#[\da-f]{3,8}\b/gi)].map(([color]) => color.toLowerCase());
+    const approvedRgbChannels = new Set(
+      [...approvedHex].map((color) =>
+        [color.slice(1, 3), color.slice(3, 5), color.slice(5, 7)].map((channel) => Number.parseInt(channel, 16)).join(','),
+      ),
+    );
+    const rgbChannels = [...shellSource.matchAll(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/gi)].map(
+      ([, red, green, blue]) => `${red},${green},${blue}`,
+    );
+
+    expect([...new Set(hexLiterals)].filter((color) => !approvedHex.has(color))).toEqual([]);
+    expect([...new Set(rgbChannels)].filter((channels) => !approvedRgbChannels.has(channels))).toEqual([]);
   });
 
   it('请求失败时不崩溃', async () => {

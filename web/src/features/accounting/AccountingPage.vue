@@ -498,7 +498,7 @@ onMounted(() => {
   transform: scale(0.98);
 }
 
-/* 收支泡泡：支出红泡、收入绿泡、转账焦糖泡 */
+/* 收支泡泡：支出红、收入绿、转账中性 */
 .txn__bubble {
   flex: none;
   width: 38px;
@@ -517,8 +517,8 @@ onMounted(() => {
 }
 
 .txn__bubble.is-transfer {
-  background: var(--brand-wash);
-  color: var(--brand-2);
+  background: var(--surface-accent);
+  color: var(--muted);
 }
 
 .txn__main {

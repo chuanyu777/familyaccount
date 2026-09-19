@@ -13,6 +13,9 @@
   --expense: #b84543;
   --expense-soft: #f7e9e8;
   --chart-accent: #d49f2f;
+  --action: var(--primary);
+  --action-strong: var(--primary-strong);
+  --action-soft: var(--surface-accent);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 
   /* Temporary aliases keep untouched feature pages stable during the staged redesign. */
@@ -21,22 +24,22 @@
   --paper-sunken: var(--surface-accent);
   --desk: var(--bg);
   --ink-2: var(--muted);
-  --ink-3: #9aa1ae;
+  --ink-3: var(--muted);
   --rule: var(--line);
-  --rule-soft: #e9ecf1;
-  --brand: var(--primary);
-  --brand-deep: var(--primary-strong);
-  --brand-2: var(--primary);
-  --brand-wash: var(--surface-accent);
+  --rule-soft: var(--line);
+  --brand: var(--action);
+  --brand-deep: var(--action-strong);
+  --brand-2: var(--action);
+  --brand-wash: var(--action-soft);
   --expense-deep: var(--expense);
   --expense-wash: var(--expense-soft);
   --income-deep: var(--income);
   --income-wash: var(--income-soft);
   --warn: var(--chart-accent);
-  --warn-deep: #98701f;
-  --warn-wash: #f8f1df;
+  --warn-deep: var(--chart-accent);
+  --warn-wash: var(--surface-accent);
   --slate: var(--muted);
-  --slate-wash: #edf0f4;
+  --slate-wash: var(--bg);
 
   --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
     "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
@@ -280,7 +283,7 @@
   .btn--primary {
     background: var(--brand);
     border-color: var(--brand);
-    color: #fff;
+    color: var(--surface);
     font-weight: 500;
   }
 
@@ -323,7 +326,8 @@
   }
 
   .btn--sm {
-    min-height: 36px;
+    min-width: 44px;
+    min-height: 44px;
     padding: 0 var(--sp-4);
     font-size: var(--text-sm);
   }
@@ -333,7 +337,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 36px;
+    min-width: 44px;
+    min-height: 44px;
     padding: 0 var(--sp-4);
     border: 1px solid var(--rule);
     border-radius: var(--radius-pill);
@@ -356,7 +361,7 @@
   .chip[aria-pressed="true"] {
     background: var(--brand);
     border-color: var(--brand);
-    color: #fff;
+    color: var(--surface);
     font-weight: 500;
   }
 
@@ -379,7 +384,7 @@
     min-height: 44px;
     padding: 0 var(--sp-4);
     border: 1px solid var(--rule);
-    border-radius: var(--radius);
+    border-radius: var(--radius-sm);
     background: var(--paper-raised);
     color: var(--ink);
     transition: border-color var(--dur-fast) var(--ease-out);
@@ -431,7 +436,8 @@
 
   .segmented__item {
     flex: 1;
-    min-height: 36px;
+    min-width: 44px;
+    min-height: 44px;
     padding: 0 var(--sp-3);
     border: none;
     border-radius: var(--radius-pill);
@@ -448,7 +454,7 @@
   .segmented__item[aria-pressed="true"],
   .segmented__item.is-active {
     background: var(--brand);
-    color: #fff;
+    color: var(--surface);
     font-weight: 500;
     box-shadow: var(--lift-1);
   }
@@ -537,7 +543,7 @@
     position: fixed;
     inset: 0;
     z-index: 40;
-    background: rgba(58, 53, 44, 0.36);
+    background: rgba(19, 23, 34, 0.36);
     display: flex;
     align-items: flex-end;
     justify-content: center;
@@ -662,11 +668,11 @@
     border: none;
     border-radius: 50%;
     background: var(--brand);
-    color: #fff;
+    color: var(--surface);
     font-size: 1.5rem;
     line-height: 1;
     cursor: pointer;
-    box-shadow: 0 6px 16px rgba(133, 79, 11, 0.35);
+    box-shadow: 0 6px 16px rgba(49, 89, 215, 0.28);
     transition:
       transform var(--dur-fast) var(--ease-out),
       background var(--dur-fast) var(--ease-out);
@@ -689,8 +695,8 @@
     transform: translateX(-50%);
     padding: 9px var(--sp-4);
     border-radius: var(--radius-pill);
-    background: rgba(58, 53, 44, 0.92);
-    color: #fff;
+    background: rgba(19, 23, 34, 0.92);
+    color: var(--surface);
     font-size: var(--text-sm);
     white-space: nowrap;
     box-shadow: var(--lift-2);

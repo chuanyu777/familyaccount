@@ -60,7 +60,7 @@ const ratioText = computed(() => `${Math.round(ratioClamped.value * 100)}%`);
           cy="26"
           :r="R"
           fill="none"
-          stroke="var(--brand-2)"
+          stroke="var(--expense)"
           stroke-width="5"
           stroke-linecap="round"
           :stroke-dasharray="dash"

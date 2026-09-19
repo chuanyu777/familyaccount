@@ -360,7 +360,7 @@ onMounted(() => void load());
   white-space: nowrap;
 }
 
-/* 还款进度条：焦糖填充、浅底 */
+/* 还款进度条：图表强调色填充、浅底 */
 .liab__progress {
   height: 6px;
   border-radius: var(--radius-pill);
@@ -372,7 +372,7 @@ onMounted(() => void load());
   display: block;
   height: 100%;
   border-radius: var(--radius-pill);
-  background: var(--brand-2);
+  background: var(--chart-accent);
   transition: width var(--dur) var(--ease-out);
 }
 
