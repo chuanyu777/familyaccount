@@ -529,6 +529,81 @@
     animation: skeleton-breathe 1.2s ease-in-out infinite;
   }
 
+  .skeleton-list {
+    display: grid;
+    gap: var(--sp-2);
+  }
+
+  .skeleton-list__row {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) 88px;
+    align-items: center;
+    gap: var(--sp-3);
+    min-height: 58px;
+    padding: var(--sp-2) var(--sp-3);
+  }
+
+  .skeleton-list__mark {
+    width: 36px;
+    height: 36px;
+  }
+
+  .skeleton-list__line,
+  .skeleton-list__value {
+    height: 12px;
+  }
+
+  .async-error {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+    border: 1px solid var(--expense);
+    border-radius: var(--radius);
+    background: var(--expense-soft);
+    color: var(--expense);
+  }
+
+  .async-error .btn {
+    flex: none;
+  }
+
+  /* —— 汇总条 —— */
+  .summary-strip {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) repeat(2, minmax(0, 1fr));
+    margin: 0;
+    padding: var(--sp-4);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+
+  .summary-strip__primary,
+  .summary-strip__secondary {
+    min-width: 0;
+  }
+
+  .summary-strip__secondary {
+    padding-left: var(--sp-4);
+    border-left: 1px solid var(--line);
+  }
+
+  .summary-strip__label {
+    color: var(--muted);
+    font-size: var(--text-sm);
+  }
+
+  .summary-strip__value {
+    margin: var(--sp-1) 0 0;
+  }
+
+  .summary-strip__secondary .summary-strip__value {
+    font-size: var(--text-lg);
+  }
+
   @keyframes skeleton-breathe {
     0% {
       background-position: 100% 0;
@@ -555,9 +630,7 @@
 
   .sheet {
     width: 100%;
-    max-width: var(--shell-max);
-    max-height: 88vh;
-    max-height: 88dvh;
+    max-height: calc(100dvh - 58px);
     overflow-y: auto;
     background: var(--paper-raised);
     border-radius: 14px 14px 0 0;
@@ -589,6 +662,11 @@
     letter-spacing: 0;
   }
 
+  .sheet__close {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
   .dialog {
     width: min(88%, 340px);
     background: var(--paper-raised);
@@ -615,6 +693,23 @@
     justify-content: flex-end;
     gap: var(--sp-2);
     margin-top: var(--sp-5);
+  }
+
+  @media (min-width: 768px) {
+    .overlay {
+      align-items: center;
+      padding: 24px;
+    }
+
+    .sheet {
+      max-width: 520px;
+      max-height: min(760px, calc(100dvh - 48px));
+      border-radius: 8px;
+    }
+
+    .sheet__grip {
+      display: none;
+    }
   }
 
   /* —— 详情列表 —— */
