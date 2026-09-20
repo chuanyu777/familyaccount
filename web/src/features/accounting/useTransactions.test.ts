@@ -221,6 +221,51 @@ describe('useTransactions', () => {
     expect(state.error.value).toBeNull();
   });
 
+  it('does not roll back a new page when an old filtered page settles', async () => {
+    const oldPage = deferred<TransactionsResponse>();
+    const newPage = deferred<TransactionsResponse>();
+    const requestedPages: Array<{ type: unknown; page: unknown }> = [];
+    mockedCachedGet.mockImplementation((path: string, params?: Record<string, unknown>) => {
+      if (path === '/api/transactions') {
+        requestedPages.push({ type: params?.type, page: params?.page });
+        if (params?.page === 2 && !params?.type) return oldPage.promise;
+        if (params?.page === 2 && params?.type === 'expense') return newPage.promise;
+        const id = params?.type === 'expense' ? Number(params.page) * 10 : 1;
+        return Promise.resolve(response([transaction(id)], 60));
+      }
+      if (path === '/api/accounts') return Promise.resolve(accounts);
+      if (path === '/api/members') return Promise.resolve(members);
+      if (path === '/api/categories') {
+        return Promise.resolve(params?.kind === 'income' ? incomeCategories : expenseCategories);
+      }
+      return Promise.resolve(undefined);
+    });
+
+    mountComposable();
+    await flushPromises();
+    const oldLoad = state.loadMore();
+    state.type.value = 'expense';
+    await nextTick();
+    await flushPromises();
+    const newLoad = state.loadMore();
+
+    oldPage.resolve(response([transaction(2)], 60));
+    await oldLoad;
+    newPage.resolve(response([transaction(20)], 60));
+    await newLoad;
+    expect(state.items.value.map(({ id }) => id)).toEqual([10, 20]);
+
+    await state.loadMore();
+    expect(requestedPages).toEqual([
+      { type: undefined, page: 1 },
+      { type: undefined, page: 2 },
+      { type: 'expense', page: 1 },
+      { type: 'expense', page: 2 },
+      { type: 'expense', page: 3 },
+    ]);
+    expect(state.items.value.map(({ id }) => id)).toEqual([10, 20, 30]);
+  });
+
   it('does not let an older reference read replace a newer category refresh', async () => {
     const initialExpense = deferred<Category[]>();
     const newCategory: Category = { id: 3, kind: 'expense', name: '宠物' };

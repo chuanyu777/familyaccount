@@ -115,8 +115,10 @@ export function useTransactions() {
     if (!hasMore.value || refreshing.value) return;
     page.value += 1;
     const requestedPage = page.value;
-    const applied = await load({ append: true });
-    if (!applied && page.value === requestedPage) page.value -= 1;
+    const pending = load({ append: true });
+    const request = loadSequence;
+    const applied = await pending;
+    if (!applied && request === loadSequence && page.value === requestedPage) page.value -= 1;
   }
 
   function reload() {
