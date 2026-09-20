@@ -2,7 +2,7 @@
 import { ref } from 'vue';
 import AppSheet from '../../components/AppSheet.vue';
 import { apiPost } from '../../lib/api';
-import { parseYuanToCents, centsToInput, accountName } from './util';
+import { parseYuanToCents, centsToInput } from './util';
 import type { Account, Liability } from './types';
 
 const props = defineProps<{
@@ -26,7 +26,12 @@ function todayISO(): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+function handleClose() {
+  if (!saving.value) emit('close');
+}
+
 async function save() {
+  if (saving.value) return;
   error.value = null;
   const cents = parseYuanToCents(amount.value);
   if (cents == null || cents <= 0) {
@@ -59,7 +64,7 @@ async function save() {
 </script>
 
 <template>
-  <AppSheet title="还一笔" @close="emit('close')">
+  <AppSheet title="还一笔" @close="handleClose">
     <p class="repay-target">负债：{{ liability.name }}</p>
 
     <label class="field">
@@ -83,8 +88,10 @@ async function save() {
     <p v-if="error" class="form-error">{{ error }}</p>
 
     <div class="actions">
-      <button type="button" class="btn" :disabled="saving" @click="emit('close')">取消</button>
-      <button type="button" class="btn btn--primary" :disabled="saving" @click="save">保存</button>
+      <button type="button" class="btn" :disabled="saving" @click="handleClose">取消</button>
+      <button type="button" class="btn btn--primary" :disabled="saving" @click="save">
+        {{ saving ? '保存中…' : '保存' }}
+      </button>
     </div>
   </AppSheet>
 </template>

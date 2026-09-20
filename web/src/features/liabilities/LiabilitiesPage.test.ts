@@ -117,14 +117,14 @@ function liByText(text: string): HTMLElement | null {
   );
 }
 function statValue(label: string): string {
-  const bubble = Array.from(document.querySelectorAll('.hero__bubble')).find(
-    (s) => s.querySelector('.hero__bubble-label')?.textContent?.trim() === label,
+  const metric = Array.from(document.querySelectorAll('.summary-strip > div')).find(
+    (item) => item.querySelector('.summary-strip__label')?.textContent?.trim() === label,
   );
-  return bubble?.querySelector('.money')?.textContent ?? '';
+  return metric?.querySelector('.money')?.textContent ?? '';
 }
 
 function heroAmount(): string {
-  return document.querySelector('.hero__amount')?.textContent ?? '';
+  return statValue('总负债');
 }
 function rowByText(text: string, cls: string): Element | null {
   return (
@@ -135,7 +135,7 @@ function rowByText(text: string, cls: string): Element | null {
 function openRow(text: string) {
   const li = liByText(text);
   if (!li) throw new Error(`row not found: ${text}`);
-  const hit = li.querySelector('button.liab__hit') as HTMLButtonElement | null;
+  const hit = li.querySelector('.liab__hit') as HTMLElement | null;
   if (!hit) throw new Error(`row button not found: ${text}`);
   hit.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 }
@@ -150,6 +150,16 @@ let wrapper: ReturnType<typeof mount> | null = null;
 async function settle() {
   await flushPromises();
   await flushPromises();
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
 }
 
 beforeEach(() => {
@@ -179,6 +189,34 @@ describe('AC-01 顶部总览卡', () => {
 });
 
 describe('AC-02 负债列表', () => {
+  it('显示剩余本金、进度和唯一的行内还款操作', async () => {
+    wrapper = mount(LiabilitiesPage, { attachTo: document.body });
+    await settle();
+    const row = document.querySelector('[data-liability-row="1"]')!;
+    expect(row.textContent).toContain('房贷');
+    expect(row.textContent).toContain('剩余');
+    expect(row.querySelector('[role="progressbar"]')).toBeTruthy();
+    expect(Array.from(row.querySelectorAll('button')).map((button) => button.textContent?.trim())).toEqual([
+      '还一笔',
+    ]);
+  });
+
+  it('只在打开负债详情后请求对应的还款记录', async () => {
+    wrapper = mount(LiabilitiesPage, { attachTo: document.body });
+    await settle();
+    expect(mockedCachedGet.mock.calls.some(([path]) => path === '/api/repayments')).toBe(false);
+
+    openRow('房贷');
+    await settle();
+    const repaymentCalls = mockedCachedGet.mock.calls.filter(([path]) => path === '/api/repayments');
+    expect(repaymentCalls).toEqual([
+      ['/api/repayments', { liabilityId: 1 }, { force: false }],
+    ]);
+    const progress = document.querySelector('[data-liability-row="1"] [role="progressbar"]');
+    expect(progress?.getAttribute('aria-valuenow')).toBe('1');
+    expect(document.querySelector('[data-liability-row="1"]')?.textContent).toContain(formatMoney(300000));
+  });
+
   it('列出名称/剩余本金/月供/还款日', async () => {
     wrapper = mount(LiabilitiesPage, { attachTo: document.body });
     await settle();
@@ -218,6 +256,31 @@ describe('AC-02 负债列表', () => {
     );
   });
 
+  it('负债保存期间保持弹层，失败后保留输入', async () => {
+    const pending = deferred<void>();
+    mockedApiPost.mockImplementationOnce(() => pending.promise);
+    wrapper = mount(LiabilitiesPage, { attachTo: document.body });
+    await settle();
+    clickBtn('新增负债');
+    await settle();
+    setInput(fieldInput('负债名称')!, '车贷');
+    setInput(fieldInput('剩余本金')!, '100000');
+    clickBtn('保存');
+    await settle();
+
+    expect(findBtn('保存中…')?.disabled).toBe(true);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    document.querySelector<HTMLButtonElement>('.sheet__close')!.click();
+    await settle();
+    expect(document.querySelector('.sheet')).not.toBeNull();
+
+    pending.reject(new Error('网络失败'));
+    await settle();
+    expect((fieldInput('负债名称') as HTMLInputElement).value).toBe('车贷');
+    expect((fieldInput('剩余本金') as HTMLInputElement).value).toBe('100000');
+    expect(document.querySelector('.sheet')?.textContent).toContain('网络失败');
+  });
+
   it('剩余本金为空时前端拦截', async () => {
     wrapper = mount(LiabilitiesPage, { attachTo: document.body });
     await settle();
@@ -251,6 +314,8 @@ describe('AC-02 负债列表', () => {
     clickBtnInSheet('删除');
     await settle();
     expect(mockedApiDelete).not.toHaveBeenCalled();
+    expect(document.querySelector('.dialog')?.textContent).toContain('还款历史');
+    expect(document.querySelector('.dialog')?.textContent).toContain('账户余额');
     clickBtnInDialog('删除');
     await settle();
     expect(mockedApiDelete).toHaveBeenCalledWith('/api/liabilities/1');
@@ -310,6 +375,58 @@ describe('AC-03 还一笔', () => {
       expect.objectContaining({ liabilityId: 1, amount: 3000, accountId: 1, occurredOn: todayISO() }),
     );
   });
+
+  it('使用用户选择的还款账户', async () => {
+    wrapper = mount(LiabilitiesPage, { attachTo: document.body });
+    await settle();
+    clickBtnIn(liByText('房贷')!, '还一笔');
+    await settle();
+    setInput(fieldInput('还款账户') as unknown as HTMLSelectElement, '2');
+    clickBtn('保存');
+    await settle();
+
+    expect(mockedApiPost).toHaveBeenCalledWith(
+      '/api/repayments',
+      expect.objectContaining({ liabilityId: 1, accountId: 2 }),
+    );
+  });
+
+  it('还款失败时保留表单和已输入的金额', async () => {
+    mockedApiPost.mockRejectedValueOnce(new ApiError(500, 'SAVE_FAILED', '还款失败'));
+    wrapper = mount(LiabilitiesPage, { attachTo: document.body });
+    await settle();
+    clickBtnIn(liByText('房贷')!, '还一笔');
+    await settle();
+    setInput(fieldInput('还款金额') as HTMLInputElement, '2888');
+    clickBtn('保存');
+    await settle();
+
+    expect(document.querySelector('.sheet')?.textContent).toContain('还款失败');
+    expect((fieldInput('还款金额') as HTMLInputElement).value).toBe('2888');
+  });
+
+  it('还款保存期间不允许关闭弹层', async () => {
+    const pending = deferred<void>();
+    mockedApiPost.mockImplementationOnce(() => pending.promise);
+    wrapper = mount(LiabilitiesPage, { attachTo: document.body });
+    await settle();
+    clickBtnIn(liByText('房贷')!, '还一笔');
+    await settle();
+    setInput(fieldInput('还款金额') as HTMLInputElement, '2888');
+    clickBtn('保存');
+    await settle();
+
+    expect(findBtn('保存中…')?.disabled).toBe(true);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    document.querySelector<HTMLButtonElement>('.sheet__close')!.click();
+    await settle();
+    expect(document.querySelector('.sheet')).not.toBeNull();
+
+    pending.reject(new Error('还款失败'));
+    await settle();
+    expect((fieldInput('还款金额') as HTMLInputElement).value).toBe('2888');
+    expect(document.querySelector('.sheet')?.textContent).toContain('还款失败');
+  });
 });
 
 describe('AC-04 还款记录', () => {
@@ -324,6 +441,8 @@ describe('AC-04 还款记录', () => {
     expect(repayRow).toBeTruthy();
     clickBtnIn(repayRow!, '删除');
     await settle();
+    expect(document.querySelector('.dialog')?.textContent).toContain('恢复负债本金和账户余额');
+    expect(document.querySelector('.dialog')?.textContent).toContain('删除对应还款流水');
     clickBtnInDialog('删除');
     await settle();
     expect(mockedApiDelete).toHaveBeenCalledWith('/api/repayments/1');
@@ -344,6 +463,29 @@ describe('AC-04 还款记录', () => {
     await settle();
     expect(document.body.textContent).toContain('暂无还款记录');
   });
+
+  it('还款记录请求期间显示加载状态', async () => {
+    const pending = deferred<Repayment[]>();
+    mockedCachedGet.mockImplementation((path: string, params?: Record<string, unknown>) => {
+      if (path === '/api/stats/summary') return Promise.resolve(summary);
+      if (path === '/api/liabilities') return Promise.resolve(liabilities);
+      if (path === '/api/accounts') return Promise.resolve(accounts);
+      if (path === '/api/members') return Promise.resolve(members);
+      if (path === '/api/repayments' && params?.liabilityId === 1) return pending.promise;
+      return Promise.resolve([]);
+    });
+    wrapper = mount(LiabilitiesPage, { attachTo: document.body });
+    await settle();
+    openRow('房贷');
+    await flushPromises();
+
+    expect(document.querySelector('.sheet [aria-label="加载中"]')).toBeTruthy();
+    expect(document.querySelector('.sheet')?.textContent).not.toContain('暂无还款记录');
+
+    pending.resolve(repayments);
+    await settle();
+    expect(document.querySelector('.sheet')?.textContent).toContain('2026-09-10');
+  });
 });
 
 describe('AC-05 空状态与失败降级', () => {
@@ -359,10 +501,11 @@ describe('AC-05 空状态与失败降级', () => {
     expect(document.body.textContent).toContain('还没有负债');
   });
 
-  it('数据请求失败时优雅降级，不抛未捕获异常', async () => {
+  it('数据请求失败时展示可重试错误，不抛未捕获异常', async () => {
     mockedCachedGet.mockRejectedValue(new Error('network'));
     wrapper = mount(LiabilitiesPage, { attachTo: document.body });
     await settle();
-    expect(document.body.textContent).toContain('还没有负债');
+    expect(document.body.textContent).toContain('network');
+    expect(findBtn('重试')).toBeTruthy();
   });
 });

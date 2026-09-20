@@ -6,6 +6,7 @@ import App from './App.vue';
 import desktopNavSource from './components/DesktopNav.vue?raw';
 import statHeroSource from './components/StatHero.vue?raw';
 import accountingPageSource from './features/accounting/AccountingPage.vue?raw';
+import liabilityListSource from './features/liabilities/LiabilityList.vue?raw';
 import liabilitiesPageSource from './features/liabilities/LiabilitiesPage.vue?raw';
 import chartPaletteSource from './features/analysis/charts/palette.ts?raw';
 
@@ -108,10 +109,10 @@ describe('App', () => {
     expect(baseCss).toContain('--action: var(--primary);');
     expect(baseCss).toContain('--brand: var(--action);');
     expect(statHeroSource).toContain('stroke="var(--expense)"');
-    expect(liabilitiesPageSource).toContain('background: var(--chart-accent);');
+    expect(liabilityListSource).toContain('background: var(--chart-accent);');
     expect(accountingPageSource).toContain('background: var(--surface-accent);');
     expect(accountingPageSource).toContain('color: var(--muted);');
-    expect([statHeroSource, liabilitiesPageSource, accountingPageSource, chartPaletteSource].join('\n')).not.toMatch(
+    expect([statHeroSource, liabilitiesPageSource, liabilityListSource, accountingPageSource, chartPaletteSource].join('\n')).not.toMatch(
       /var\(--brand(?:-2|-deep|-wash)?\)/,
     );
   });
