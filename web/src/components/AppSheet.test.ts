@@ -29,6 +29,15 @@ function mountSheet(slots: Record<string, string> = {}): VueWrapper {
   return wrapper;
 }
 
+function mountConfirm(): VueWrapper {
+  const wrapper = mount(ConfirmDialog, {
+    attachTo: document.body,
+    props: { title: '删除还款' },
+  });
+  wrappers.push(wrapper);
+  return wrapper;
+}
+
 describe('AppSheet', () => {
   it('closes a sheet with Escape and restores focus', async () => {
     const opener = document.createElement('button');
@@ -94,6 +103,43 @@ describe('AppSheet', () => {
     expect(baseCss).toMatch(/\.sheet\s*{[^}]*width:\s*100%;[^}]*max-height:\s*calc\(100dvh - 58px\);[^}]*border-radius:\s*14px 14px 0 0;/s);
     expect(baseCss).toMatch(/\.sheet__close\s*{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/s);
     expect(baseCss).toMatch(/@media \(min-width:\s*768px\)\s*{[\s\S]*?\.overlay\s*{[^}]*align-items:\s*center;[^}]*padding:\s*24px;[^}]*}[\s\S]*?\.sheet\s*{[^}]*max-width:\s*520px;[^}]*max-height:\s*min\(760px, calc\(100dvh - 48px\)\);[^}]*border-radius:\s*8px;[^}]*}[\s\S]*?\.sheet__grip\s*{[^}]*display:\s*none;/s);
+  });
+
+  it('coordinates Escape, scroll locking, and focus across nested overlays', async () => {
+    document.body.style.overflow = 'clip';
+    const pageOpener = document.createElement('button');
+    document.body.append(pageOpener);
+    pageOpener.focus();
+    const sheet = mountSheet({
+      default: '<button type="button" class="repayment-delete">删除还款</button>',
+    });
+    await flushPromises();
+    const repaymentDelete = document.body.querySelector<HTMLButtonElement>('.repayment-delete')!;
+    repaymentDelete.focus();
+
+    const dialog = mountConfirm();
+    await flushPromises();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+
+    expect(dialog.emitted('cancel')).toHaveLength(1);
+    expect(sheet.emitted('close')).toBeUndefined();
+    dialog.unmount();
+    wrappers.splice(wrappers.indexOf(dialog), 1);
+    expect(document.body.style.overflow).toBe('hidden');
+    expect(document.activeElement).toBe(repaymentDelete);
+
+    const secondDialog = mountConfirm();
+    await flushPromises();
+    const dialogCancel = document.activeElement;
+    sheet.unmount();
+    wrappers.splice(wrappers.indexOf(sheet), 1);
+    expect(document.body.style.overflow).toBe('hidden');
+    expect(document.activeElement).toBe(dialogCancel);
+
+    secondDialog.unmount();
+    wrappers.splice(wrappers.indexOf(secondDialog), 1);
+    expect(document.body.style.overflow).toBe('clip');
+    expect(document.activeElement).toBe(pageOpener);
   });
 });
 
