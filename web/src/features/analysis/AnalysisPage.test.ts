@@ -1,37 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mount, flushPromises } from '@vue/test-utils';
-import { formatMoney, currentMonth, shiftMonth } from '../../lib/format';
-import {
-  cachedGet,
-  apiPut,
-  apiPost,
-  apiPatch,
-  apiDelete,
-  ApiError,
-} from '../../lib/api';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { flushPromises, mount } from '@vue/test-utils';
+import { cachedGet } from '../../lib/api';
+import { currentMonth, formatMoney, shiftMonth } from '../../lib/format';
+import { publishResources } from '../../lib/resourceInvalidation';
 import AnalysisPage from './AnalysisPage.vue';
 
-vi.mock('../../lib/api', () => {
-  class ApiErrorImpl extends Error {
-    status: number;
-    code: string;
-    constructor(status: number, code: string, message: string) {
-      super(message);
-      this.status = status;
-      this.code = code;
-    }
-  }
-  return {
-    cachedGet: vi.fn(),
-    apiGet: vi.fn(),
-    apiPost: vi.fn(),
-    apiPatch: vi.fn(),
-    apiPut: vi.fn(),
-    apiDelete: vi.fn(),
-    invalidate: vi.fn(),
-    ApiError: ApiErrorImpl,
-  };
-});
+vi.mock('../../lib/api', () => ({
+  cachedGet: vi.fn(),
+}));
 
 const mockedCachedGet = vi.mocked(cachedGet);
 
@@ -45,16 +21,16 @@ const trend = [
 ];
 
 const breakdown = [
-  { categoryId: 1, name: '餐饮', cents: 30000, percent: 60 },
-  { categoryId: 2, name: '交通', cents: 15000, percent: 30 },
-  { categoryId: 3, name: '其他', cents: 5000, percent: 10 },
+  { categoryId: 1, name: '餐饮', cents: 19000, percent: 38 },
+  { categoryId: 2, name: '交通', cents: 17500, percent: 35 },
+  { categoryId: 3, name: '其他', cents: 13500, percent: 27 },
 ];
 
 const summary = {
   month: '2026-09',
   incomeCents: 100000,
-  expenseCents: 40000,
-  netCents: 60000,
+  expenseCents: 50000,
+  netCents: 50000,
   totalAssetsCents: 1200000,
   totalLiabilitiesCents: 800000,
   netWorthCents: 400000,
@@ -69,12 +45,31 @@ let wrapper: ReturnType<typeof mount> | null = null;
 
 function mockApi(overrides: Record<string, unknown> = {}) {
   mockedCachedGet.mockImplementation((path: string) => {
-    if (path.includes('monthly-snapshot'))
+    if (path.includes('monthly-snapshot')) {
       return Promise.resolve((overrides.summary ?? summary) as never);
-    if (path.includes('monthly-trend'))
+    }
+    if (path.includes('monthly-trend')) {
       return Promise.resolve((overrides.trend ?? trend) as never);
+    }
     return Promise.resolve(undefined as never);
   });
+}
+
+function setupEmptyStats() {
+  mockApi({
+    summary: { ...summary, incomeCents: 0, expenseCents: 0, netCents: 0, breakdown: [] },
+    trend: [],
+  });
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
 }
 
 async function settle() {
@@ -94,82 +89,55 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
-describe('分析页 · 净资产概览', () => {
-  it('展示总资产、总负债、净资产三个数字', async () => {
+describe('分析页 · C3 结构', () => {
+  it('组合页头、月份选择和真实收支汇总', async () => {
     mockApi();
     wrapper = mount(AnalysisPage, { attachTo: document.body });
     await settle();
-    expect(wrapper.text()).toContain('总资产');
-    expect(wrapper.text()).toContain('总负债');
-    expect(wrapper.text()).toContain('净资产');
-    expect(wrapper.text()).toContain(formatMoney(1200000));
-    expect(wrapper.text()).toContain(formatMoney(800000));
-    expect(wrapper.text()).toContain(formatMoney(400000));
+
+    expect(wrapper.get('h1').text()).toBe('分析');
+    expect(wrapper.find('[aria-label="选择月份"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('当月结余');
+    expect(wrapper.text()).toContain(formatMoney(summary.netCents));
+    expect(wrapper.text()).toContain('当月收入');
+    expect(wrapper.text()).toContain('当月支出');
   });
 
-  it('净资产为负时标记为支出红并提示资不抵债', async () => {
-    mockApi({ summary: { ...summary, netWorthCents: -12345 } });
+  it('renders paired income/expense bars and direct category percentages', async () => {
+    mockApi();
     wrapper = mount(AnalysisPage, { attachTo: document.body });
     await settle();
-    const negative = wrapper.find('.net-worth.money--expense');
-    expect(negative.exists()).toBe(true);
-    expect(negative.text()).toContain('123.45');
-    expect(wrapper.text()).toContain('资不抵债');
+
+    expect(document.querySelectorAll('[data-series="income"]')).toHaveLength(6);
+    expect(document.querySelectorAll('[data-series="expense"]')).toHaveLength(6);
+    expect(document.body.textContent).toContain('38%');
+    expect(document.querySelectorAll('[data-category-bar]')).toHaveLength(3);
+  });
+
+  it('shows an actionable empty state instead of an empty chart frame', async () => {
+    setupEmptyStats();
+    wrapper = mount(AnalysisPage, { attachTo: document.body });
+    await settle();
+
+    expect(document.querySelector('[data-empty-analysis]')).toBeTruthy();
+    expect(document.querySelector('[data-chart-frame]')).toBeNull();
+    expect(document.body.textContent).toContain('记几笔账');
   });
 });
 
-describe('分析页 · 月度收支趋势', () => {
-  it('按数据条数渲染柱子（每月收入+支出两根）', async () => {
+describe('分析页 · 资源加载', () => {
+  it('默认请求当前月的快照与六个月趋势', async () => {
     mockApi();
     wrapper = mount(AnalysisPage, { attachTo: document.body });
     await settle();
-    expect(wrapper.findAll('rect.trend-bar')).toHaveLength(12);
-    expect(wrapper.text()).toContain('9月');
-  });
 
-  it('空趋势显示空状态不崩溃', async () => {
-    mockApi({ trend: [] });
-    wrapper = mount(AnalysisPage, { attachTo: document.body });
-    await settle();
-    expect(wrapper.text()).toContain('暂无收支数据');
-    expect(wrapper.findAll('rect.trend-bar')).toHaveLength(0);
-  });
-});
-
-describe('分析页 · 支出分类占比', () => {
-  it('渲染环形扇段与图例', async () => {
-    mockApi();
-    wrapper = mount(AnalysisPage, { attachTo: document.body });
-    await settle();
-    expect(wrapper.findAll('circle.donut-segment')).toHaveLength(3);
-    expect(wrapper.text()).toContain('餐饮');
-    expect(wrapper.text()).toContain('交通');
-    expect(wrapper.text()).toContain('其他');
-    expect(wrapper.text()).toContain(formatMoney(30000));
-  });
-
-  it('空占比显示空状态不崩溃', async () => {
-    mockApi({ summary: { ...summary, breakdown: [] } });
-    wrapper = mount(AnalysisPage, { attachTo: document.body });
-    await settle();
-    expect(wrapper.text()).toContain('这个月还没有支出');
-    expect(wrapper.findAll('circle.donut-segment')).toHaveLength(0);
-  });
-});
-
-describe('分析页 · 月份切换', () => {
-  it('默认请求当前月的快照与趋势', async () => {
-    mockApi();
-    wrapper = mount(AnalysisPage, { attachTo: document.body });
-    await settle();
-    const calls = mockedCachedGet.mock.calls.map((c) => [c[0], c[1]]);
-    expect(calls).toEqual([
-      ['/api/stats/monthly-snapshot', { month: currentMonth() }],
-      ['/api/stats/monthly-trend', { months: 6, end: currentMonth() }],
+    expect(mockedCachedGet.mock.calls).toEqual([
+      ['/api/stats/monthly-snapshot', { month: currentMonth() }, { force: false }],
+      ['/api/stats/monthly-trend', { months: 6, end: currentMonth() }, { force: false }],
     ]);
   });
 
-  it('切到上月后按该月重新拉数据', async () => {
+  it('切换月份时强制刷新该月统计', async () => {
     mockApi();
     wrapper = mount(AnalysisPage, { attachTo: document.body });
     await settle();
@@ -178,42 +146,70 @@ describe('分析页 · 月份切换', () => {
     await wrapper.get('[aria-label="上一月"]').trigger('click');
     await settle();
 
-    const calls = mockedCachedGet.mock.calls.map((c) => [c[0], c[1]]);
-    expect(calls).toEqual([
-      ['/api/stats/monthly-snapshot', { month: shiftMonth(currentMonth(), -1) }],
-      ['/api/stats/monthly-trend', { months: 6, end: shiftMonth(currentMonth(), -1) }],
+    expect(mockedCachedGet.mock.calls).toEqual([
+      [
+        '/api/stats/monthly-snapshot',
+        { month: shiftMonth(currentMonth(), -1) },
+        { force: true },
+      ],
+      [
+        '/api/stats/monthly-trend',
+        { months: 6, end: shiftMonth(currentMonth(), -1) },
+        { force: true },
+      ],
     ]);
   });
 
-  it('资产为估算值时给出提示', async () => {
-    mockApi({ summary: { ...summary, assetsEstimated: true } });
-    wrapper = mount(AnalysisPage, { attachTo: document.body });
-    await settle();
-    expect(wrapper.text()).toContain('还没记过市值');
-  });
-});
+  it('忽略晚到的旧月份响应', async () => {
+    const initialSnapshot = deferred<typeof summary>();
+    const initialTrend = deferred<typeof trend>();
+    const previousMonth = shiftMonth(currentMonth(), -1);
+    const latestSummary = { ...summary, month: previousMonth, netCents: 222000 };
 
-describe('分析页 · 失败降级', () => {
-  it('接口异常时显示错误提示而不崩溃', async () => {
-    mockedCachedGet.mockRejectedValue(new Error('网络异常'));
-    wrapper = mount(AnalysisPage, { attachTo: document.body });
-    await settle();
-    expect(wrapper.text()).toContain('网络异常');
-    expect(wrapper.findAll('rect.trend-bar')).toHaveLength(0);
-  });
-
-  it('部分接口失败（Promise.all 整体失败）时整体降级为空状态不崩', async () => {
-    mockedCachedGet.mockImplementation((path: string) => {
-      if (path.includes('monthly-snapshot')) return Promise.reject(new Error('summary 失败'));
-      if (path.includes('monthly-trend')) return Promise.resolve(trend as never);
-      if (path.includes('category-breakdown')) return Promise.resolve(breakdown as never);
-      return Promise.resolve(undefined as never);
+    mockedCachedGet.mockImplementation((path: string, params?: Record<string, unknown>) => {
+      const isInitial = params?.month === currentMonth() || params?.end === currentMonth();
+      if (path.includes('monthly-snapshot')) {
+        return (isInitial ? initialSnapshot.promise : Promise.resolve(latestSummary)) as never;
+      }
+      return (isInitial ? initialTrend.promise : Promise.resolve(trend)) as never;
     });
+
+    wrapper = mount(AnalysisPage, { attachTo: document.body });
+    await wrapper.get('[aria-label="上一月"]').trigger('click');
+    await settle();
+    expect(wrapper.text()).toContain(formatMoney(222000));
+
+    initialSnapshot.resolve({ ...summary, netCents: 111000 });
+    initialTrend.resolve(trend);
+    await settle();
+    expect(wrapper.text()).toContain(formatMoney(222000));
+    expect(wrapper.text()).not.toContain(formatMoney(111000));
+  });
+
+  it('统计资源刷新失败时保留上次快照并提供重试', async () => {
+    mockApi();
     wrapper = mount(AnalysisPage, { attachTo: document.body });
     await settle();
-    // Promise.all 任一失败即整体进入降级分支：图表与图例置空，但页面不崩
-    expect(wrapper.findAll('rect.trend-bar')).toHaveLength(0);
-    expect(wrapper.findAll('circle.donut-segment')).toHaveLength(0);
-    expect(wrapper.text()).toContain('暂无收支数据');
+
+    const refreshedSnapshot = deferred<typeof summary>();
+    const refreshedTrend = deferred<typeof trend>();
+    mockedCachedGet.mockImplementation((path: string) =>
+      (path.includes('monthly-snapshot')
+        ? refreshedSnapshot.promise
+        : refreshedTrend.promise) as never,
+    );
+
+    publishResources(['statistics']);
+    await flushPromises();
+    expect(wrapper.text()).toContain(formatMoney(summary.netCents));
+    expect(wrapper.text()).toContain('正在更新分析');
+
+    refreshedSnapshot.reject(new Error('网络异常'));
+    refreshedTrend.resolve(trend);
+    await settle();
+
+    expect(wrapper.text()).toContain(formatMoney(summary.netCents));
+    expect(wrapper.get('[role="alert"]').text()).toContain('网络异常');
+    expect(wrapper.get('[role="alert"] button').text()).toBe('重试');
   });
 });

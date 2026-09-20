@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { formatMoney } from '../../../lib/format';
+import MoneyText from '../../../components/MoneyText.vue';
 import { sliceColor } from './palette';
 
 export interface Slice {
@@ -10,78 +9,110 @@ export interface Slice {
   percent: number;
 }
 
-const props = defineProps<{ data: Slice[] }>();
+defineProps<{ data: Slice[] }>();
 
-const SIZE = 164;
-const CX = SIZE / 2;
-const CY = SIZE / 2;
-const R = 58;
-const STROKE = 22;
-const CIRC = 2 * Math.PI * R;
-
-const total = computed(() => props.data.reduce((s, d) => s + d.cents, 0));
-
-const segments = computed(() => {
-  let offset = 0;
-  return props.data.map((d, i) => {
-    const dash = total.value > 0 ? (d.cents / total.value) * CIRC : 0;
-    const seg = {
-      d,
-      color: sliceColor(i),
-      dash,
-      gap: CIRC - dash,
-      offset,
-    };
-    offset += dash;
-    return seg;
-  });
-});
+function barWidth(percent: number): string {
+  return `${Math.min(100, Math.max(0, percent))}%`;
+}
 </script>
 
 <template>
-  <svg
-    :viewBox="`0 0 ${SIZE} ${SIZE}`"
-    :width="SIZE"
-    :height="SIZE"
-    role="img"
-    aria-label="支出分类占比"
-    class="donut"
-  >
-    <circle :cx="CX" :cy="CY" :r="R" fill="none" stroke="var(--rule-soft)" :stroke-width="STROKE" />
-    <circle
-      v-for="s in segments"
-      :key="(s.d.categoryId ?? s.d.name) as string"
-      class="donut-segment"
-      :cx="CX"
-      :cy="CY"
-      :r="R"
-      fill="none"
-      :stroke="s.color"
-      :stroke-width="STROKE"
-      :stroke-dasharray="`${s.dash} ${s.gap}`"
-      :stroke-dashoffset="-(s.offset)"
-      :transform="`rotate(-90 ${CX} ${CY})`"
-    />
-    <text :x="CX" :y="CY - 4" text-anchor="middle" class="donut-total">{{ formatMoney(total) }}</text>
-    <text :x="CX" :y="CY + 14" text-anchor="middle" class="donut-cap">本月支出</text>
-  </svg>
+  <ul class="category-chart" aria-label="支出分类占比">
+    <li
+      v-for="(slice, index) in data"
+      :key="(slice.categoryId ?? slice.name) as string"
+      class="category-chart__row"
+      data-category-bar
+    >
+      <div class="category-chart__label">
+        <span class="category-chart__name">{{ slice.name }}</span>
+        <span class="category-chart__percent">{{ slice.percent }}%</span>
+      </div>
+      <div class="category-chart__track" aria-hidden="true">
+        <span
+          class="category-chart__fill"
+          :style="{ width: barWidth(slice.percent), background: sliceColor(index) }"
+        />
+      </div>
+      <MoneyText class="category-chart__amount" :cents="slice.cents" tone="expense" />
+    </li>
+  </ul>
 </template>
 
 <style scoped>
-.donut {
-  display: block;
+.category-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.donut-total {
-  fill: var(--ink);
-  font-size: 15px;
+.category-chart__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sp-2) var(--sp-3);
+  min-width: 0;
+}
+
+.category-chart__label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.category-chart__name {
+  min-width: 0;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.category-chart__percent {
+  flex: none;
+  color: var(--ink);
   font-family: var(--font-num);
+  font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
+  font-weight: 650;
 }
 
-.donut-cap {
-  fill: var(--ink-3);
-  font-size: 10px;
-  font-family: var(--font-sans);
+.category-chart__track {
+  align-self: center;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--bg);
+}
+
+.category-chart__fill {
+  display: block;
+  min-width: 2px;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.category-chart__amount {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  align-self: end;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 380px) {
+  .category-chart__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: var(--sp-2);
+  }
+
+  .category-chart__amount {
+    font-size: var(--text-xs);
+  }
 }
 </style>

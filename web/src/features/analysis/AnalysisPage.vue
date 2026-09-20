@@ -1,225 +1,191 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import MoneyText from '../../components/MoneyText.vue';
-import StatBlock from '../../components/StatBlock.vue';
-import StatHero from '../../components/StatHero.vue';
-import SectionBlock from '../../components/SectionBlock.vue';
-import EmptyState from '../../components/EmptyState.vue';
+import AsyncState from '../../components/AsyncState.vue';
 import MonthPicker from '../../components/MonthPicker.vue';
+import PageHeader from '../../components/PageHeader.vue';
+import SectionBlock from '../../components/SectionBlock.vue';
+import SummaryStrip, { type SummaryMetric } from '../../components/SummaryStrip.vue';
 import { cachedGet } from '../../lib/api';
-import { revision } from '../../lib/revision';
-import { currentMonth, monthLabel, formatMoney } from '../../lib/format';
-import TrendChart from './charts/TrendChart.vue';
-import DonutChart from './charts/DonutChart.vue';
-import { sliceColor } from './charts/palette';
+import { currentMonth, monthLabel } from '../../lib/format';
+import { createLatestGate } from '../../lib/latestGate';
+import { resourceVersion } from '../../lib/resourceInvalidation';
+import DonutChart, { type Slice } from './charts/DonutChart.vue';
+import TrendChart, { type TrendPoint } from './charts/TrendChart.vue';
 
 interface MonthSnapshot {
   month: string;
   incomeCents: number;
   expenseCents: number;
   netCents: number;
-  accountsTotalCents: number;
-  assetsTotalCents: number;
-  totalAssetsCents: number;
-  totalLiabilitiesCents: number;
-  netWorthCents: number;
-  monthlyPaymentTotalCents: number;
-  assetsEstimated: boolean;
   breakdown: Slice[];
 }
 
-interface TrendPoint {
-  month: string;
-  incomeCents: number;
-  expenseCents: number;
-  netCents: number;
-}
-
-interface Slice {
-  categoryId: number | null;
-  name: string;
-  cents: number;
-  percent: number;
-}
-
-const EMPTY_SNAPSHOT: MonthSnapshot = {
-  month: currentMonth(),
-  incomeCents: 0,
-  expenseCents: 0,
-  netCents: 0,
-  accountsTotalCents: 0,
-  assetsTotalCents: 0,
-  totalAssetsCents: 0,
-  totalLiabilitiesCents: 0,
-  netWorthCents: 0,
-  monthlyPaymentTotalCents: 0,
-  assetsEstimated: false,
-  breakdown: [],
-};
+type LoadResult =
+  | { ok: true; value: [MonthSnapshot, TrendPoint[]] }
+  | { ok: false; error: unknown };
 
 const TREND_MONTHS = 6;
 
 const month = ref(currentMonth());
-const snapshot = ref<MonthSnapshot>(EMPTY_SNAPSHOT);
+const snapshot = ref<MonthSnapshot | null>(null);
 const trend = ref<TrendPoint[]>([]);
+const loading = ref(true);
+const refreshing = ref(false);
 const error = ref<string | null>(null);
+const gate = createLatestGate();
+const statisticsVersion = resourceVersion(['statistics']);
 
-const isCurrentMonth = computed(() => month.value === currentMonth());
-
-/**
- * 资产负债三个数字共用一套字号：按最长那串的字符数整体降档，
- * 保证三者永远一样大，也不会被省略号截断。
- */
-const balanceFontSize = computed(() => {
-  const texts = [
-    formatMoney(snapshot.value.totalAssetsCents),
-    formatMoney(snapshot.value.totalLiabilitiesCents),
-    formatMoney(snapshot.value.netWorthCents),
-  ];
-  const longest = Math.max(...texts.map((t) => t.length));
-  if (longest <= 9) return '1.0625rem';
-  if (longest <= 11) return '0.9375rem';
-  if (longest <= 13) return '0.8125rem';
-  return '0.75rem';
+const netMetric = computed<SummaryMetric>(() => ({
+  label: '当月结余',
+  cents: snapshot.value?.netCents ?? 0,
+  tone: (snapshot.value?.netCents ?? 0) < 0 ? 'expense' : 'income',
+}));
+const incomeMetric = computed<SummaryMetric>(() => ({
+  label: '当月收入',
+  cents: snapshot.value?.incomeCents ?? 0,
+  tone: 'income',
+}));
+const expenseMetric = computed<SummaryMetric>(() => ({
+  label: '当月支出',
+  cents: -(snapshot.value?.expenseCents ?? 0),
+  tone: 'expense',
+}));
+const breakdown = computed(() => snapshot.value?.breakdown ?? []);
+const hasAnalysisData = computed(() => {
+  const current = snapshot.value;
+  return Boolean(
+    trend.value.length ||
+      current?.breakdown.length ||
+      current?.incomeCents ||
+      current?.expenseCents ||
+      current?.netCents,
+  );
 });
 
-async function load(force = false) {
-  error.value = null;
-  try {
-    const [snap, t] = await Promise.all([
-      cachedGet<MonthSnapshot>('/api/stats/monthly-snapshot', { month: month.value }, { force }),
-      cachedGet<TrendPoint[]>(
-        '/api/stats/monthly-trend',
-        { months: TREND_MONTHS, end: month.value },
-        { force }
-      ),
-    ]);
-    // 字段缺失时补默认值，避免后端/缓存返回半截对象把模板打挂
-    snapshot.value = { ...EMPTY_SNAPSHOT, ...(snap ?? {}) };
-    trend.value = Array.isArray(t) ? t : [];
-  } catch (e) {
-    snapshot.value = EMPTY_SNAPSHOT;
-    trend.value = [];
-    error.value = e instanceof Error ? e.message : '数据加载失败';
-  }
+function errorMessage(cause: unknown): string {
+  return cause instanceof Error ? cause.message : '数据加载失败，请重试';
 }
 
-watch(month, () => void load());
-watch(revision, () => void load(true));
+async function load(force = false) {
+  loading.value = snapshot.value === null;
+  refreshing.value = snapshot.value !== null;
+  error.value = null;
+  const requestedMonth = month.value;
 
+  const result = await gate.run<LoadResult>(async () => {
+    try {
+      const value = await Promise.all([
+        cachedGet<MonthSnapshot>(
+          '/api/stats/monthly-snapshot',
+          { month: requestedMonth },
+          { force },
+        ),
+        cachedGet<TrendPoint[]>(
+          '/api/stats/monthly-trend',
+          { months: TREND_MONTHS, end: requestedMonth },
+          { force },
+        ),
+      ]);
+      return { ok: true, value };
+    } catch (cause) {
+      return { ok: false, error: cause };
+    }
+  });
+
+  if (!result.current) return;
+  if (result.value.ok) {
+    const [nextSnapshot, nextTrend] = result.value.value;
+    snapshot.value = {
+      month: nextSnapshot.month,
+      incomeCents: nextSnapshot.incomeCents ?? 0,
+      expenseCents: nextSnapshot.expenseCents ?? 0,
+      netCents: nextSnapshot.netCents ?? 0,
+      breakdown: Array.isArray(nextSnapshot.breakdown) ? nextSnapshot.breakdown : [],
+    };
+    trend.value = Array.isArray(nextTrend) ? nextTrend : [];
+  } else {
+    error.value = errorMessage(result.value.error);
+  }
+  loading.value = false;
+  refreshing.value = false;
+}
+
+function reload() {
+  void load(true);
+}
+
+watch([month, statisticsVersion], () => void load(true));
 onMounted(() => void load());
 </script>
 
 <template>
   <div class="analysis">
-    <MonthPicker v-model="month" class="analysis__month" />
+    <PageHeader title="分析" :context="monthLabel(month)" />
 
-    <SectionBlock title="当月收支">
-      <template #aside>
-        <span class="muted">{{ monthLabel(month) }}</span>
-      </template>
+    <div class="analysis__month">
+      <MonthPicker v-model="month" />
+    </div>
 
-      <div v-if="error" class="card card--flush">
-        <EmptyState :title="error" mark="!" />
-      </div>
+    <SummaryStrip :primary="netMetric" :secondary="[incomeMetric, expenseMetric]" />
 
-      <StatHero
-        v-else
-        :label="`${monthLabel(month)}结余`"
-        :cents="snapshot.netCents"
-        :tone="snapshot.netCents < 0 ? 'expense' : 'income'"
-        :bubbles="[
-          { label: '收入', cents: snapshot.incomeCents, tone: 'income' },
-          { label: '支出', cents: -snapshot.expenseCents, tone: 'expense' },
-        ]"
-        :ratio="snapshot.incomeCents > 0 ? snapshot.expenseCents / snapshot.incomeCents : null"
+    <p v-if="refreshing" class="analysis__refreshing" aria-live="polite">正在更新分析…</p>
+
+    <div v-if="error && hasAnalysisData" class="analysis__error" role="alert">
+      <span>{{ error }}</span>
+      <button type="button" class="btn" @click="reload">重试</button>
+    </div>
+
+    <div v-if="!hasAnalysisData" class="analysis__empty" data-empty-analysis>
+      <AsyncState
+        :loading="loading"
+        :error="error ?? ''"
+        :empty="true"
+        empty-title="暂无收支数据"
+        empty-hint="先记几笔账，这里会展示最近 6 个月的收支趋势与分类。"
+        @retry="reload"
       />
-    </SectionBlock>
+      <a v-if="!loading && !error" class="btn btn--primary analysis__empty-action" href="#accounting">
+        去记账
+      </a>
+    </div>
 
-    <SectionBlock title="资产负债">
-      <template #aside>
-        <span class="muted">
-          {{ isCurrentMonth ? '当前' : `${monthLabel(month)}末` }}
-        </span>
-      </template>
+    <div v-else class="analysis__charts">
+      <SectionBlock title="月度收支趋势">
+        <template #aside>
+          <span class="analysis__legend" aria-label="图例">
+            <span><i class="analysis__dot analysis__dot--income" />收入</span>
+            <span><i class="analysis__dot analysis__dot--expense" />支出</span>
+          </span>
+        </template>
 
-      <div v-if="!error" class="stats" :style="{ '--stat-size': balanceFontSize }">
-        <StatBlock label="总资产">
-          <MoneyText :cents="snapshot.totalAssetsCents" />
-        </StatBlock>
-        <StatBlock label="总负债">
-          <MoneyText :cents="snapshot.totalLiabilitiesCents" tone="expense" />
-        </StatBlock>
-        <StatBlock label="净资产">
-          <MoneyText
-            class="net-worth"
-            :cents="snapshot.netWorthCents"
-            :tone="snapshot.netWorthCents < 0 ? 'expense' : 'neutral'"
+        <TrendChart v-if="trend.length" :data="trend" data-chart-frame />
+        <div v-else class="analysis__section-empty" data-empty-analysis>
+          <AsyncState
+            :loading="loading"
+            :empty="true"
+            empty-title="暂无趋势数据"
+            empty-hint="再记几笔账后，这里会显示最近 6 个月的收入与支出。"
+            @retry="reload"
           />
-          <span v-if="snapshot.netWorthCents < 0" class="tag tag--warn">资不抵债</span>
-        </StatBlock>
-      </div>
-
-      <p v-if="!error" class="split">
-        资金账户 {{ formatMoney(snapshot.accountsTotalCents) }} · 资产项
-        {{ formatMoney(snapshot.assetsTotalCents) }}
-      </p>
-
-      <p v-if="!error && snapshot.assetsEstimated" class="note">
-        这个月有资产项还没记过市值，暂按当前市值计入。
-      </p>
-    </SectionBlock>
-
-    <SectionBlock title="月度收支趋势">
-      <template #aside>
-        <span class="legend">
-          <span class="legend__item"><i class="dot dot--income" />收入</span>
-          <span class="legend__item"><i class="dot dot--expense" />支出</span>
-        </span>
-      </template>
-
-      <div v-if="trend.length === 0" class="card card--flush">
-        <EmptyState
-          title="暂无收支数据"
-          hint="记几笔账后，这里会出现最近 6 个月的收入与支出。"
-          mark="○"
-        />
-      </div>
-      <div v-else class="card card--flush chart-card">
-        <TrendChart :data="trend" />
-      </div>
-    </SectionBlock>
-
-    <SectionBlock title="支出分类占比">
-      <template #aside>
-        <span class="muted">{{ monthLabel(month) }}</span>
-      </template>
-
-      <div v-if="snapshot.breakdown.length === 0" class="card card--flush">
-        <EmptyState
-          title="这个月还没有支出"
-          hint="支出会按分类统计到这里，方便你看钱花在了哪。"
-          mark="○"
-        />
-      </div>
-      <div v-else class="card card--flush donut-row">
-        <div class="donut-row__chart">
-          <DonutChart :data="snapshot.breakdown" />
+          <a v-if="!loading && !error" class="btn analysis__empty-action" href="#accounting">
+            去记账
+          </a>
         </div>
-        <ul class="slice-list">
-          <li
-            v-for="(d, i) in snapshot.breakdown"
-            :key="(d.categoryId ?? d.name) as string"
-            class="slice"
-          >
-            <span class="slice__bar" :style="{ background: sliceColor(i) }" aria-hidden="true" />
-            <span class="slice__name">{{ d.name }}</span>
-            <MoneyText class="slice__value" :cents="d.cents" tone="expense" />
-            <span class="slice__percent">{{ d.percent }}%</span>
-          </li>
-        </ul>
-      </div>
-    </SectionBlock>
+      </SectionBlock>
+
+      <SectionBlock title="支出分类占比" :aside="monthLabel(month)">
+        <DonutChart v-if="breakdown.length" :data="breakdown" />
+        <div v-else class="analysis__section-empty">
+          <AsyncState
+            :loading="loading"
+            :empty="true"
+            empty-title="这个月还没有分类支出"
+            empty-hint="支出会按分类汇总到这里。"
+            @retry="reload"
+          />
+        </div>
+      </SectionBlock>
+    </div>
   </div>
 </template>
 
@@ -227,132 +193,120 @@ onMounted(() => void load());
 .analysis {
   display: flex;
   flex-direction: column;
+  gap: var(--sp-4);
 }
 
 .analysis__month {
-  margin-bottom: var(--sp-4);
+  max-width: 360px;
 }
 
-.stats {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--sp-2);
-}
-
-.split {
-  margin-top: var(--sp-2);
-  font-size: var(--text-xs);
-  color: var(--ink-3);
-  font-variant-numeric: tabular-nums;
-}
-
-.note {
-  margin-top: var(--sp-2);
-  padding: var(--sp-2) var(--sp-3);
-  background: var(--warn-wash);
-  border-left: 2px solid var(--warn);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  font-size: var(--text-xs);
-  color: var(--warn-deep);
-  line-height: 1.7;
-}
-
-.muted {
+.analysis__refreshing {
+  margin: calc(var(--sp-2) * -1) 0 0;
+  color: var(--muted);
   font-size: var(--text-sm);
-  color: var(--ink-3);
 }
 
-.legend {
-  display: inline-flex;
-  gap: var(--sp-3);
-  font-size: var(--text-xs);
-  color: var(--ink-3);
-}
-
-.legend__item {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  display: inline-block;
-}
-
-.dot--income {
-  background: var(--income);
-}
-
-.dot--expense {
-  background: var(--expense);
-}
-
-.chart-card {
-  padding: var(--sp-3) var(--sp-2) var(--sp-2);
-}
-
-.donut-row {
+.analysis__error {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: var(--sp-4);
-  padding: var(--sp-4);
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-left: 3px solid var(--expense);
+  background: var(--expense-soft);
+  color: var(--expense);
 }
 
-.donut-row__chart {
+.analysis__error .btn {
   flex: none;
 }
 
-.slice-list {
-  list-style: none;
+.analysis__empty,
+.analysis__section-empty {
+  text-align: center;
+}
+
+.analysis__empty {
+  padding: var(--sp-5) 0;
+}
+
+.analysis__empty-action {
+  margin-top: var(--sp-3);
+}
+
+.analysis__charts {
+  display: grid;
+  gap: var(--sp-5);
+}
+
+.analysis__charts :deep(.section) {
+  min-width: 0;
   margin: 0;
-  padding: 0;
-  flex: 1;
-  min-width: 180px;
-  display: flex;
-  flex-direction: column;
+  padding-top: var(--sp-4);
+  border-top: 1px solid var(--line);
 }
 
-.slice {
-  display: flex;
+.analysis__legend,
+.analysis__legend span {
+  display: inline-flex;
   align-items: center;
-  gap: var(--sp-2);
-  padding: 6px 0;
-  border-bottom: 1px solid var(--rule-soft);
-  font-size: var(--text-sm);
 }
 
-.slice:last-child {
-  border-bottom: none;
+.analysis__legend {
+  gap: var(--sp-3);
+  color: var(--muted);
+  font-size: var(--text-xs);
 }
 
-.slice__bar {
-  width: 3px;
-  align-self: stretch;
+.analysis__legend span {
+  gap: var(--sp-1);
+}
+
+.analysis__dot {
+  width: 8px;
+  height: 8px;
   border-radius: 2px;
 }
 
-.slice__name {
-  flex: 1;
-  min-width: 0;
-  color: var(--ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.analysis__dot--income {
+  background: var(--income);
 }
 
-.slice__value {
-  font-size: var(--text-sm);
+.analysis__dot--expense {
+  background: var(--expense);
 }
 
-.slice__percent {
-  width: 48px;
-  text-align: right;
-  color: var(--ink-3);
-  font-family: var(--font-num);
-  font-variant-numeric: tabular-nums;
+@media (min-width: 768px) {
+  .analysis {
+    gap: var(--sp-5);
+  }
+
+  .analysis__charts {
+    grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
+    align-items: start;
+  }
+}
+
+@media (max-width: 420px) {
+  .analysis :deep(.summary-strip) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .analysis :deep(.summary-strip__primary) {
+    grid-column: 1 / -1;
+    padding-bottom: var(--sp-3);
+  }
+
+  .analysis :deep(.summary-strip__secondary) {
+    padding-top: var(--sp-3);
+    padding-left: 0;
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
+
+  .analysis :deep(.summary-strip__secondary:last-child) {
+    padding-left: var(--sp-3);
+    border-left: 1px solid var(--line);
+  }
 }
 </style>
