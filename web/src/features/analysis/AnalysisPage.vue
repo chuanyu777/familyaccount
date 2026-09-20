@@ -34,27 +34,37 @@ const refreshing = ref(false);
 const error = ref<string | null>(null);
 const gate = createLatestGate();
 const statisticsVersion = resourceVersion(['statistics']);
+const retainedMonth = computed(() =>
+  snapshot.value && snapshot.value.month !== month.value ? snapshot.value.month : null,
+);
+
+function metricLabel(name: string): string {
+  return retainedMonth.value ? `${monthLabel(retainedMonth.value)}${name}` : `当月${name}`;
+}
 
 const netMetric = computed<SummaryMetric>(() => ({
-  label: '当月结余',
+  label: metricLabel('结余'),
   cents: snapshot.value?.netCents ?? 0,
   tone: (snapshot.value?.netCents ?? 0) < 0 ? 'expense' : 'income',
 }));
 const incomeMetric = computed<SummaryMetric>(() => ({
-  label: '当月收入',
+  label: metricLabel('收入'),
   cents: snapshot.value?.incomeCents ?? 0,
   tone: 'income',
 }));
 const expenseMetric = computed<SummaryMetric>(() => ({
-  label: '当月支出',
+  label: metricLabel('支出'),
   cents: -(snapshot.value?.expenseCents ?? 0),
   tone: 'expense',
 }));
 const breakdown = computed(() => snapshot.value?.breakdown ?? []);
+const hasTrendActivity = computed(() =>
+  trend.value.some((point) => point.incomeCents !== 0 || point.expenseCents !== 0),
+);
 const hasAnalysisData = computed(() => {
   const current = snapshot.value;
   return Boolean(
-    trend.value.length ||
+    hasTrendActivity.value ||
       current?.breakdown.length ||
       current?.incomeCents ||
       current?.expenseCents ||
@@ -128,7 +138,10 @@ onMounted(() => void load());
 
     <SummaryStrip :primary="netMetric" :secondary="[incomeMetric, expenseMetric]" />
 
-    <p v-if="refreshing" class="analysis__refreshing" aria-live="polite">正在更新分析…</p>
+    <p v-if="retainedMonth" class="analysis__refreshing" data-retained-month aria-live="polite">
+      当前显示{{ monthLabel(retainedMonth) }}数据，{{ monthLabel(month) }}{{ error ? '加载失败' : '加载中' }}
+    </p>
+    <p v-else-if="refreshing" class="analysis__refreshing" aria-live="polite">正在更新分析…</p>
 
     <div v-if="error && hasAnalysisData" class="analysis__error" role="alert">
       <span>{{ error }}</span>
@@ -158,7 +171,7 @@ onMounted(() => void load());
           </span>
         </template>
 
-        <TrendChart v-if="trend.length" :data="trend" data-chart-frame />
+        <TrendChart v-if="hasTrendActivity" :data="trend" data-chart-frame />
         <div v-else class="analysis__section-empty" data-empty-analysis>
           <AsyncState
             :loading="loading"
@@ -173,7 +186,7 @@ onMounted(() => void load());
         </div>
       </SectionBlock>
 
-      <SectionBlock title="支出分类占比" :aside="monthLabel(month)">
+      <SectionBlock title="支出分类占比" :aside="monthLabel(snapshot?.month ?? month)">
         <DonutChart v-if="breakdown.length" :data="breakdown" />
         <div v-else class="analysis__section-empty">
           <AsyncState

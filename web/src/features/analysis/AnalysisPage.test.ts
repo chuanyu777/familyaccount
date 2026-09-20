@@ -58,7 +58,7 @@ function mockApi(overrides: Record<string, unknown> = {}) {
 function setupEmptyStats() {
   mockApi({
     summary: { ...summary, incomeCents: 0, expenseCents: 0, netCents: 0, breakdown: [] },
-    trend: [],
+    trend: trend.map(({ month }) => ({ month, incomeCents: 0, expenseCents: 0, netCents: 0 })),
   });
 }
 
@@ -114,6 +114,19 @@ describe('分析页 · C3 结构', () => {
     expect(document.querySelectorAll('[data-category-bar]')).toHaveLength(3);
   });
 
+  it('支出分类色条不使用收入绿或主操作蓝，仅次分类使用琥珀色', async () => {
+    mockApi();
+    wrapper = mount(AnalysisPage, { attachTo: document.body });
+    await settle();
+
+    const fills = wrapper.findAll('[data-category-bar] .category-chart__fill');
+    expect(fills.map((fill) => fill.element.getAttribute('style'))).toEqual([
+      'width: 38%; background: var(--expense);',
+      'width: 35%; background: var(--chart-accent);',
+      'width: 27%; background: var(--muted);',
+    ]);
+  });
+
   it('shows an actionable empty state instead of an empty chart frame', async () => {
     setupEmptyStats();
     wrapper = mount(AnalysisPage, { attachTo: document.body });
@@ -121,6 +134,8 @@ describe('分析页 · C3 结构', () => {
 
     expect(document.querySelector('[data-empty-analysis]')).toBeTruthy();
     expect(document.querySelector('[data-chart-frame]')).toBeNull();
+    expect(document.querySelectorAll('[data-series]')).toHaveLength(0);
+    expect(wrapper.get('a[href="#accounting"]').text()).toBe('去记账');
     expect(document.body.textContent).toContain('记几笔账');
   });
 });
@@ -184,6 +199,41 @@ describe('分析页 · 资源加载', () => {
     await settle();
     expect(wrapper.text()).toContain(formatMoney(222000));
     expect(wrapper.text()).not.toContain(formatMoney(111000));
+  });
+
+  it('切月等待或失败时明确标记保留数据的月份，重试成功后恢复所选月份', async () => {
+    mockApi();
+    wrapper = mount(AnalysisPage, { attachTo: document.body });
+    await settle();
+
+    const pendingSnapshot = deferred<typeof summary>();
+    const pendingTrend = deferred<typeof trend>();
+    mockedCachedGet.mockImplementation((path: string) =>
+      (path.includes('monthly-snapshot') ? pendingSnapshot.promise : pendingTrend.promise) as never,
+    );
+
+    await wrapper.get('[aria-label="上一月"]').trigger('click');
+    expect(wrapper.get('[aria-label="选择月份"]').text()).toContain('8月');
+    expect(wrapper.text()).toContain(formatMoney(summary.netCents));
+    expect(wrapper.get('[data-retained-month]').text()).toContain('9月');
+    expect(wrapper.get('.summary-strip__primary dt').text()).toContain('9月');
+    expect(wrapper.get('.section__aside').text()).toContain('9月');
+
+    pendingSnapshot.reject(new Error('网络异常'));
+    pendingTrend.resolve(trend);
+    await settle();
+    expect(wrapper.get('[data-retained-month]').text()).toContain('9月');
+    expect(wrapper.get('[role="alert"]').text()).toContain('网络异常');
+    expect(wrapper.text()).toContain(formatMoney(summary.netCents));
+
+    const priorMonth = shiftMonth(currentMonth(), -1);
+    mockApi({ summary: { ...summary, month: priorMonth, netCents: 123000 } });
+    await wrapper.get('[role="alert"] button').trigger('click');
+    await settle();
+    expect(wrapper.find('[data-retained-month]').exists()).toBe(false);
+    expect(wrapper.get('.summary-strip__primary dt').text()).toBe('当月结余');
+    expect(wrapper.get('.section__aside').text()).toContain('8月');
+    expect(wrapper.text()).toContain(formatMoney(123000));
   });
 
   it('统计资源刷新失败时保留上次快照并提供重试', async () => {
