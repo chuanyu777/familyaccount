@@ -334,7 +334,7 @@ function signedCents(transaction: Transaction): number {
 .filterbar__type {
   flex: none;
   min-width: 44px;
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 10px;
   border: 0;
   border-radius: 5px;
@@ -353,8 +353,8 @@ function signedCents(transaction: Transaction): number {
 
 .filterbar__more {
   flex: none;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   margin-left: auto;

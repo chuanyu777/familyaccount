@@ -37,6 +37,7 @@ export function useTransactions() {
   const hasMore = computed(() => items.value.length < total.value);
 
   const listGate = createLatestGate();
+  const referenceGate = createLatestGate();
   const transactionVersion = resourceVersion(['transactions']);
   const referenceVersion = resourceVersion(['accounts', 'members', 'categories']);
   let loadSequence = 0;
@@ -65,7 +66,7 @@ export function useTransactions() {
           force: options.force,
         }),
       );
-      if (!result.current) return;
+      if (!result.current) return false;
       items.value = options.append ? [...items.value, ...result.value.items] : result.value.items;
       totals.value = {
         income: result.value.incomeTotalCents,
@@ -73,9 +74,11 @@ export function useTransactions() {
         net: result.value.netCents,
       };
       total.value = result.value.total;
+      return true;
     } catch (cause) {
-      if (request !== loadSequence) return;
+      if (request !== loadSequence) return false;
       error.value = cause instanceof Error ? cause.message : '流水加载失败';
+      return false;
     } finally {
       if (request === loadSequence) {
         loading.value = false;
@@ -86,12 +89,14 @@ export function useTransactions() {
 
   async function loadReferences(force = false) {
     try {
-      const [accountItems, memberItems, expenseItems, incomeItems] = await Promise.all([
+      const result = await referenceGate.run(() => Promise.all([
         cachedGet<Account[]>('/api/accounts', undefined, { force }),
         cachedGet<Member[]>('/api/members', undefined, { force }),
         cachedGet<Category[]>('/api/categories', { kind: 'expense' }, { force }),
         cachedGet<Category[]>('/api/categories', { kind: 'income' }, { force }),
-      ]);
+      ]));
+      if (!result.current) return;
+      const [accountItems, memberItems, expenseItems, incomeItems] = result.value;
       accounts.value = accountItems ?? [];
       members.value = memberItems ?? [];
       expenseCategories.value = expenseItems ?? [];
@@ -109,7 +114,9 @@ export function useTransactions() {
   async function loadMore() {
     if (!hasMore.value || refreshing.value) return;
     page.value += 1;
-    await load({ append: true });
+    const requestedPage = page.value;
+    const applied = await load({ append: true });
+    if (!applied && page.value === requestedPage) page.value -= 1;
   }
 
   function reload() {

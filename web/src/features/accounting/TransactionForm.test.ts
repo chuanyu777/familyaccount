@@ -139,6 +139,34 @@ describe('TransactionForm', () => {
     expect(form.emitted('saved')).toHaveLength(1);
   });
 
+  it('ignores Escape, backdrop and close button during a pending write, then permits closing after failure', async () => {
+    let rejectSave!: (reason: Error) => void;
+    mockedApiPost.mockImplementationOnce(() => new Promise<void>((_resolve, reject) => {
+      rejectSave = reject;
+    }));
+    const form = mountForm();
+    await setValue(input('金额'), '186');
+    submit().click();
+    await flushPromises();
+    expect(submit().textContent?.trim()).toBe('保存中…');
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    document.querySelector<HTMLElement>('.overlay')!.click();
+    document.querySelector<HTMLButtonElement>('.sheet__close')!.click();
+    await flushPromises();
+    expect(form.emitted('close')).toBeUndefined();
+    expect(document.querySelector('.sheet')).not.toBeNull();
+
+    rejectSave(new ApiError(500, 'SAVE_FAILED', '保存失败'));
+    await flushPromises();
+    expect(input('金额').value).toBe('186');
+    expect(document.querySelector('.sheet')?.textContent).toContain('保存失败');
+    expect(form.emitted('saved')).toBeUndefined();
+
+    document.querySelector<HTMLButtonElement>('.sheet__close')!.click();
+    expect(form.emitted('close')).toHaveLength(1);
+  });
+
   it('uses the named defaults and preserves the expense payload', async () => {
     mountForm();
     await setValue(input('金额'), '186');

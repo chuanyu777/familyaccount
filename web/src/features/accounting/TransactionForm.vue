@@ -109,6 +109,10 @@ const transferValid = computed(
 );
 const canSubmit = computed(() => amountValid.value && transferValid.value && !saving.value);
 
+function handleClose() {
+  if (!saving.value) emit('close');
+}
+
 watch(
   () => [props.expenseCategories, props.incomeCategories],
   () => {
@@ -210,7 +214,7 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <AppSheet :title="title" @close="emit('close')">
+  <AppSheet :title="title" @close="handleClose">
     <SegmentedControl
       :model-value="type"
       :options="TYPE_OPTIONS"
@@ -324,7 +328,7 @@ async function handleSubmit() {
     <p v-if="error" class="form-error">{{ error }}</p>
 
     <div class="actions">
-      <button type="button" class="btn" :disabled="saving" @click="emit('close')">取消</button>
+      <button type="button" class="btn" :disabled="saving" @click="handleClose">取消</button>
       <button
         type="button"
         class="btn btn--primary"

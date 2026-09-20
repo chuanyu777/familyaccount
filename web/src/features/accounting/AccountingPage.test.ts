@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { cachedGet } from '../../lib/api';
+import { parse } from '@vue/compiler-sfc';
 import AccountingPage from './AccountingPage.vue';
+import accountingPageSource from './AccountingPage.vue?raw';
 import type { Account, Category, Member, Transaction, TransactionsResponse } from './types';
 
 vi.mock('../../lib/api', () => ({
@@ -124,5 +126,24 @@ describe('AccountingPage', () => {
     await wrapper.get('.page-header__action button').trigger('click');
     await flushPromises();
     expect(document.querySelector('.sheet')?.textContent).toContain('记一笔');
+  });
+
+  it('gives every rendered type and more-filter button a 44px minimum target', async () => {
+    wrapper = mount(AccountingPage, { attachTo: document.body });
+    await flushPromises();
+    const style = document.createElement('style');
+    style.textContent = parse(accountingPageSource).descriptor.styles[0]?.content ?? '';
+    document.head.append(style);
+    try {
+      const controls = wrapper.findAll<HTMLButtonElement>('.filterbar button');
+      expect(controls).toHaveLength(5);
+      for (const control of controls) {
+        const computed = getComputedStyle(control.element);
+        expect(parseFloat(computed.minWidth || computed.width)).toBeGreaterThanOrEqual(44);
+        expect(parseFloat(computed.minHeight || computed.height)).toBeGreaterThanOrEqual(44);
+      }
+    } finally {
+      style.remove();
+    }
   });
 });

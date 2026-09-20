@@ -188,6 +188,69 @@ describe('useTransactions', () => {
     expect(state.hasMore.value).toBe(true);
   });
 
+  it('retries a failed load-more request without skipping its page', async () => {
+    const requestedPages: number[] = [];
+    let failed = false;
+    mockedCachedGet.mockImplementation((path: string, params?: Record<string, unknown>) => {
+      if (path === '/api/transactions') {
+        const requestedPage = Number(params?.page);
+        requestedPages.push(requestedPage);
+        if (requestedPage === 2 && !failed) {
+          failed = true;
+          return Promise.reject(new Error('暂时无法载入'));
+        }
+        return Promise.resolve(response([transaction(requestedPage)], 40));
+      }
+      if (path === '/api/accounts') return Promise.resolve(accounts);
+      if (path === '/api/members') return Promise.resolve(members);
+      if (path === '/api/categories') {
+        return Promise.resolve(params?.kind === 'income' ? incomeCategories : expenseCategories);
+      }
+      return Promise.resolve(undefined);
+    });
+
+    mountComposable();
+    await flushPromises();
+    await state.loadMore();
+    expect(state.error.value).toBe('暂时无法载入');
+    expect(state.items.value.map(({ id }) => id)).toEqual([1]);
+
+    await state.loadMore();
+    expect(requestedPages).toEqual([1, 2, 2]);
+    expect(state.items.value.map(({ id }) => id)).toEqual([1, 2]);
+    expect(state.error.value).toBeNull();
+  });
+
+  it('does not let an older reference read replace a newer category refresh', async () => {
+    const initialExpense = deferred<Category[]>();
+    const newCategory: Category = { id: 3, kind: 'expense', name: '宠物' };
+    let expenseReads = 0;
+    mockedCachedGet.mockImplementation((path: string, params?: Record<string, unknown>) => {
+      if (path === '/api/transactions') return Promise.resolve(response([transaction(1)]));
+      if (path === '/api/accounts') return Promise.resolve(accounts);
+      if (path === '/api/members') return Promise.resolve(members);
+      if (path === '/api/categories' && params?.kind === 'expense') {
+        expenseReads += 1;
+        return expenseReads === 1
+          ? initialExpense.promise
+          : Promise.resolve([...expenseCategories, newCategory]);
+      }
+      if (path === '/api/categories') return Promise.resolve(incomeCategories);
+      return Promise.resolve(undefined);
+    });
+
+    mountComposable();
+    await flushPromises();
+    publishResources(['categories']);
+    await nextTick();
+    await flushPromises();
+    expect(state.expenseCategories.value.map(({ id }) => id)).toEqual([1, 3]);
+
+    initialExpense.resolve(expenseCategories);
+    await flushPromises();
+    expect(state.expenseCategories.value.map(({ id }) => id)).toEqual([1, 3]);
+  });
+
   it('reloads transaction and reference resources independently', async () => {
     mockedCachedGet.mockImplementation((path: string, params?: { kind?: string }) => {
       if (path === '/api/transactions') return Promise.resolve(response([transaction(1)]));
