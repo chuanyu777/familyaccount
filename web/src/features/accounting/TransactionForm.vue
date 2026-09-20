@@ -202,8 +202,8 @@ async function handleSubmit() {
       await apiPost('/api/transactions', payload);
     }
     emit('saved');
-  } catch {
-    error.value = '没存上，再试一次';
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : '没存上，再试一次';
     saving.value = false;
   }
 }
@@ -328,10 +328,11 @@ async function handleSubmit() {
       <button
         type="button"
         class="btn btn--primary"
+        data-submit-transaction
         :disabled="!canSubmit"
         @click="handleSubmit"
       >
-        {{ mode === 'edit' ? '更新' : '记下' }}
+        {{ saving ? '保存中…' : mode === 'edit' ? '更新' : '记下' }}
       </button>
     </div>
   </AppSheet>
