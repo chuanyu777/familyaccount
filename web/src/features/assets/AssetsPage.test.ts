@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vite
 import { mount, flushPromises } from '@vue/test-utils';
 import { formatMoney } from '../../lib/format';
 import { cachedGet, apiPost, apiPatch, apiDelete, ApiError } from '../../lib/api';
+import { publishResources } from '../../lib/resourceInvalidation';
 import AssetsPage from './AssetsPage.vue';
 import type { Account, Asset, Member, Summary } from './types';
 
@@ -158,14 +159,14 @@ function clickBtnInSheet(label: string) {
   clickBtn(label, actions);
 }
 function statValue(label: string): string {
-  const bubble = Array.from(document.querySelectorAll('.hero__bubble')).find(
-    (s) => s.querySelector('.hero__bubble-label')?.textContent?.trim() === label,
+  const metric = Array.from(document.querySelectorAll('.summary-strip > div')).find(
+    (s) => s.querySelector('.summary-strip__label')?.textContent?.trim() === label,
   );
-  return bubble?.querySelector('.money')?.textContent ?? '';
+  return metric?.querySelector('.money')?.textContent ?? '';
 }
 
 function heroAmount(): string {
-  return document.querySelector('.hero__amount')?.textContent ?? '';
+  return statValue('净资产');
 }
 
 let wrapper: ReturnType<typeof mount> | null = null;
@@ -197,9 +198,61 @@ describe('AC-01 顶部总览卡', () => {
     expect(heroAmount()).toBe(formatMoney(summary.netWorthCents));
     expect(statValue('总资产')).toBe(formatMoney(summary.totalAssetsCents));
     expect(statValue('总负债')).toBe(formatMoney(-summary.totalLiabilitiesCents));
-    const split = document.querySelector('.hero-split')?.textContent ?? '';
-    expect(split).toContain(formatMoney(summary.accountsTotalCents));
-    expect(split).toContain(formatMoney(summary.assetsTotalCents));
+    expect(document.querySelector('.summary-strip')).toBeTruthy();
+  });
+});
+
+describe('assets workspace', () => {
+  it('renders separate account and asset groups with whole-row detail actions', async () => {
+    wrapper = mount(AssetsPage, { attachTo: document.body });
+    await settle();
+    expect(document.querySelector('[data-account-list]')).toBeTruthy();
+    expect(document.querySelector('[data-asset-list]')).toBeTruthy();
+    const accountRow = document.querySelector<HTMLButtonElement>('[data-account-row="1"]');
+    const assetRow = document.querySelector<HTMLButtonElement>('[data-asset-row="1"]');
+    expect(accountRow?.tagName).toBe('BUTTON');
+    expect(assetRow?.tagName).toBe('BUTTON');
+    expect(accountRow?.querySelector('.row__actions')).toBeNull();
+    accountRow?.click();
+    await settle();
+    expect(document.querySelector('.sheet')?.textContent).toContain('余额');
+  });
+
+  it('shows pending save state and keeps entered values after an API error', async () => {
+    let rejectSave!: (error: Error) => void;
+    mockedApiPost.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectSave = reject; }));
+    wrapper = mount(AssetsPage, { attachTo: document.body });
+    await settle();
+    clickBtn('新增资产');
+    await settle();
+    setInput(fieldInput('资产名称')!, '基金');
+    setInput(fieldInput('市值')!, '8000');
+    clickBtn('保存');
+    await settle();
+    expect(findBtn('保存中…')?.disabled).toBe(true);
+    rejectSave(new Error('网络失败'));
+    await settle();
+    expect((fieldInput('资产名称') as HTMLInputElement).value).toBe('基金');
+    expect(document.body.textContent).toContain('网络失败');
+    expect(findBtn('保存')?.disabled).toBe(false);
+  });
+
+  it('does not reload members when an asset edit publishes asset invalidation', async () => {
+    wrapper = mount(AssetsPage, { attachTo: document.body });
+    await settle();
+    mockedCachedGet.mockClear();
+    mockedApiPatch.mockImplementationOnce(async () => {
+      publishResources(['assets', 'statistics']);
+    });
+    openRow('股票');
+    await settle();
+    clickBtnInSheet('编辑');
+    await settle();
+    setInput(fieldInput('市值') as HTMLInputElement, '60000');
+    clickBtn('保存');
+    await settle();
+    expect(mockedCachedGet).toHaveBeenCalledWith('/api/assets', undefined, { force: true });
+    expect(mockedCachedGet).not.toHaveBeenCalledWith('/api/members', undefined, { force: true });
   });
 });
 
@@ -409,11 +462,12 @@ describe('AC-04 空状态与失败降级', () => {
     expect(document.body.textContent).toContain('还没有资产项');
   });
 
-  it('数据请求失败时优雅降级为空状态，不抛未捕获异常', async () => {
+  it('数据请求失败时展示可重试错误，不抛未捕获异常', async () => {
     mockedCachedGet.mockRejectedValue(new Error('network'));
     wrapper = mount(AssetsPage, { attachTo: document.body });
     await settle();
-    expect(document.body.textContent).toContain('还没有资金账户');
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain('network');
+    expect(findBtn('重试')).toBeTruthy();
   });
 });
 

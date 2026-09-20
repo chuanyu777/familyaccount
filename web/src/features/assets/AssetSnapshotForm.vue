@@ -92,7 +92,7 @@ async function save() {
 
     <div class="actions">
       <button type="button" class="btn" :disabled="saving" @click="emit('close')">取消</button>
-      <button type="button" class="btn btn--primary" :disabled="saving" @click="save">保存</button>
+      <button type="button" class="btn btn--primary" :disabled="saving" @click="save">{{ saving ? '保存中…' : '保存' }}</button>
     </div>
   </AppSheet>
 </template>
