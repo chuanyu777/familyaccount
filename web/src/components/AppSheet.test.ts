@@ -166,4 +166,36 @@ describe('ConfirmDialog', () => {
     wrappers.splice(wrappers.indexOf(wrapper), 1);
     expect(document.activeElement).toBe(opener);
   });
+
+  it('blocks confirm and dismissal while pending, then exposes a retryable error', async () => {
+    const wrapper = mount(ConfirmDialog, {
+      attachTo: document.body,
+      props: {
+        title: '删除记录',
+        confirmText: '删除',
+        pending: true,
+      },
+    });
+    wrappers.push(wrapper);
+    await flushPromises();
+
+    const dialog = document.body.querySelector<HTMLElement>('.dialog')!;
+    const buttons = dialog.querySelectorAll<HTMLButtonElement>('button');
+    expect(dialog.getAttribute('aria-busy')).toBe('true');
+    expect([...buttons].every(({ disabled }) => disabled)).toBe(true);
+    expect(buttons[1]?.textContent?.trim()).toBe('删除中…');
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    document.body.querySelector<HTMLElement>('.overlay')!.click();
+    buttons[0]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    buttons[1]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(wrapper.emitted('cancel')).toBeUndefined();
+    expect(wrapper.emitted('confirm')).toBeUndefined();
+
+    await wrapper.setProps({ pending: false, error: '删除失败，请重试' });
+    expect(dialog.getAttribute('aria-busy')).toBe('false');
+    expect(dialog.querySelector('[role="alert"]')?.textContent).toContain('删除失败，请重试');
+    dialog.querySelectorAll<HTMLButtonElement>('button')[1]?.click();
+    expect(wrapper.emitted('confirm')).toHaveLength(1);
+  });
 });

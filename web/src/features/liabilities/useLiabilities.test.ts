@@ -30,6 +30,7 @@ const accounts: Account[] = [
 const members: Member[] = [{ id: 1, name: '我' }];
 const repayments: Repayment[] = [
   { id: 1, liability_id: 1, amount_cents: 300000, occurred_on: '2026-09-10', account_id: 1 },
+  { id: 2, liability_id: 2, amount_cents: 500000, occurred_on: '2026-09-11', account_id: 1 },
 ];
 
 function deferred<T>() {
@@ -47,9 +48,7 @@ function defaultResponse(path: string, params?: Record<string, unknown>) {
   if (path === '/api/liabilities') return Promise.resolve(liabilities);
   if (path === '/api/accounts') return Promise.resolve(accounts);
   if (path === '/api/members') return Promise.resolve(members);
-  if (path === '/api/repayments') {
-    return Promise.resolve(params?.liabilityId === 1 ? repayments : []);
-  }
+  if (path === '/api/repayments') return Promise.resolve(repayments);
   return Promise.resolve(undefined);
 }
 
@@ -77,40 +76,49 @@ afterEach(() => {
 });
 
 describe('useLiabilities', () => {
-  it('loads repayment history only after a liability is selected', async () => {
+  it('loads all repayments with the initial liability resources', async () => {
     mountComposable();
     await flushPromises();
 
-    expect(mockedCachedGet.mock.calls.some(([path]) => path === '/api/repayments')).toBe(false);
-
-    await state.loadRepayments(1);
-    expect(mockedCachedGet).toHaveBeenLastCalledWith(
-      '/api/repayments',
-      { liabilityId: 1 },
-      { force: false },
-    );
+    expect(mockedCachedGet).toHaveBeenCalledWith('/api/repayments', undefined, { force: false });
     expect(state.repayments.value).toEqual(repayments);
   });
 
-  it('keeps repayment history tied to the most recently selected liability', async () => {
+  it('rejects an older full repayment response after a newer reload', async () => {
     const first = deferred<Repayment[]>();
+    const latest = repayments.map((repayment) => ({
+      ...repayment,
+      amount_cents: repayment.amount_cents * 2,
+    }));
+    let repaymentReads = 0;
     mockedCachedGet.mockImplementation((path: string, params?: Record<string, unknown>) => {
-      if (path === '/api/repayments' && params?.liabilityId === 1) return first.promise;
-      if (path === '/api/repayments' && params?.liabilityId === 2) {
-        return Promise.resolve([{ ...repayments[0], id: 2, liability_id: 2 }]);
+      if (path === '/api/repayments') {
+        repaymentReads += 1;
+        return repaymentReads === 1 ? first.promise : Promise.resolve(latest);
       }
       return defaultResponse(path, params);
     });
     mountComposable();
+    await state.reloadRepayments();
+    first.resolve(repayments);
     await flushPromises();
 
-    const oldLoad = state.loadRepayments(1);
-    await state.loadRepayments(2);
-    first.resolve(repayments);
-    await oldLoad;
+    expect(state.repayments.value).toEqual(latest);
+  });
 
-    expect(state.selectedLiabilityId.value).toBe(2);
-    expect(state.repayments.value.map(({ liability_id }) => liability_id)).toEqual([2]);
+  it('derives selected detail history and clears every selection value', async () => {
+    mountComposable();
+    await flushPromises();
+
+    expect(state.selectLiability).toBeTypeOf('function');
+    state.selectLiability(2);
+    expect(state.selectedLiability.value?.id).toBe(2);
+    expect(state.selectedRepayments.value.map(({ id }) => id)).toEqual([2]);
+
+    state.clearSelection();
+    expect(state.selectedLiabilityId.value).toBeNull();
+    expect(state.selectedLiability.value).toBeNull();
+    expect(state.selectedRepayments.value).toEqual([]);
   });
 
   it('rejects an older liability response after a newer reload', async () => {
@@ -146,21 +154,25 @@ describe('useLiabilities', () => {
     expect(mockedCachedGet).toHaveBeenCalledWith('/api/accounts', undefined, { force: true });
   });
 
-  it('reloads selected repayment history when repayments change', async () => {
+  it('reloads every repayment after repayment invalidation', async () => {
     mountComposable();
     await flushPromises();
-    await state.loadRepayments(1);
     mockedCachedGet.mockClear();
+    const refreshed = repayments.map((repayment) => ({
+      ...repayment,
+      amount_cents: repayment.amount_cents + 100000,
+    }));
+    mockedCachedGet.mockImplementation((path: string, params?: Record<string, unknown>) => {
+      if (path === '/api/repayments') return Promise.resolve(refreshed);
+      return defaultResponse(path, params);
+    });
 
     publishResources(['repayments']);
     await nextTick();
     await flushPromises();
 
     expect(mockedCachedGet.mock.calls.map(([path]) => path)).toEqual(['/api/repayments']);
-    expect(mockedCachedGet).toHaveBeenCalledWith(
-      '/api/repayments',
-      { liabilityId: 1 },
-      { force: true },
-    );
+    expect(mockedCachedGet).toHaveBeenCalledWith('/api/repayments', undefined, { force: true });
+    expect(state.repayments.value).toEqual(refreshed);
   });
 });

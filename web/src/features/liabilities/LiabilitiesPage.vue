@@ -26,9 +26,12 @@ const {
   error,
   repaymentsLoading,
   repaymentsError,
+  selectedLiability: detailLiability,
+  selectedRepayments: detailRepayments,
   reload,
-  loadRepayments,
   reloadRepayments,
+  selectLiability,
+  clearSelection,
 } = useLiabilities();
 
 const totalMetric = computed<SummaryMetric>(() => ({
@@ -46,14 +49,11 @@ const formOpen = ref(false);
 const formMode = ref<'create' | 'edit'>('create');
 const formInitial = ref<Liability | undefined>(undefined);
 const repayLiability = ref<Liability | null>(null);
-const detailLiabilityId = ref<number | null>(null);
 const confirmDeleteId = ref<number | null>(null);
 const confirmDeleteRepayId = ref<number | null>(null);
+const liabilityDeletePending = ref(false);
+const repaymentDeletePending = ref(false);
 const mutationError = ref<string | null>(null);
-
-const detailLiability = computed(
-  () => liabilities.value.find(({ id }) => id === detailLiabilityId.value) ?? null,
-);
 
 function remainingCents(liability: Liability): number {
   return parseYuanToCents(liability.remaining) ?? 0;
@@ -69,13 +69,16 @@ function openForm(initial?: Liability) {
   formOpen.value = true;
 }
 
-async function openDetail(liability: Liability) {
-  detailLiabilityId.value = liability.id;
-  await loadRepayments(liability.id);
+function openDetail(liability: Liability) {
+  selectLiability(liability.id);
+}
+
+function closeDetail() {
+  clearSelection();
 }
 
 function editFromDetail(liability: Liability) {
-  detailLiabilityId.value = null;
+  closeDetail();
   openForm(liability);
 }
 
@@ -84,26 +87,35 @@ function openRepayment(liability: Liability) {
 }
 
 function repayFromDetail(liability: Liability) {
-  detailLiabilityId.value = null;
+  closeDetail();
   openRepayment(liability);
 }
 
 function askDeleteLiability(id: number) {
   mutationError.value = null;
-  detailLiabilityId.value = null;
+  closeDetail();
   confirmDeleteId.value = id;
 }
 
 async function doDeleteLiability() {
   const id = confirmDeleteId.value;
-  if (id == null) return;
+  if (id == null || liabilityDeletePending.value) return;
   mutationError.value = null;
+  liabilityDeletePending.value = true;
   try {
     await apiDelete(`/api/liabilities/${id}`);
     confirmDeleteId.value = null;
   } catch (cause) {
     mutationError.value = cause instanceof Error ? cause.message : '删除负债失败';
+  } finally {
+    liabilityDeletePending.value = false;
   }
+}
+
+function cancelDeleteLiability() {
+  if (liabilityDeletePending.value) return;
+  confirmDeleteId.value = null;
+  mutationError.value = null;
 }
 
 function askDeleteRepayment(id: number) {
@@ -113,14 +125,23 @@ function askDeleteRepayment(id: number) {
 
 async function doDeleteRepayment() {
   const id = confirmDeleteRepayId.value;
-  if (id == null) return;
+  if (id == null || repaymentDeletePending.value) return;
   mutationError.value = null;
+  repaymentDeletePending.value = true;
   try {
     await apiDelete(`/api/repayments/${id}`);
     confirmDeleteRepayId.value = null;
   } catch (cause) {
     mutationError.value = cause instanceof Error ? cause.message : '删除还款失败';
+  } finally {
+    repaymentDeletePending.value = false;
   }
+}
+
+function cancelDeleteRepayment() {
+  if (repaymentDeletePending.value) return;
+  confirmDeleteRepayId.value = null;
+  mutationError.value = null;
 }
 </script>
 
@@ -140,7 +161,10 @@ async function doDeleteRepayment() {
       <AsyncState
         :loading="loading"
         :error="error ?? ''"
-        :empty="liabilities.length === 0"
+        :empty="
+          liabilities.length === 0 ||
+          (repayments.length === 0 && (repaymentsLoading || repaymentsError !== null))
+        "
         empty-title="还没有负债"
         empty-hint="点「新增负债」记录房贷、车贷等。"
         @retry="reload"
@@ -155,7 +179,7 @@ async function doDeleteRepayment() {
       </AsyncState>
     </SectionBlock>
 
-    <AppSheet v-if="detailLiability" :title="detailLiability.name" @close="detailLiabilityId = null">
+    <AppSheet v-if="detailLiability" :title="detailLiability.name" @close="closeDetail">
       <dl class="detail">
         <div class="detail__row">
           <dt>剩余本金</dt>
@@ -180,12 +204,12 @@ async function doDeleteRepayment() {
         <AsyncState
           :loading="repaymentsLoading"
           :error="repaymentsError ?? ''"
-          :empty="repayments.length === 0"
+          :empty="detailRepayments.length === 0"
           empty-title="暂无还款记录"
           @retry="reloadRepayments"
         >
           <RepaymentList
-            :repayments="repayments"
+            :repayments="detailRepayments"
             :accounts="accounts"
             @delete="askDeleteRepayment"
           />
@@ -225,8 +249,10 @@ async function doDeleteRepayment() {
       title="删除负债"
       description="删除后不可恢复，相关还款历史也会被删除，对应账户余额和还款流水将一并回滚。"
       confirm-text="删除"
+      :pending="liabilityDeletePending"
+      :error="mutationError ?? ''"
       @confirm="doDeleteLiability"
-      @cancel="confirmDeleteId = null"
+      @cancel="cancelDeleteLiability"
     />
 
     <ConfirmDialog
@@ -234,8 +260,10 @@ async function doDeleteRepayment() {
       title="删除还款"
       description="删除后将恢复负债本金和账户余额，并删除对应还款流水。"
       confirm-text="删除"
+      :pending="repaymentDeletePending"
+      :error="mutationError ?? ''"
       @confirm="doDeleteRepayment"
-      @cancel="confirmDeleteRepayId = null"
+      @cancel="cancelDeleteRepayment"
     />
   </div>
 </template>

@@ -24,12 +24,18 @@ export function useLiabilities() {
   const members = ref<Member[]>([]);
   const repayments = ref<Repayment[]>([]);
   const selectedLiabilityId = ref<number | null>(null);
+  const selectedLiability = computed(
+    () => liabilities.value.find(({ id }) => id === selectedLiabilityId.value) ?? null,
+  );
+  const selectedRepayments = computed(() =>
+    repayments.value.filter(({ liability_id }) => liability_id === selectedLiabilityId.value),
+  );
 
   const summaryLoading = ref(true);
   const liabilityLoading = ref(true);
   const accountLoading = ref(true);
   const memberLoading = ref(true);
-  const repaymentsLoading = ref(false);
+  const repaymentsLoading = ref(true);
   const summaryError = ref<string | null>(null);
   const liabilityError = ref<string | null>(null);
   const accountError = ref<string | null>(null);
@@ -37,13 +43,23 @@ export function useLiabilities() {
   const repaymentsError = ref<string | null>(null);
 
   const loading = computed(
-    () => summaryLoading.value || liabilityLoading.value || accountLoading.value || memberLoading.value,
+    () =>
+      summaryLoading.value ||
+      liabilityLoading.value ||
+      accountLoading.value ||
+      memberLoading.value ||
+      repaymentsLoading.value,
   );
   const refreshing = computed(
     () => loading.value && liabilities.value.length > 0,
   );
   const error = computed(
-    () => liabilityError.value ?? summaryError.value ?? accountError.value ?? memberError.value,
+    () =>
+      liabilityError.value ??
+      repaymentsError.value ??
+      summaryError.value ??
+      accountError.value ??
+      memberError.value,
   );
 
   function createLoader<T>(
@@ -98,33 +114,13 @@ export function useLiabilities() {
     memberError,
     '成员加载失败',
   );
-
-  let repaymentSequence = 0;
-  async function loadRepayments(liabilityId: number, force = false) {
-    const request = ++repaymentSequence;
-    if (selectedLiabilityId.value !== liabilityId) repayments.value = [];
-    selectedLiabilityId.value = liabilityId;
-    repaymentsLoading.value = true;
-    repaymentsError.value = null;
-    try {
-      const result = await cachedGet<Repayment[]>(
-        '/api/repayments',
-        { liabilityId },
-        { force },
-      );
-      if (request === repaymentSequence && selectedLiabilityId.value === liabilityId) {
-        repayments.value = result ?? [];
-      }
-    } catch (cause) {
-      if (request === repaymentSequence && selectedLiabilityId.value === liabilityId) {
-        repaymentsError.value = messageOf(cause, '还款记录加载失败');
-      }
-    } finally {
-      if (request === repaymentSequence && selectedLiabilityId.value === liabilityId) {
-        repaymentsLoading.value = false;
-      }
-    }
-  }
+  const loadRepayments = createLoader(
+    '/api/repayments',
+    repayments,
+    repaymentsLoading,
+    repaymentsError,
+    '还款记录加载失败',
+  );
 
   function load(force = false) {
     return Promise.all([
@@ -132,19 +128,35 @@ export function useLiabilities() {
       loadLiabilities(force),
       loadAccounts(force),
       loadMembers(force),
+      loadRepayments(force),
     ]);
   }
 
   function reloadRepayments() {
-    if (selectedLiabilityId.value == null) return Promise.resolve();
-    return loadRepayments(selectedLiabilityId.value, true);
+    return loadRepayments(true);
+  }
+
+  function selectLiability(id: number) {
+    selectedLiabilityId.value = id;
+  }
+
+  function clearSelection() {
+    selectedLiabilityId.value = null;
   }
 
   watch(resourceVersion(['statistics']), () => void loadSummary(true));
   watch(resourceVersion(['liabilities']), () => void loadLiabilities(true));
   watch(resourceVersion(['accounts']), () => void loadAccounts(true));
   watch(resourceVersion(['members']), () => void loadMembers(true));
-  watch(resourceVersion(['repayments']), () => void reloadRepayments());
+  watch(resourceVersion(['repayments']), () => void loadRepayments(true));
+  watch(liabilities, (items) => {
+    if (
+      selectedLiabilityId.value != null &&
+      !items.some(({ id }) => id === selectedLiabilityId.value)
+    ) {
+      clearSelection();
+    }
+  });
   onMounted(() => void load());
 
   return {
@@ -154,6 +166,8 @@ export function useLiabilities() {
     accounts,
     members,
     selectedLiabilityId,
+    selectedLiability,
+    selectedRepayments,
     loading,
     refreshing,
     error,
@@ -179,5 +193,7 @@ export function useLiabilities() {
     reloadAccounts: () => loadAccounts(true),
     reloadMembers: () => loadMembers(true),
     reloadRepayments,
+    selectLiability,
+    clearSelection,
   };
 }
