@@ -191,6 +191,15 @@ afterEach(() => {
 });
 
 describe('AC-01 顶部总览卡', () => {
+  it('renders the approved assets page header and primary action', async () => {
+    wrapper = mount(AssetsPage, { attachTo: document.body });
+    await settle();
+    const header = document.querySelector('.page-header');
+    expect(header?.querySelector('h1')?.textContent).toBe('资产');
+    expect(header?.querySelector('.page-header__context')?.textContent).toBe('账户与资产项');
+    expect(findBtn('新增资产', header ?? undefined)).toBeTruthy();
+  });
+
   it('显示净资产/总资产/总负债与账户·资产项拆分', async () => {
     wrapper = mount(AssetsPage, { attachTo: document.body });
     await settle();
@@ -469,6 +478,35 @@ describe('AC-04 空状态与失败降级', () => {
     expect(document.querySelector('[role="alert"]')?.textContent).toContain('network');
     expect(findBtn('重试')).toBeTruthy();
   });
+
+  it('keeps an asset failure and retry scoped to the asset group', async () => {
+    let assetRequests = 0;
+    mockedCachedGet.mockImplementation((path: string) => {
+      if (path === '/api/stats/summary') return Promise.resolve(summary);
+      if (path === '/api/accounts') return Promise.resolve(accounts);
+      if (path === '/api/members') return Promise.resolve(members);
+      if (path === '/api/assets') {
+        assetRequests += 1;
+        return assetRequests === 1 ? Promise.reject(new Error('assets offline')) : Promise.resolve(assets);
+      }
+      return Promise.resolve([]);
+    });
+    wrapper = mount(AssetsPage, { attachTo: document.body });
+    await settle();
+    const accountGroup = document.querySelector('[data-account-group]')!;
+    const assetGroup = document.querySelector('[data-asset-group]')!;
+    expect(accountGroup.querySelector('[role="alert"]')).toBeNull();
+    expect(accountGroup.textContent).toContain('现金');
+    expect(assetGroup.querySelector('[role="alert"]')?.textContent).toContain('assets offline');
+
+    mockedCachedGet.mockClear();
+    clickBtn('重试', assetGroup);
+    await settle();
+    expect(mockedCachedGet).toHaveBeenCalledTimes(1);
+    expect(mockedCachedGet).toHaveBeenCalledWith('/api/assets', undefined, { force: true });
+    expect(mockedCachedGet).not.toHaveBeenCalledWith('/api/accounts', undefined, { force: true });
+    expect(mockedCachedGet).not.toHaveBeenCalledWith('/api/members', undefined, { force: true });
+  });
 });
 
 describe('AC-05 资产市值历史', () => {
@@ -516,6 +554,45 @@ describe('AC-05 资产市值历史', () => {
     del!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await settle();
     expect(mockedApiDelete).toHaveBeenCalledWith('/api/assets/snapshots/11');
+  });
+
+  it('keeps snapshot rows visible during a failed refresh and retries only snapshots', async () => {
+    mockedCachedGet.mockImplementation((path: string, _params: unknown, options: { force?: boolean } = {}) => {
+      if (path === '/api/stats/summary') return Promise.resolve(summary);
+      if (path === '/api/accounts') return Promise.resolve(accounts);
+      if (path === '/api/assets') return Promise.resolve(assets);
+      if (path === '/api/members') return Promise.resolve(members);
+      if (/\/api\/assets\/\d+\/snapshots$/.test(path)) {
+        return options.force ? Promise.reject(new Error('history offline')) : Promise.resolve(snapshots);
+      }
+      return Promise.resolve(undefined);
+    });
+    wrapper = mount(AssetsPage, { attachTo: document.body });
+    await settle();
+    openRow('房产');
+    await settle();
+    document.querySelector<HTMLButtonElement>('.history__del')!.click();
+    await settle();
+    expect(document.querySelector('.history__list')?.textContent).toContain('2026年9月');
+    expect(document.querySelector('[data-snapshot-status]')?.textContent).toContain('history offline');
+
+    mockedCachedGet.mockClear();
+    clickBtn('重试市值记录');
+    await settle();
+    expect(mockedCachedGet).toHaveBeenCalledTimes(1);
+    expect(mockedCachedGet).toHaveBeenCalledWith('/api/assets/1/snapshots', undefined, { force: true });
+    expect(mockedCachedGet).not.toHaveBeenCalledWith('/api/accounts', undefined, { force: true });
+    expect(mockedCachedGet).not.toHaveBeenCalledWith('/api/members', undefined, { force: true });
+  });
+
+  it('provides a 44px snapshot delete target', async () => {
+    wrapper = mount(AssetsPage, { attachTo: document.body });
+    await settle();
+    openRow('房产');
+    await settle();
+    const del = document.querySelector<HTMLButtonElement>('.history__del')!;
+    expect(getComputedStyle(del).width).toBe('44px');
+    expect(getComputedStyle(del).height).toBe('44px');
   });
 });
 

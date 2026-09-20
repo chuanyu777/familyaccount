@@ -65,10 +65,22 @@ describe('useAssets', () => {
     publishResources(['assets']);
     await nextTick();
     await flushPromises();
-    expect(state.error.value).toBe('assets offline');
+    expect(state.assetError.value).toBe('assets offline');
+    expect(state.accountError.value).toBeNull();
     publishResources(['assets']);
     await nextTick();
     await flushPromises();
-    expect(state.error.value).toBeNull();
+    expect(state.assetError.value).toBeNull();
+  });
+
+  it('retries only the failed asset resource', async () => {
+    const state = setup();
+    await state.load();
+    mockedCachedGet.mockClear();
+    await state.reloadAssets();
+    expect(mockedCachedGet).toHaveBeenCalledTimes(1);
+    expect(mockedCachedGet).toHaveBeenCalledWith('/api/assets', undefined, { force: true });
+    expect(mockedCachedGet).not.toHaveBeenCalledWith('/api/accounts', undefined, { force: true });
+    expect(mockedCachedGet).not.toHaveBeenCalledWith('/api/members', undefined, { force: true });
   });
 });

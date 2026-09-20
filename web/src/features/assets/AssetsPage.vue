@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import MoneyText from '../../components/MoneyText.vue';
+import PageHeader from '../../components/PageHeader.vue';
 import SummaryStrip, { type SummaryMetric } from '../../components/SummaryStrip.vue';
 import SegmentedControl from '../../components/SegmentedControl.vue';
 import SectionBlock from '../../components/SectionBlock.vue';
@@ -38,11 +39,18 @@ const {
   assets,
   members,
   snapshots,
-  loading,
-  error,
+  accountLoading,
+  assetLoading,
+  accountError: accountLoadError,
+  assetError,
+  memberError,
+  summaryError,
   snapshotsLoading,
   snapshotsError,
-  reload,
+  reloadAccounts,
+  reloadAssets,
+  reloadMembers,
+  reloadSummary,
   loadSnapshots,
 } = useAssets();
 
@@ -134,6 +142,10 @@ function openSnapshotForm(a: Asset) {
   snapshotFormAsset.value = a;
 }
 
+function retrySnapshots() {
+  if (detailAsset.value) void loadSnapshots(detailAsset.value.id, true);
+}
+
 function onSnapshotSaved() {
   snapshotFormAsset.value = null;
 }
@@ -210,10 +222,24 @@ function updatedLabel(a: Asset): string {
 
 <template>
   <div class="assets">
+    <PageHeader title="资产" context="账户与资产项">
+      <button type="button" class="btn btn--primary" @click="openAsset()">新增资产</button>
+    </PageHeader>
+
     <SummaryStrip :primary="netWorthMetric" :secondary="[assetsMetric, liabilitiesMetric]" />
 
+    <div v-if="summaryError" class="assets__status" role="alert" data-summary-status>
+      <span>{{ summaryError }}</span>
+      <button type="button" class="btn" @click="reloadSummary">重试资产汇总</button>
+    </div>
+
+    <div v-if="memberError" class="assets__status" role="alert" data-member-status>
+      <span>{{ memberError }}</span>
+      <button type="button" class="btn" @click="reloadMembers">重试成员信息</button>
+    </div>
+
     <div class="asset-groups">
-      <SectionBlock title="资金账户">
+      <SectionBlock title="资金账户" data-account-group>
         <template #aside>
           <button type="button" class="btn btn--sm" @click="openAccount()">新增账户</button>
         </template>
@@ -221,21 +247,20 @@ function updatedLabel(a: Asset): string {
         <p v-if="accountError" class="form-error">{{ accountError }}</p>
 
         <AsyncState
-          :loading="loading"
-          :error="error ?? ''"
+          :loading="accountLoading"
+          :error="accountLoadError ?? ''"
           :empty="accounts.length === 0"
           empty-title="还没有资金账户"
           empty-hint="点「新增账户」记下你的第一个账户。"
-          @retry="reload"
+          @retry="reloadAccounts"
         >
           <AccountList :accounts="accounts" :members="members" @select-account="detailAccount = $event" />
         </AsyncState>
       </SectionBlock>
 
-      <SectionBlock title="资产项">
+      <SectionBlock title="资产项" data-asset-group>
         <template #aside>
           <SegmentedControl v-model="assetView" :options="VIEW_OPTIONS" label="资产视图" />
-          <button type="button" class="btn btn--sm" @click="openAsset()">新增资产</button>
         </template>
 
         <div v-if="assetView !== 'detail'">
@@ -251,12 +276,12 @@ function updatedLabel(a: Asset): string {
 
         <AsyncState
           v-else
-          :loading="loading"
-          :error="error ?? ''"
+          :loading="assetLoading"
+          :error="assetError ?? ''"
           :empty="assets.length === 0"
           empty-title="还没有资产项"
           empty-hint="点「新增资产」记录房产、投资等市值。"
-          @retry="reload"
+          @retry="reloadAssets"
         >
           <AssetList :assets="assets" :members="members" @select-asset="openAssetDetail" />
         </AsyncState>
@@ -328,10 +353,17 @@ function updatedLabel(a: Asset): string {
 
       <section class="history">
         <h3 class="history__title">市值记录</h3>
-        <p v-if="snapshotsLoading" class="history__empty">加载中…</p>
-        <p v-else-if="snapshotsError" class="history__empty" role="alert">{{ snapshotsError }}</p>
-        <p v-else-if="snapshots.length === 0" class="history__empty">还没有记过市值</p>
-        <ul v-else class="history__list">
+        <div v-if="snapshotsLoading || snapshotsError" class="history__status" data-snapshot-status>
+          <span v-if="snapshotsLoading">正在更新市值记录…</span>
+          <template v-if="snapshotsError">
+            <span role="alert">{{ snapshotsError }}</span>
+            <button type="button" class="btn" @click="retrySnapshots">重试市值记录</button>
+          </template>
+        </div>
+        <p v-if="!snapshotsLoading && !snapshotsError && snapshots.length === 0" class="history__empty">
+          还没有记过市值
+        </p>
+        <ul v-if="snapshots.length > 0" class="history__list">
           <li v-for="s in snapshots" :key="s.id" class="history__row">
             <span class="history__month">{{ monthLabel(s.month) }}</span>
             <MoneyText :cents="s.value_cents" class="history__value" />
@@ -339,6 +371,7 @@ function updatedLabel(a: Asset): string {
             <button
               type="button"
               class="history__del"
+              style="width: 44px; height: 44px"
               aria-label="删除这条市值记录"
               @click="removeSnapshot(s.id)"
             >
@@ -411,6 +444,23 @@ function updatedLabel(a: Asset): string {
   gap: var(--sp-4);
 }
 
+.assets__status,
+.history__status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  color: var(--expense-deep);
+  font-size: var(--text-sm);
+}
+
+.assets__status {
+  padding: var(--sp-3);
+  border: 1px solid var(--expense);
+  border-radius: var(--radius-sm);
+  background: var(--expense-wash);
+}
+
 .asset-groups {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -432,11 +482,6 @@ function updatedLabel(a: Asset): string {
   .asset-groups :deep(.section__head .segmented) {
     grid-column: 1 / -1;
     grid-row: 2;
-  }
-
-  .asset-groups :deep(.section__head .segmented + .btn) {
-    grid-column: 2;
-    grid-row: 1;
   }
 
   .assets :deep(.summary-strip) {
@@ -499,6 +544,11 @@ function updatedLabel(a: Asset): string {
   color: var(--ink-2);
 }
 
+.history__status {
+  min-height: 44px;
+  margin-bottom: var(--sp-2);
+}
+
 .history__list {
   list-style: none;
   margin: 0;
@@ -545,8 +595,8 @@ function updatedLabel(a: Asset): string {
 
 .history__del {
   flex: none;
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
   border: none;
   border-radius: 50%;
   background: none;
