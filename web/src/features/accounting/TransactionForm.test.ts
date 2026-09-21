@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
+import { parse } from '@vue/compiler-sfc';
 import { apiPatch, apiPost, ApiError } from '../../lib/api';
 import { todayISO } from '../../lib/format';
 import TransactionForm from './TransactionForm.vue';
+import transactionFormSource from './TransactionForm.vue?raw';
 import type { Account, Category, Member } from './types';
 
 vi.mock('../../lib/api', () => {
@@ -51,6 +53,7 @@ const baseProps = {
 };
 
 let wrapper: VueWrapper | null = null;
+let componentStyle: HTMLStyleElement | null = null;
 
 function mountForm() {
   wrapper = mount(TransactionForm, { props: baseProps, attachTo: document.body });
@@ -91,6 +94,9 @@ function submit(): HTMLButtonElement {
 
 beforeEach(() => {
   document.body.innerHTML = '';
+  componentStyle = document.createElement('style');
+  componentStyle.textContent = parse(transactionFormSource).descriptor.styles[0]?.content ?? '';
+  document.head.append(componentStyle);
   mockedApiPost.mockReset();
   mockedApiPatch.mockReset();
   mockedApiPost.mockResolvedValue(undefined);
@@ -100,10 +106,20 @@ beforeEach(() => {
 afterEach(() => {
   wrapper?.unmount();
   wrapper = null;
+  componentStyle?.remove();
+  componentStyle = null;
   document.body.innerHTML = '';
 });
 
 describe('TransactionForm', () => {
+  it('keeps every compact form control at least 44px high', () => {
+    mountForm();
+
+    expect(getComputedStyle(input('金额')).minHeight).toBe('44px');
+    expect(getComputedStyle(document.querySelector<HTMLElement>('.attr')!).minHeight).toBe('44px');
+    expect(getComputedStyle(input('备注')).minHeight).toBe('44px');
+  });
+
   it('keeps the form open and preserves input after a failed save', async () => {
     mockedApiPost.mockRejectedValueOnce(new ApiError(500, 'SAVE_FAILED', '保存失败'));
     const form = mountForm();

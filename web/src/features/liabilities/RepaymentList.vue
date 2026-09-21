@@ -32,7 +32,7 @@ const emit = defineEmits<{ delete: [number] }>();
 .repay-empty {
   margin-top: var(--sp-2);
   font-size: var(--text-xs);
-  color: var(--ink-3);
+  color: var(--muted);
 }
 
 .repay-list {
@@ -47,9 +47,9 @@ const emit = defineEmits<{ delete: [number] }>();
   align-items: center;
   gap: var(--sp-2);
   padding: 6px 0;
-  border-top: 1px solid var(--rule-soft);
+  border-top: 1px solid var(--line);
   font-size: var(--text-xs);
-  color: var(--ink-2);
+  color: var(--muted);
 }
 
 .repay-main { min-width: 0; display: grid; gap: 2px; }

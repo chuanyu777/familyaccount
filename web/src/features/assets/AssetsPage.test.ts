@@ -266,6 +266,15 @@ describe('assets workspace', () => {
 });
 
 describe('AC-02 资金账户区', () => {
+  it('uses semantic unframed sections for account and asset groups', async () => {
+    wrapper = mount(AssetsPage, { attachTo: document.body });
+    await settle();
+
+    expect(document.querySelector('[data-account-group]')?.tagName).toBe('SECTION');
+    expect(document.querySelector('[data-asset-group]')?.tagName).toBe('SECTION');
+    expect(document.querySelector('.section')).toBeNull();
+  });
+
   it('列出账户名/余额/成员/默认标记', async () => {
     wrapper = mount(AssetsPage, { attachTo: document.body });
     await settle();

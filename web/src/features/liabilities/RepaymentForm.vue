@@ -99,7 +99,7 @@ async function save() {
 <style scoped>
 .repay-target {
   font-size: var(--text-sm);
-  color: var(--ink-2);
+  color: var(--muted);
   margin-bottom: var(--sp-3);
 }
 

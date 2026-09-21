@@ -2,7 +2,6 @@
 import { computed, ref } from 'vue';
 import PageHeader from '../../components/PageHeader.vue';
 import SummaryStrip, { type SummaryMetric } from '../../components/SummaryStrip.vue';
-import SectionBlock from '../../components/SectionBlock.vue';
 import AsyncState from '../../components/AsyncState.vue';
 import AppSheet from '../../components/AppSheet.vue';
 import ConfirmDialog from '../../components/ConfirmDialog.vue';
@@ -157,7 +156,10 @@ function cancelDeleteRepayment() {
       {{ mutationError }}
     </p>
 
-    <SectionBlock title="负债明细">
+    <section class="content-section" data-liability-group>
+      <header class="content-section__head">
+        <h2 class="content-section__title">负债明细</h2>
+      </header>
       <AsyncState
         :loading="loading"
         :error="error ?? ''"
@@ -177,7 +179,7 @@ function cancelDeleteRepayment() {
           @repay="openRepayment"
         />
       </AsyncState>
-    </SectionBlock>
+    </section>
 
     <AppSheet v-if="detailLiability" :title="detailLiability.name" @close="closeDetail">
       <dl class="detail">

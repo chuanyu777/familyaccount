@@ -1,11 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mount, type VueWrapper } from '@vue/test-utils';
+import { parse } from '@vue/compiler-sfc';
 import MonthPicker from './MonthPicker.vue';
+import monthPickerSource from './MonthPicker.vue?raw';
 import { currentMonth, monthLabel, shiftMonth } from '../lib/format';
 
 const MAX = '2026-09';
 
 let wrapper: VueWrapper | null = null;
+let componentStyle: HTMLStyleElement | null = null;
 
 function mountPicker(modelValue = MAX): VueWrapper {
   wrapper = mount(MonthPicker, {
@@ -17,11 +20,16 @@ function mountPicker(modelValue = MAX): VueWrapper {
 
 beforeEach(() => {
   document.body.innerHTML = '';
+  componentStyle = document.createElement('style');
+  componentStyle.textContent = parse(monthPickerSource).descriptor.styles[0]?.content ?? '';
+  document.head.append(componentStyle);
 });
 
 afterEach(() => {
   wrapper?.unmount();
   wrapper = null;
+  componentStyle?.remove();
+  componentStyle = null;
   document.body.innerHTML = '';
 });
 
@@ -29,6 +37,19 @@ describe('MonthPicker', () => {
   it('展示当前月份标签', () => {
     const w = mountPicker('2026-03');
     expect(w.text()).toContain('2026年3月');
+  });
+
+  it('keeps month navigation targets at least 44px square', async () => {
+    const w = mountPicker('2026-03');
+    const monthNav = w.get('[aria-label="上一月"]').element;
+    expect(getComputedStyle(monthNav).width).toBe('44px');
+    expect(getComputedStyle(monthNav).height).toBe('44px');
+    expect(getComputedStyle(w.get('[aria-label="选择月份"]').element).minHeight).toBe('44px');
+
+    await w.get('[aria-label="选择月份"]').trigger('click');
+    const yearNav = document.querySelector<HTMLElement>('[aria-label="上一年"]')!;
+    expect(getComputedStyle(yearNav).width).toBe('44px');
+    expect(getComputedStyle(yearNav).height).toBe('44px');
   });
 
   it('左右箭头按月步进', async () => {

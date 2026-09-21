@@ -112,21 +112,21 @@ function progressPercent(liability: Liability): number {
 
 <style scoped>
 .liability-table { display: grid; gap: var(--sp-2); }
-.liability-table__head { display: grid; grid-template-columns: minmax(180px, 1.15fr) minmax(170px, .85fr) minmax(120px, .55fr) 76px; gap: var(--sp-3); padding: 0 var(--sp-3); color: var(--ink-3); font-size: var(--text-xs); }
+.liability-table__head { display: grid; grid-template-columns: minmax(180px, 1.15fr) minmax(170px, .85fr) minmax(120px, .55fr) 76px; gap: var(--sp-3); padding: 0 var(--sp-3); color: var(--muted); font-size: var(--text-xs); }
 .liability-table__head > :nth-child(3) { text-align: right; }
 .liability-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
 .liability-row { display: grid; grid-template-columns: minmax(0, 1fr) 76px; align-items: center; gap: var(--sp-3); padding: 0 var(--sp-3); }
 .liab__hit { min-width: 0; display: grid; grid-template-columns: minmax(180px, 1.15fr) minmax(170px, .85fr) minmax(120px, .55fr); align-items: center; gap: var(--sp-3); padding: 11px 0; cursor: pointer; outline: none; }
-.liab__hit:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
+.liab__hit:focus-visible { box-shadow: inset 0 0 0 2px var(--primary); }
 .liability-row__identity { min-width: 0; display: grid; gap: 3px; }
 .liability-row__name { overflow: hidden; color: var(--ink); font-size: var(--text-base); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
-.liability-row__meta { min-width: 0; display: flex; gap: var(--sp-2); overflow: hidden; color: var(--ink-2); font-size: var(--text-xs); text-overflow: ellipsis; white-space: nowrap; }
+.liability-row__meta { min-width: 0; display: flex; gap: var(--sp-2); overflow: hidden; color: var(--muted); font-size: var(--text-xs); text-overflow: ellipsis; white-space: nowrap; }
 .liability-row__progress-block { min-width: 0; display: grid; gap: 4px; }
-.liability-row__progress { height: 6px; overflow: hidden; border-radius: var(--radius-pill); background: var(--paper-sunken); }
+.liability-row__progress { height: 6px; overflow: hidden; border-radius: var(--radius-pill); background: var(--surface-accent); }
 .liability-row__progress-fill { display: block; height: 100%; border-radius: inherit; background: var(--chart-accent); transition: width var(--dur) var(--ease-out); }
-.liability-row__progress-meta { display: flex; justify-content: space-between; gap: var(--sp-2); color: var(--ink-2); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.liability-row__progress-meta { display: flex; justify-content: space-between; gap: var(--sp-2); color: var(--muted); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
 .liability-row__amount { display: grid; justify-items: end; gap: 2px; font-size: var(--text-lg); font-weight: 500; }
-.liability-row__amount-label { color: var(--ink-2); font-size: var(--text-xs); font-weight: 400; }
+.liability-row__amount-label { color: var(--muted); font-size: var(--text-xs); font-weight: 400; }
 .liability-row__repay { width: 76px; }
 @media (max-width: 720px) {
   .liability-table__head { display: none; }

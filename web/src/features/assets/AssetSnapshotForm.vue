@@ -101,7 +101,7 @@ async function save() {
 .hint {
   margin: 0 0 var(--sp-4);
   font-size: var(--text-xs);
-  color: var(--ink-3);
+  color: var(--muted);
   line-height: 1.7;
 }
 

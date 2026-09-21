@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import AppShell from './components/AppShell.vue';
 import DesktopNav from './components/DesktopNav.vue';
-import MobileTabBar from './components/MobileTabBar.vue';
+import MobileNav from './components/MobileNav.vue';
 import AppToast from './components/AppToast.vue';
 import { useHashTab } from './composables/useHashTab';
 import AccountingPage from './features/accounting/AccountingPage.vue';
@@ -59,7 +59,7 @@ watch(resourceVersion(['family']), loadFamily);
     </template>
 
     <template #mobile-nav>
-      <MobileTabBar :model-value="activeTab" @update:model-value="setActiveTab" />
+      <MobileNav :model-value="activeTab" @update:model-value="setActiveTab" />
     </template>
   </AppShell>
   <AppToast />

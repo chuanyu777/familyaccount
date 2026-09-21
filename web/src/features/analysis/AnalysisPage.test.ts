@@ -115,6 +115,15 @@ describe('分析页 · C3 结构', () => {
     expect(document.querySelectorAll('[data-category-bar]')).toHaveLength(3);
   });
 
+  it('uses semantic unframed sections for both analysis groups', async () => {
+    mockApi();
+    wrapper = mount(AnalysisPage, { attachTo: document.body });
+    await settle();
+
+    expect(document.querySelectorAll('[data-analysis-section]')).toHaveLength(2);
+    expect(document.querySelector('.section')).toBeNull();
+  });
+
   it('支出分类色条不使用收入绿或主操作蓝，仅次分类使用琥珀色', async () => {
     mockApi();
     wrapper = mount(AnalysisPage, { attachTo: document.body });
@@ -220,7 +229,7 @@ describe('分析页 · 资源加载', () => {
     expect(wrapper.text()).toContain(formatMoney(summary.netCents));
     expect(wrapper.get('[data-retained-month]').text()).toContain('9月');
     expect(wrapper.get('.summary-strip__primary dt').text()).toContain('9月');
-    expect(wrapper.get('.section__aside').text()).toContain('9月');
+    expect(wrapper.get('.content-section__meta').text()).toContain('9月');
 
     pendingSnapshot.reject(new Error('网络异常'));
     pendingTrend.resolve(trend);
@@ -235,7 +244,7 @@ describe('分析页 · 资源加载', () => {
     await settle();
     expect(wrapper.find('[data-retained-month]').exists()).toBe(false);
     expect(wrapper.get('.summary-strip__primary dt').text()).toBe('当月结余');
-    expect(wrapper.get('.section__aside').text()).toContain('8月');
+    expect(wrapper.get('.content-section__meta').text()).toContain('8月');
     expect(wrapper.text()).toContain(formatMoney(123000));
   });
 

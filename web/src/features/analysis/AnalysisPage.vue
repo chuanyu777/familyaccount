@@ -3,7 +3,6 @@ import { computed, onMounted, ref, watch } from 'vue';
 import AsyncState from '../../components/AsyncState.vue';
 import MonthPicker from '../../components/MonthPicker.vue';
 import PageHeader from '../../components/PageHeader.vue';
-import SectionBlock from '../../components/SectionBlock.vue';
 import SummaryStrip, { type SummaryMetric } from '../../components/SummaryStrip.vue';
 import { cachedGet } from '../../lib/api';
 import { currentMonth, monthLabel } from '../../lib/format';
@@ -163,13 +162,14 @@ onMounted(() => void load());
     </div>
 
     <div v-else class="analysis__charts">
-      <SectionBlock title="月度收支趋势">
-        <template #aside>
+      <section class="content-section" data-analysis-section="trend">
+        <header class="content-section__head">
+          <h2 class="content-section__title">月度收支趋势</h2>
           <span class="analysis__legend" aria-label="图例">
             <span><i class="analysis__dot analysis__dot--income" />收入</span>
             <span><i class="analysis__dot analysis__dot--expense" />支出</span>
           </span>
-        </template>
+        </header>
 
         <TrendChart v-if="hasTrendActivity" :data="trend" data-chart-frame />
         <div v-else class="analysis__section-empty" data-empty-analysis>
@@ -184,9 +184,13 @@ onMounted(() => void load());
             去记账
           </a>
         </div>
-      </SectionBlock>
+      </section>
 
-      <SectionBlock title="支出分类占比" :aside="monthLabel(snapshot?.month ?? month)">
+      <section class="content-section" data-analysis-section="categories">
+        <header class="content-section__head">
+          <h2 class="content-section__title">支出分类占比</h2>
+          <span class="content-section__meta">{{ monthLabel(snapshot?.month ?? month) }}</span>
+        </header>
         <DonutChart v-if="breakdown.length" :data="breakdown" />
         <div v-else class="analysis__section-empty">
           <AsyncState
@@ -197,7 +201,7 @@ onMounted(() => void load());
             @retry="reload"
           />
         </div>
-      </SectionBlock>
+      </section>
     </div>
   </div>
 </template>
@@ -252,7 +256,7 @@ onMounted(() => void load());
   gap: var(--sp-5);
 }
 
-.analysis__charts :deep(.section) {
+.analysis__charts .content-section {
   min-width: 0;
   margin: 0;
   padding-top: var(--sp-4);

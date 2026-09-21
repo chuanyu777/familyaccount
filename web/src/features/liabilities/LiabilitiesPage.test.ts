@@ -188,6 +188,14 @@ describe('AC-01 顶部总览卡', () => {
 });
 
 describe('AC-02 负债列表', () => {
+  it('uses a semantic unframed section for the liability list', async () => {
+    wrapper = mount(LiabilitiesPage, { attachTo: document.body });
+    await settle();
+
+    expect(document.querySelector('[data-liability-group]')?.tagName).toBe('SECTION');
+    expect(document.querySelector('.section')).toBeNull();
+  });
+
   it('显示剩余本金、进度和唯一的行内还款操作', async () => {
     wrapper = mount(LiabilitiesPage, { attachTo: document.body });
     await settle();

@@ -89,7 +89,6 @@ function openEdit(transaction: Transaction) {
 function handleSaved() {
   formOpen.value = false;
   showToast(formMode.value === 'edit' ? '已更新' : '已记一笔');
-  void reload();
 }
 
 function handleCreatedCategory(category: Category) {
@@ -110,7 +109,6 @@ async function doDelete() {
     await apiDelete(`/api/transactions/${confirmDeleteId.value}`);
     confirmDeleteId.value = null;
     showToast('已删除');
-    await reload();
   } catch (cause) {
     showToast(cause instanceof Error ? cause.message : '删除失败，请重试');
   }

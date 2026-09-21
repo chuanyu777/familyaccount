@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
-import { cachedGet } from '../../lib/api';
+import { apiDelete, cachedGet } from '../../lib/api';
 import { parse } from '@vue/compiler-sfc';
+import { publishResources } from '../../lib/resourceInvalidation';
 import AccountingPage from './AccountingPage.vue';
 import accountingPageSource from './AccountingPage.vue?raw';
+import TransactionForm from './TransactionForm.vue';
 import type { Account, Category, Member, Transaction, TransactionsResponse } from './types';
 
 vi.mock('../../lib/api', () => ({
@@ -14,6 +16,7 @@ vi.mock('../../lib/api', () => ({
 }));
 
 const mockedCachedGet = vi.mocked(cachedGet) as unknown as Mock;
+const mockedApiDelete = vi.mocked(apiDelete) as unknown as Mock;
 
 const accounts: Account[] = [
   { id: 1, name: '微信', balance: 0, balance_cents: 0, is_default: true },
@@ -53,12 +56,26 @@ const items: Transaction[] = [
     memberName: '我',
     sourceType: 'repayment',
   },
+  {
+    id: 3,
+    type: 'transfer',
+    amount: 500,
+    amountCents: 50000,
+    occurredOn: '2026-09-16',
+    accountId: 1,
+    accountName: '微信',
+    toAccountId: 2,
+    toAccountName: '储蓄卡',
+    memberId: 1,
+    memberName: '我',
+    sourceType: 'manual',
+  },
 ];
 const list: TransactionsResponse = {
   items,
   page: 1,
   pageSize: 20,
-  total: 2,
+  total: 3,
   incomeTotalCents: 200000,
   expenseTotalCents: 98600,
   netCents: 101400,
@@ -78,6 +95,7 @@ beforeEach(() => {
     }
     return Promise.resolve(undefined);
   });
+  mockedApiDelete.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -99,6 +117,14 @@ describe('AccountingPage', () => {
     expect(wrapper.find('.transaction-table button').exists()).toBe(false);
     expect(wrapper.find('.desktop-only > .transaction-table-wrap').exists()).toBe(true);
     expect(wrapper.find('.mobile-only > .transaction-mobile-list').exists()).toBe(true);
+  });
+
+  it('renders transfer markers with a neutral financial tone', async () => {
+    wrapper = mount(AccountingPage, { attachTo: document.body });
+    await flushPromises();
+
+    const transferIcon = wrapper.get('[data-mobile-transaction="3"] .transaction-mobile-row__icon');
+    expect(transferIcon.attributes('data-financial-tone')).toBe('neutral');
   });
 
   it('opens row details while keeping repayment edit and deletion protected', async () => {
@@ -145,5 +171,48 @@ describe('AccountingPage', () => {
     } finally {
       style.remove();
     }
+  });
+
+  it('performs one forced transaction refresh after save invalidation', async () => {
+    wrapper = mount(AccountingPage, { attachTo: document.body });
+    await flushPromises();
+    await wrapper.get('.page-header__action button').trigger('click');
+    await flushPromises();
+    mockedCachedGet.mockClear();
+
+    publishResources(['transactions']);
+    wrapper.getComponent(TransactionForm).vm.$emit('saved');
+    await flushPromises();
+
+    expect(
+      mockedCachedGet.mock.calls.filter(
+        ([path, , options]) => path === '/api/transactions' && options?.force === true,
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('performs one forced transaction refresh after delete invalidation', async () => {
+    mockedApiDelete.mockImplementationOnce(async () => {
+      publishResources(['transactions']);
+    });
+    wrapper = mount(AccountingPage, { attachTo: document.body });
+    await flushPromises();
+    await wrapper.get('[data-mobile-transaction="1"]').trigger('click');
+    await flushPromises();
+    const detailButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.sheet .detail__actions button'));
+    detailButtons.find((button) => button.textContent?.trim() === '删除')?.click();
+    await flushPromises();
+    mockedCachedGet.mockClear();
+
+    const confirm = Array.from(document.querySelectorAll<HTMLButtonElement>('.dialog button'))
+      .find((button) => button.textContent?.trim() === '删除');
+    confirm?.click();
+    await flushPromises();
+
+    expect(
+      mockedCachedGet.mock.calls.filter(
+        ([path, , options]) => path === '/api/transactions' && options?.force === true,
+      ),
+    ).toHaveLength(1);
   });
 });

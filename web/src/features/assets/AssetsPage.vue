@@ -4,7 +4,6 @@ import MoneyText from '../../components/MoneyText.vue';
 import PageHeader from '../../components/PageHeader.vue';
 import SummaryStrip, { type SummaryMetric } from '../../components/SummaryStrip.vue';
 import SegmentedControl from '../../components/SegmentedControl.vue';
-import SectionBlock from '../../components/SectionBlock.vue';
 import AsyncState from '../../components/AsyncState.vue';
 import AppSheet from '../../components/AppSheet.vue';
 import ConfirmDialog from '../../components/ConfirmDialog.vue';
@@ -16,6 +15,7 @@ import { monthLabel } from '../../lib/format';
 import { memberName } from './util';
 import AccountList from './AccountList.vue';
 import AssetList from './AssetList.vue';
+import './assetRows.css';
 import { useAssets } from './useAssets';
 import type { Account, Asset } from './types';
 
@@ -239,10 +239,11 @@ function updatedLabel(a: Asset): string {
     </div>
 
     <div class="asset-groups">
-      <SectionBlock title="资金账户" data-account-group>
-        <template #aside>
+      <section class="content-section" data-account-group>
+        <header class="content-section__head">
+          <h2 class="content-section__title">资金账户</h2>
           <button type="button" class="btn btn--sm" @click="openAccount()">新增账户</button>
-        </template>
+        </header>
 
         <p v-if="accountError" class="form-error">{{ accountError }}</p>
 
@@ -256,12 +257,13 @@ function updatedLabel(a: Asset): string {
         >
           <AccountList :accounts="accounts" :members="members" @select-account="detailAccount = $event" />
         </AsyncState>
-      </SectionBlock>
+      </section>
 
-      <SectionBlock title="资产项" data-asset-group>
-        <template #aside>
+      <section class="content-section" data-asset-group>
+        <header class="content-section__head">
+          <h2 class="content-section__title">资产项</h2>
           <SegmentedControl v-model="assetView" :options="VIEW_OPTIONS" label="资产视图" />
-        </template>
+        </header>
 
         <div v-if="assetView !== 'detail'">
           <ul class="list">
@@ -285,7 +287,7 @@ function updatedLabel(a: Asset): string {
         >
           <AssetList :assets="assets" :members="members" @select-asset="openAssetDetail" />
         </AsyncState>
-      </SectionBlock>
+      </section>
     </div>
 
     <AppSheet v-if="detailAccount" :title="detailAccount.name" @close="detailAccount = null">
@@ -450,7 +452,7 @@ function updatedLabel(a: Asset): string {
   align-items: center;
   justify-content: space-between;
   gap: var(--sp-3);
-  color: var(--expense-deep);
+  color: var(--expense);
   font-size: var(--text-sm);
 }
 
@@ -458,7 +460,7 @@ function updatedLabel(a: Asset): string {
   padding: var(--sp-3);
   border: 1px solid var(--expense);
   border-radius: var(--radius-sm);
-  background: var(--expense-wash);
+  background: var(--expense-soft);
 }
 
 .asset-groups {
@@ -468,18 +470,18 @@ function updatedLabel(a: Asset): string {
   align-items: start;
 }
 
-.asset-groups :deep(.section) {
+.asset-groups .content-section {
   margin-top: 0;
   min-width: 0;
 }
 
 @media (max-width: 600px) {
-  .asset-groups :deep(.section__head) {
+  .asset-groups .content-section__head {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .asset-groups :deep(.section__head .segmented) {
+  .asset-groups .content-section__head :deep(.segmented) {
     grid-column: 1 / -1;
     grid-row: 2;
   }
@@ -534,14 +536,14 @@ function updatedLabel(a: Asset): string {
   margin: 0 0 var(--sp-2);
   font-size: var(--text-sm);
   font-weight: 600;
-  color: var(--ink-2);
+  color: var(--muted);
   letter-spacing: 0.06em;
 }
 
 .history__empty {
   margin: 0;
   font-size: var(--text-sm);
-  color: var(--ink-2);
+  color: var(--muted);
 }
 
 .history__status {
@@ -562,7 +564,7 @@ function updatedLabel(a: Asset): string {
   align-items: center;
   gap: var(--sp-2);
   padding: 7px 0;
-  border-bottom: 1px solid var(--rule-soft);
+  border-bottom: 1px solid var(--line);
   font-size: var(--text-sm);
 }
 
@@ -573,7 +575,7 @@ function updatedLabel(a: Asset): string {
 .history__month {
   flex: none;
   width: 84px;
-  color: var(--ink-2);
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -586,7 +588,7 @@ function updatedLabel(a: Asset): string {
 .history__note {
   flex: 1;
   min-width: 0;
-  color: var(--ink-2);
+  color: var(--muted);
   font-size: var(--text-xs);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -600,7 +602,7 @@ function updatedLabel(a: Asset): string {
   border: none;
   border-radius: 50%;
   background: none;
-  color: var(--ink-2);
+  color: var(--muted);
   font-size: 1rem;
   line-height: 1;
   cursor: pointer;
@@ -612,7 +614,7 @@ function updatedLabel(a: Asset): string {
 
 .history__del:hover {
   opacity: 1;
-  background: var(--expense-wash);
-  color: var(--expense-deep);
+  background: var(--expense-soft);
+  color: var(--expense);
 }
 </style>

@@ -92,6 +92,19 @@ describe('写操作触发 invalidate', () => {
     expect(version.value).not.toBe(before);
   });
 
+  it('交易写操作只清除精确资源前缀且不会执行全量失效', async () => {
+    mockFetch({ id: 1 }, { status: 201 });
+
+    await apiPost('/api/transactions', { type: 'expense' });
+
+    expect(mockedClear.mock.calls).toEqual([
+      ['/api/transactions'],
+      ['/api/accounts'],
+      ['/api/stats'],
+    ]);
+    expect(mockedClear).not.toHaveBeenCalledWith('');
+  });
+
   it('invalidate 清空指定前缀', async () => {
     await invalidate('/api/transactions');
     expect(mockedClear).toHaveBeenCalledWith('/api/transactions');

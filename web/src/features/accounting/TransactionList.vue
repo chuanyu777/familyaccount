@@ -88,6 +88,7 @@ function signedAmount(transaction: Transaction): string {
           <span
             class="transaction-mobile-row__icon"
             :class="`is-${transaction.type}`"
+            :data-financial-tone="transaction.type === 'transfer' ? 'neutral' : transaction.type"
             aria-hidden="true"
           >
             <component :is="iconOf(transaction)" :size="16" :stroke-width="1.9" />
@@ -176,8 +177,8 @@ function signedAmount(transaction: Transaction): string {
 }
 
 .transaction-mobile-row__icon.is-transfer {
-  background: var(--surface-accent);
-  color: var(--primary);
+  background: var(--bg);
+  color: var(--muted);
 }
 
 .transaction-mobile-row__body {

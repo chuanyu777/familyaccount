@@ -5,7 +5,6 @@ import { resolve } from 'node:path';
 import App from './App.vue';
 import { publishResources } from './lib/resourceInvalidation';
 import desktopNavSource from './components/DesktopNav.vue?raw';
-import statHeroSource from './components/StatHero.vue?raw';
 import accountingPageSource from './features/accounting/AccountingPage.vue?raw';
 import liabilityListSource from './features/liabilities/LiabilityList.vue?raw';
 import liabilitiesPageSource from './features/liabilities/LiabilitiesPage.vue?raw';
@@ -60,7 +59,7 @@ describe('App', () => {
     get.mockClear();
     family = { id: 1, name: '我们的家' };
     document.body.innerHTML = '';
-    window.location.hash = '#accounting';
+    window.history.replaceState(null, '', '#accounting');
   });
 
   it('页头显示「家庭财务」与家庭名，不再显示净资产', async () => {
@@ -88,6 +87,34 @@ describe('App', () => {
     await wrapper.get('[data-mobile-tab="assets"]').trigger('click');
     expect(window.location.hash).toBe('#assets');
     expect(wrapper.find('[data-page="assets"]').exists()).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('responds to a hashchange dispatched after mount', async () => {
+    const wrapper = mount(App, { attachTo: document.body });
+    await flush();
+
+    window.history.replaceState(null, '', '#analysis');
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+    await flush();
+
+    expect(wrapper.find('[data-page="analysis"]').exists()).toBe(true);
+    expect(wrapper.get('[aria-current="page"]').text()).toContain('分析');
+    wrapper.unmount();
+  });
+
+  it('updates the active page from desktop navigation', async () => {
+    const wrapper = mount(App, { attachTo: document.body });
+    await flush();
+
+    const liabilities = wrapper.findAll('.desktop-nav__item')
+      .find((button) => button.text().includes('负债'));
+    expect(liabilities).toBeTruthy();
+    await liabilities!.trigger('click');
+
+    expect(window.location.hash).toBe('#liabilities');
+    expect(wrapper.find('[data-page="liabilities"]').exists()).toBe(true);
+    expect(liabilities!.attributes('aria-current')).toBe('page');
     wrapper.unmount();
   });
 
@@ -126,13 +153,29 @@ describe('App', () => {
 
   it('keeps action blue out of financial visualizations', () => {
     expect(baseCss).toContain('--action: var(--primary);');
-    expect(baseCss).toContain('--brand: var(--action);');
-    expect(statHeroSource).toContain('stroke="var(--expense)"');
     expect(liabilityListSource).toContain('background: var(--chart-accent);');
     expect(accountingPageSource).toContain('background: var(--surface-accent);');
     expect(accountingPageSource).toContain('color: var(--muted);');
-    expect([statHeroSource, liabilitiesPageSource, liabilityListSource, accountingPageSource, chartPaletteSource].join('\n')).not.toMatch(
-      /var\(--brand(?:-2|-deep|-wash)?\)/,
+    expect([baseCss, liabilitiesPageSource, liabilityListSource, accountingPageSource, chartPaletteSource].join('\n')).not.toMatch(
+      /var\(--(?:paper(?:-raised|-sunken)?|brand(?:-2|-deep|-wash)?|ink-[23]|rule(?:-soft)?|expense-(?:deep|wash)|income-(?:deep|wash)|warn(?:-deep|-wash)?|slate(?:-wash)?)\)/,
+    );
+  });
+
+  it('preserves the shared select affordance after token cleanup', () => {
+    expect(baseCss).toMatch(
+      /select\.field__control\s*{[^}]*appearance:\s*none;[^}]*background-image:\s*linear-gradient/s,
+    );
+    expect(baseCss).toMatch(
+      /select\.field__control\s*{[^}]*var\(--muted\)[^}]*background-position:/s,
+    );
+  });
+
+  it('preserves the skeleton loading shimmer after token cleanup', () => {
+    expect(baseCss).toMatch(
+      /\.skeleton\s*{[^}]*background:\s*linear-gradient\([^}]*background-size:\s*200% 100%;/s,
+    );
+    expect(baseCss).toMatch(
+      /@keyframes skeleton-breathe\s*{[\s\S]*?0%\s*{[^}]*background-position:[^}]*}[\s\S]*?100%\s*{[^}]*background-position:/,
     );
   });
 
