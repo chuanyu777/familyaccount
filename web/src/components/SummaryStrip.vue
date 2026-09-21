@@ -16,7 +16,7 @@ defineProps<{
 </script>
 
 <template>
-  <dl class="summary-strip">
+  <dl class="summary-strip" :class="{ 'summary-strip--pair': secondary.length === 1 }">
     <div class="summary-strip__primary">
       <dt class="summary-strip__label">{{ primary.label }}</dt>
       <dd class="summary-strip__value">

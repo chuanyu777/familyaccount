@@ -510,6 +510,12 @@ async function handleSubmit() {
   outline: none;
 }
 
+.attr:focus-within {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-color: var(--primary);
+}
+
 select.attr__control {
   appearance: none;
 }

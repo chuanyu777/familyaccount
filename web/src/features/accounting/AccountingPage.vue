@@ -9,6 +9,7 @@ import MonthPicker from '../../components/MonthPicker.vue';
 import PageHeader from '../../components/PageHeader.vue';
 import SummaryStrip, { type SummaryMetric } from '../../components/SummaryStrip.vue';
 import { apiDelete } from '../../lib/api';
+import { monthLabel } from '../../lib/format';
 import { showToast } from '../../lib/toast';
 import TransactionForm from './TransactionForm.vue';
 import TransactionList from './TransactionList.vue';
@@ -38,6 +39,10 @@ const {
   refreshing,
   error,
   hasMore,
+  retainedQuery,
+  referenceLoading,
+  referenceError,
+  reloadReferences,
   loadMore,
   reload,
 } = useTransactions();
@@ -48,10 +53,22 @@ const formMode = ref<'create' | 'edit'>('create');
 const formInitial = ref<Transaction | undefined>(undefined);
 const detailId = ref<number | null>(null);
 const confirmDeleteId = ref<number | null>(null);
+const deletePending = ref(false);
+const deleteError = ref<string | null>(null);
 const ledgerTitle = computed(() => `${Number(month.value.slice(5))}月账本`);
+const retainedLabel = computed(() => {
+  const query = retainedQuery.value;
+  if (!query) return '';
+  return [
+    monthLabel(query.month),
+    TYPE_OPTIONS.find(({ value }) => value === query.type)?.label,
+    query.accountFilter ? accounts.value.find(({ id }) => String(id) === query.accountFilter)?.name ?? `账户 ${query.accountFilter}` : '全部账户',
+    query.memberFilter ? members.value.find(({ id }) => String(id) === query.memberFilter)?.name ?? `成员 ${query.memberFilter}` : '全部成员',
+  ].join(' · ');
+});
 
 const netMetric = computed<SummaryMetric>(() => ({
-  label: '本月结余',
+  label: retainedQuery.value ? `${monthLabel(retainedQuery.value.month)}结余` : '本月结余',
   cents: totals.value.net,
   tone: totals.value.net < 0 ? 'expense' : 'income',
 }));
@@ -104,14 +121,24 @@ function handleCreatedCategory(category: Category) {
 }
 
 async function doDelete() {
-  if (confirmDeleteId.value == null) return;
+  if (confirmDeleteId.value == null || deletePending.value) return;
+  deletePending.value = true;
+  deleteError.value = null;
   try {
     await apiDelete(`/api/transactions/${confirmDeleteId.value}`);
     confirmDeleteId.value = null;
     showToast('已删除');
   } catch (cause) {
-    showToast(cause instanceof Error ? cause.message : '删除失败，请重试');
+    deleteError.value = cause instanceof Error ? cause.message : '删除失败，请重试';
+  } finally {
+    deletePending.value = false;
   }
+}
+
+function cancelDelete() {
+  if (deletePending.value) return;
+  confirmDeleteId.value = null;
+  deleteError.value = null;
 }
 
 function sourceOf(transaction: Transaction): string {
@@ -142,11 +169,23 @@ function signedCents(transaction: Transaction): number {
       </div>
     </PageHeader>
 
+    <p v-if="retainedQuery" class="accounting__refreshing" data-retained-query aria-live="polite">
+      当前显示{{ retainedLabel }}的数据；所选条件{{ error ? '加载失败，请重试' : '加载中…' }}
+    </p>
+
     <SummaryStrip
       class="accounting__summary"
       :primary="netMetric"
       :secondary="[incomeMetric, expenseMetric]"
     />
+
+    <div v-if="referenceLoading || referenceError" class="accounting__references" data-reference-status :aria-busy="referenceLoading">
+      <p v-if="referenceLoading" role="status">正在加载账户、成员与分类…</p>
+      <div v-if="referenceError" class="async-error" role="alert">
+        <span>{{ referenceError }}</span>
+        <button type="button" class="btn" :disabled="referenceLoading" @click="reloadReferences">重试基础信息</button>
+      </div>
+    </div>
 
     <div class="accounting__filters">
       <div class="filterbar" role="group" aria-label="流水类型">
@@ -300,8 +339,10 @@ function signedCents(transaction: Transaction): number {
       title="删除这笔账目？"
       description="删掉之后账户余额会跟着回滚，且没法撤销。"
       confirm-text="删除"
+      :pending="deletePending"
+      :error="deleteError ?? ''"
       @confirm="doDelete"
-      @cancel="confirmDeleteId = null"
+      @cancel="cancelDelete"
     />
   </div>
 </template>

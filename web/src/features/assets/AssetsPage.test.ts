@@ -170,6 +170,89 @@ function heroAmount(): string {
 }
 
 let wrapper: ReturnType<typeof mount> | null = null;
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (cause: Error) => void;
+  const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+}
+
+describe('financial writes retain their pending and failed surfaces', () => {
+  for (const form of ['account', 'asset', 'snapshot'] as const) {
+    it.each(['Escape', 'backdrop', 'Close'])(`${form} preserves input through pending %s and failure, then retries`, async (dismiss) => {
+      const pending = deferred<unknown>();
+      const write = form === 'account' ? mockedApiPatch : mockedApiPost;
+      write.mockReturnValueOnce(pending.promise);
+      wrapper = mount(AssetsPage, { attachTo: document.body });
+      await settle();
+      if (form === 'asset') {
+        clickBtn('新增资产');
+        await settle();
+        setInput(fieldInput('资产名称')!, '保留的基金');
+        setInput(fieldInput('市值')!, '16840');
+      } else {
+        openRow(form === 'account' ? '银行卡' : '股票');
+        await settle();
+        clickBtnInSheet(form === 'account' ? '编辑' : '更新市值');
+        await settle();
+        setInput(fieldInput(form === 'account' ? '余额' : '市值')!, '16840');
+      }
+      const field = fieldInput(form === 'account' ? '余额' : '市值')!;
+      clickBtn('保存');
+      await settle();
+      expect(findBtn('保存中…')?.disabled).toBe(true);
+      if (dismiss === 'Escape') document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      else if (dismiss === 'backdrop') document.querySelector<HTMLElement>('.overlay')!.click();
+      else clickBtn('关闭');
+      await settle();
+      expect(document.querySelector('.sheet')).not.toBeNull();
+      expect(field.isConnected).toBe(true);
+      expect(field.value).toBe('16840');
+      pending.reject(new Error('写入失败，请重试'));
+      await settle();
+      expect(document.querySelector('.sheet')?.textContent).toContain('写入失败');
+      expect(field.value).toBe('16840');
+      clickBtn('保存');
+      await settle();
+      expect(write).toHaveBeenCalledTimes(2);
+      expect(document.querySelector('.sheet')).toBeNull();
+    });
+  }
+
+  it.each([
+    ['现金', '/api/accounts/1'],
+    ['股票', '/api/assets/2'],
+  ])('keeps %s deletion retryable and prevents duplicate or dismissed pending writes', async (name, path) => {
+    const pending = deferred<unknown>();
+    mockedApiDelete.mockReturnValueOnce(pending.promise);
+    wrapper = mount(AssetsPage, { attachTo: document.body });
+    await settle();
+    openRow(name);
+    await settle();
+    clickBtnInSheet('删除');
+    await settle();
+    const confirm = findBtn('删除', document.querySelector('.dialog')!)!;
+    confirm.click();
+    confirm.click();
+    await settle();
+    expect(mockedApiDelete).toHaveBeenCalledTimes(1);
+    expect(confirm.disabled).toBe(true);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    document.querySelector<HTMLElement>('.overlay--center')!.click();
+    findBtn('取消', document.querySelector('.dialog')!)!.click();
+    await settle();
+    expect(document.querySelector('.dialog')).not.toBeNull();
+    pending.reject(new Error('删除失败，请重试'));
+    await settle();
+    expect(document.querySelector('.dialog [role="alert"]')?.textContent).toContain('删除失败');
+    expect(liByText(name)).not.toBeNull();
+    confirm.click();
+    await settle();
+    expect(mockedApiDelete.mock.calls).toEqual([[path], [path]]);
+    expect(document.querySelector('.dialog')).toBeNull();
+  });
+});
+
 async function settle() {
   await flushPromises();
   await flushPromises();

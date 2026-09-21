@@ -49,12 +49,15 @@ const memberSheetTitle = computed(() =>
 );
 
 let savedTimer: ReturnType<typeof setTimeout> | null = null;
+let familySequence = 0;
+let membersSequence = 0;
 
 function errorMessage(cause: unknown, fallback: string): string {
   return cause instanceof Error ? cause.message : fallback;
 }
 
 async function loadFamily(force = false) {
+  const request = ++familySequence;
   familyLoading.value = true;
   familyError.value = null;
   try {
@@ -63,16 +66,19 @@ async function loadFamily(force = false) {
       undefined,
       force ? { force: true } : undefined,
     );
+    if (request !== familySequence) return;
+    const edited = familyName.value !== (family.value?.name ?? '');
     family.value = loaded ?? null;
-    familyName.value = loaded?.name ?? '';
+    if (!edited && !familySavePending.value) familyName.value = loaded?.name ?? '';
   } catch (cause) {
-    familyError.value = errorMessage(cause, '家庭信息加载失败');
+    if (request === familySequence) familyError.value = errorMessage(cause, '家庭信息加载失败');
   } finally {
-    familyLoading.value = false;
+    if (request === familySequence) familyLoading.value = false;
   }
 }
 
 async function loadMembers(force = false) {
+  const request = ++membersSequence;
   membersLoading.value = true;
   membersError.value = null;
   try {
@@ -81,11 +87,11 @@ async function loadMembers(force = false) {
       undefined,
       force ? { force: true } : undefined,
     );
-    members.value = Array.isArray(loaded) ? loaded : [];
+    if (request === membersSequence) members.value = Array.isArray(loaded) ? loaded : [];
   } catch (cause) {
-    membersError.value = errorMessage(cause, '家庭成员加载失败');
+    if (request === membersSequence) membersError.value = errorMessage(cause, '家庭成员加载失败');
   } finally {
-    membersLoading.value = false;
+    if (request === membersSequence) membersLoading.value = false;
   }
 }
 
@@ -98,15 +104,23 @@ function flashSaved() {
 }
 
 async function saveFamily() {
-  const name = familyName.value.trim();
+  const draft = familyName.value;
+  const name = draft.trim();
   if (!name || familySavePending.value) return;
 
   familyMutationError.value = null;
   familySavePending.value = true;
+  // Reads started before this write cannot replace its result or edited draft.
+  familySequence += 1;
+  familyLoading.value = false;
+  familyError.value = null;
   try {
     const updated = await apiPut<Family>('/api/family', { name });
+    familySequence += 1;
+    familyLoading.value = false;
+    familyError.value = null;
     family.value = updated;
-    familyName.value = updated.name;
+    if (familyName.value === draft) familyName.value = updated.name;
     flashSaved();
   } catch (cause) {
     familyMutationError.value = errorMessage(cause, '保存失败');

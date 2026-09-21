@@ -91,6 +91,40 @@ afterEach(() => {
 });
 
 describe('分析页 · C3 结构', () => {
+  it('renders historical balance metrics, account/asset split and estimation from the selected snapshot', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 8, 15));
+    mockApi();
+    wrapper = mount(AnalysisPage, { attachTo: document.body });
+    await settle();
+    const historical = { ...summary, month: '2026-08', totalAssetsCents: 8888800,
+      totalLiabilitiesCents: 9999900, netWorthCents: -1111100, accountsTotalCents: 2222200,
+      assetsTotalCents: 6666600, assetsEstimated: true };
+    mockApi({ summary: historical });
+    await wrapper.get('[aria-label="上一月"]').trigger('click');
+    await settle();
+    const balances = wrapper.get('[data-analysis-balances]');
+    expect(balances.text()).toContain('2026年8月末');
+    for (const value of [8888800, -9999900, -1111100, 2222200, 6666600]) {
+      expect(balances.text()).toContain(formatMoney(value));
+    }
+    expect(balances.text()).toContain('资金账户');
+    expect(balances.text()).toContain('资产项');
+    expect(balances.text()).toContain('资不抵债');
+    expect(balances.get('[data-assets-estimated]').text()).toContain('暂按当前市值计入');
+    expect(mockedCachedGet.mock.calls.every(([path]) => path.startsWith('/api/stats/monthly-'))).toBe(true);
+  });
+
+  it('keeps asset-only historical months visible without an empty trend frame', async () => {
+    setupEmptyStats();
+    wrapper = mount(AnalysisPage, { attachTo: document.body });
+    await settle();
+    const balances = wrapper.get('[data-analysis-balances]');
+    expect(balances.text()).toContain(formatMoney(summary.totalAssetsCents));
+    expect(balances.find('[data-assets-estimated]').exists()).toBe(false);
+    expect(wrapper.find('[data-chart-frame]').exists()).toBe(false);
+  });
+
   it('renders the month picker inside the page header action', async () => {
     mockApi();
     wrapper = mount(AnalysisPage, { attachTo: document.body });

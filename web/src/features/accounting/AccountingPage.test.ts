@@ -107,6 +107,83 @@ afterEach(() => {
 });
 
 describe('AccountingPage', () => {
+  it('labels retained rows and totals after a month failure and retries the selected first page', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 8, 15));
+    const original = mockedCachedGet.getMockImplementation()!;
+    let fail = false;
+    mockedCachedGet.mockImplementation((path: string, params?: Record<string, unknown>) => {
+      if (path !== '/api/transactions') return original(path, params);
+      if (fail) return Promise.reject(new Error('八月加载失败'));
+      return Promise.resolve({ ...list, total: 40 });
+    });
+    wrapper = mount(AccountingPage, { attachTo: document.body });
+    await flushPromises();
+    fail = true;
+    await wrapper.get('[aria-label="上一月"]').trigger('click');
+    await flushPromises();
+    expect(wrapper.get('[data-retained-query]').text()).toContain('2026年9月');
+    expect(wrapper.get('.summary-strip__primary dt').text()).toContain('9月');
+    expect(wrapper.find('.accounting__more').exists()).toBe(false);
+    expect(wrapper.get('[data-mobile-transaction="1"]').text()).toContain('家庭晚餐');
+    fail = false;
+    await wrapper.get('[role="alert"] button').trigger('click');
+    await flushPromises();
+    expect(wrapper.find('[data-retained-query]').exists()).toBe(false);
+    expect(mockedCachedGet).toHaveBeenLastCalledWith('/api/transactions',
+      expect.objectContaining({ month: '2026-08', page: 1 }), { force: true });
+  });
+
+  it('offers a reference-only retry without hiding the ledger or successful filter options', async () => {
+    const original = mockedCachedGet.getMockImplementation()!;
+    mockedCachedGet.mockImplementation((path: string, params?: Record<string, unknown>) =>
+      path === '/api/categories' ? Promise.reject(new Error('分类不可用')) : original(path, params),
+    );
+    wrapper = mount(AccountingPage, { attachTo: document.body });
+    await flushPromises();
+    expect(wrapper.find('[data-mobile-transaction="1"]').exists()).toBe(true);
+    await wrapper.get('[aria-label="更多筛选"]').trigger('click');
+    expect(wrapper.get('[aria-label="筛选账户"]').text()).toContain('微信');
+    expect(wrapper.get('[data-reference-status]').text()).toContain('分类不可用');
+    mockedCachedGet.mockImplementation(original);
+    mockedCachedGet.mockClear();
+    await wrapper.get('[data-reference-status] button').trigger('click');
+    await flushPromises();
+    expect(wrapper.find('[data-reference-status]').exists()).toBe(false);
+    expect(mockedCachedGet.mock.calls.map(([path]) => path)).toEqual([
+      '/api/accounts', '/api/members', '/api/categories', '/api/categories',
+    ]);
+  });
+
+  it('keeps deletion pending, blocks dismissal and duplicate requests, then shows a retryable error', async () => {
+    let reject!: (error: Error) => void;
+    mockedApiDelete.mockImplementationOnce(() => new Promise((_, rejectPromise) => { reject = rejectPromise; }));
+    wrapper = mount(AccountingPage, { attachTo: document.body });
+    await flushPromises();
+    await wrapper.get('[data-mobile-transaction="1"]').trigger('click');
+    document.querySelector<HTMLButtonElement>('.sheet .btn--danger')!.click();
+    await flushPromises();
+    const confirm = document.querySelector<HTMLButtonElement>('.dialog .btn--danger')!;
+    confirm.click();
+    confirm.click();
+    await flushPromises();
+    expect(mockedApiDelete).toHaveBeenCalledTimes(1);
+    expect(confirm.disabled).toBe(true);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    document.querySelector<HTMLElement>('.overlay--center')!.click();
+    document.querySelector<HTMLButtonElement>('.dialog .btn')!.click();
+    await flushPromises();
+    expect(document.querySelector('.dialog')).not.toBeNull();
+    reject(new Error('删除失败，请重试'));
+    await flushPromises();
+    expect(document.querySelector('.dialog [role="alert"]')?.textContent).toContain('删除失败');
+    expect(wrapper.find('[data-mobile-transaction="1"]').exists()).toBe(true);
+    confirm.click();
+    await flushPromises();
+    expect(mockedApiDelete.mock.calls).toEqual([['/api/transactions/1'], ['/api/transactions/1']]);
+    expect(document.querySelector('.dialog')).toBeNull();
+  });
+
   it('renders the fixture month in the ledger title', async () => {
     const [year, monthNumber] = fixtureMonth.split('-').map(Number);
     vi.useFakeTimers({ toFake: ['Date'] });

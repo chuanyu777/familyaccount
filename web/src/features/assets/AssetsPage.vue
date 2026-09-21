@@ -71,7 +71,8 @@ const liabilitiesMetric = computed<SummaryMetric>(() => ({
 }));
 
 const assetView = ref<AssetView>('detail');
-const accountError = ref<string | null>(null);
+const deleteError = ref<string | null>(null);
+const deletePending = ref(false);
 
 const accountFormOpen = ref(false);
 const accountFormMode = ref<'create' | 'edit'>('create');
@@ -177,41 +178,56 @@ async function setDefault(id: number) {
 }
 
 function askDeleteAccount(id: number) {
-  accountError.value = null;
+  deleteError.value = null;
   detailAccount.value = null;
   confirmDeleteAccountId.value = id;
 }
 
 async function doDeleteAccount() {
   const id = confirmDeleteAccountId.value;
-  confirmDeleteAccountId.value = null;
-  if (id == null) return;
-  accountError.value = null;
+  if (id == null || deletePending.value) return;
+  deletePending.value = true;
+  deleteError.value = null;
   try {
     await apiDelete(`/api/accounts/${id}`);
+    confirmDeleteAccountId.value = null;
   } catch (e) {
     if (e instanceof ApiError && e.code === 'ACCOUNT_IN_USE') {
-      accountError.value = '该账户存在交易记录，无法删除';
+      deleteError.value = '该账户存在交易记录，无法删除';
     } else {
-      accountError.value = e instanceof Error ? e.message : '删除失败';
+      deleteError.value = e instanceof Error ? e.message : '删除失败';
     }
+  } finally {
+    deletePending.value = false;
   }
 }
 
 function askDeleteAsset(id: number) {
+  deleteError.value = null;
   detailAsset.value = null;
   confirmDeleteAssetId.value = id;
 }
 
 async function doDeleteAsset() {
   const id = confirmDeleteAssetId.value;
-  confirmDeleteAssetId.value = null;
-  if (id == null) return;
+  if (id == null || deletePending.value) return;
+  deletePending.value = true;
+  deleteError.value = null;
   try {
     await apiDelete(`/api/assets/${id}`);
-  } catch {
-    /* 删除失败保持列表 */
+    confirmDeleteAssetId.value = null;
+  } catch (cause) {
+    deleteError.value = cause instanceof Error ? cause.message : '删除失败，请重试';
+  } finally {
+    deletePending.value = false;
   }
+}
+
+function cancelDelete() {
+  if (deletePending.value) return;
+  confirmDeleteAccountId.value = null;
+  confirmDeleteAssetId.value = null;
+  deleteError.value = null;
 }
 
 function updatedLabel(a: Asset): string {
@@ -244,8 +260,6 @@ function updatedLabel(a: Asset): string {
           <h2 class="content-section__title">资金账户</h2>
           <button type="button" class="btn btn--sm" @click="openAccount()">新增账户</button>
         </header>
-
-        <p v-if="accountError" class="form-error">{{ accountError }}</p>
 
         <AsyncState
           :loading="accountLoading"
@@ -424,8 +438,10 @@ function updatedLabel(a: Asset): string {
       title="删除账户"
       description="删除后不可恢复，确认删除？"
       confirm-text="删除"
+      :pending="deletePending"
+      :error="deleteError ?? ''"
       @confirm="doDeleteAccount"
-      @cancel="confirmDeleteAccountId = null"
+      @cancel="cancelDelete"
     />
 
     <ConfirmDialog
@@ -433,8 +449,10 @@ function updatedLabel(a: Asset): string {
       title="删除资产"
       description="删除后不可恢复，确认删除？"
       confirm-text="删除"
+      :pending="deletePending"
+      :error="deleteError ?? ''"
       @confirm="doDeleteAsset"
-      @cancel="confirmDeleteAssetId = null"
+      @cancel="cancelDelete"
     />
   </div>
 </template>

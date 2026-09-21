@@ -90,6 +90,67 @@ afterEach(() => {
 });
 
 describe('useTransactions', () => {
+  it.each(['month', 'type', 'accountFilter', 'memberFilter'] as const)(
+    'blocks pagination after a failed %s change until its first page succeeds',
+    async (filter) => {
+      let fail = false;
+      mockedCachedGet.mockImplementation((path: string, params?: Record<string, unknown>) => {
+        if (path !== '/api/transactions') return referenceResult(path);
+        if (fail) return Promise.reject(new Error('第一页失败'));
+        return Promise.resolve(response([transaction(Number(params?.page))], 40));
+      });
+      mountComposable();
+      await flushPromises();
+      fail = true;
+      if (filter === 'month') state.month.value = '2000-08';
+      else if (filter === 'type') state.type.value = 'income';
+      else state[filter].value = '1';
+      await flushPromises();
+      expect(state.items.value.map(({ id }) => id)).toEqual([1]);
+      const calls = mockedCachedGet.mock.calls.length;
+      await state.loadMore();
+      expect(mockedCachedGet).toHaveBeenCalledTimes(calls);
+      expect(state.hasMore.value).toBe(false);
+      expect(state.error.value).toBe('第一页失败');
+
+      fail = false;
+      await state.reload();
+      await state.loadMore();
+      expect(state.items.value.map(({ id }) => id)).toEqual([1, 2]);
+      expect(state.error.value).toBeNull();
+    },
+  );
+
+  it('keeps successful references when one category read fails and retries only references', async () => {
+    let fail = true;
+    mockedCachedGet.mockImplementation((path: string, params?: Record<string, unknown>) => {
+      if (path === '/api/transactions') return Promise.resolve(response([transaction(1)]));
+      if (path === '/api/accounts') return Promise.resolve(accounts);
+      if (path === '/api/members') return Promise.resolve(members);
+      if (params?.kind === 'expense' && fail) return Promise.reject(new Error('分类失败'));
+      return Promise.resolve(params?.kind === 'income' ? incomeCategories : expenseCategories);
+    });
+    mountComposable();
+    await flushPromises();
+    expect(state.accounts.value).toEqual(accounts);
+    expect(state.members.value).toEqual(members);
+    expect(state.incomeCategories.value).toEqual(incomeCategories);
+    expect(state.referenceError.value).toContain('分类失败');
+    expect(state.referenceLoading.value).toBe(false);
+    mockedCachedGet.mockClear();
+    fail = false;
+    const retry = state.reloadReferences();
+    expect(state.referenceLoading.value).toBe(true);
+    await retry;
+    expect(state.expenseCategories.value).toEqual(expenseCategories);
+    expect(state.referenceError.value).toBeNull();
+    expect(mockedCachedGet.mock.calls.map(([path]) => path)).toEqual([
+      '/api/accounts', '/api/members', '/api/categories', '/api/categories',
+    ]);
+    expect(mockedCachedGet.mock.calls.every(([, , options]) => options.force)).toBe(true);
+    expect(state.items.value.map(({ id }) => id)).toEqual([1]);
+  });
+
   it('applies only the latest transaction response', async () => {
     const oldRequest = deferred<TransactionsResponse>();
     mockedCachedGet.mockImplementation((path: string) => {

@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import AsyncState from '../../components/AsyncState.vue';
 import MonthPicker from '../../components/MonthPicker.vue';
+import MoneyText from '../../components/MoneyText.vue';
 import PageHeader from '../../components/PageHeader.vue';
 import SummaryStrip, { type SummaryMetric } from '../../components/SummaryStrip.vue';
 import { cachedGet } from '../../lib/api';
@@ -16,6 +17,12 @@ interface MonthSnapshot {
   incomeCents: number;
   expenseCents: number;
   netCents: number;
+  accountsTotalCents: number;
+  assetsTotalCents: number;
+  totalAssetsCents: number;
+  totalLiabilitiesCents: number;
+  netWorthCents: number;
+  assetsEstimated: boolean;
   breakdown: Slice[];
 }
 
@@ -57,6 +64,15 @@ const expenseMetric = computed<SummaryMetric>(() => ({
   tone: 'expense',
 }));
 const breakdown = computed(() => snapshot.value?.breakdown ?? []);
+const netWorthMetric = computed<SummaryMetric>(() => ({
+  label: '净资产',
+  cents: snapshot.value?.netWorthCents ?? 0,
+  tone: (snapshot.value?.netWorthCents ?? 0) < 0 ? 'expense' : 'neutral',
+}));
+const balanceMetrics = computed<SummaryMetric[]>(() => [
+  { label: '总资产', cents: snapshot.value?.totalAssetsCents ?? 0, tone: 'income' },
+  { label: '总负债', cents: -(snapshot.value?.totalLiabilitiesCents ?? 0), tone: 'expense' },
+]);
 const hasTrendActivity = computed(() =>
   trend.value.some((point) => point.incomeCents !== 0 || point.expenseCents !== 0),
 );
@@ -109,6 +125,12 @@ async function load(force = false) {
       incomeCents: nextSnapshot.incomeCents ?? 0,
       expenseCents: nextSnapshot.expenseCents ?? 0,
       netCents: nextSnapshot.netCents ?? 0,
+      accountsTotalCents: nextSnapshot.accountsTotalCents ?? 0,
+      assetsTotalCents: nextSnapshot.assetsTotalCents ?? 0,
+      totalAssetsCents: nextSnapshot.totalAssetsCents ?? 0,
+      totalLiabilitiesCents: nextSnapshot.totalLiabilitiesCents ?? 0,
+      netWorthCents: nextSnapshot.netWorthCents ?? 0,
+      assetsEstimated: nextSnapshot.assetsEstimated ?? false,
       breakdown: Array.isArray(nextSnapshot.breakdown) ? nextSnapshot.breakdown : [],
     };
     trend.value = Array.isArray(nextTrend) ? nextTrend : [];
@@ -139,6 +161,24 @@ onMounted(() => void load());
       当前显示{{ monthLabel(retainedMonth) }}数据，{{ monthLabel(month) }}{{ error ? '加载失败' : '加载中' }}
     </p>
     <p v-else-if="refreshing" class="analysis__refreshing" aria-live="polite">正在更新分析…</p>
+
+    <section v-if="snapshot" class="content-section analysis__balances" data-analysis-balances>
+      <header class="content-section__head">
+        <h2 class="content-section__title">资产负债</h2>
+        <span class="content-section__meta">
+          {{ monthLabel(snapshot.month) }}{{ snapshot.month === currentMonth() ? ' · 当前' : '末' }}
+        </span>
+      </header>
+      <SummaryStrip :primary="netWorthMetric" :secondary="balanceMetrics" />
+      <p v-if="snapshot.netWorthCents < 0" class="analysis__balance-note"><span class="tag tag--expense">资不抵债</span></p>
+      <dl class="analysis__balance-split">
+        <div><dt>资金账户</dt><dd><MoneyText :cents="snapshot.accountsTotalCents" /></dd></div>
+        <div><dt>资产项</dt><dd><MoneyText :cents="snapshot.assetsTotalCents" /></dd></div>
+      </dl>
+      <p v-if="snapshot.assetsEstimated" class="analysis__balance-note" data-assets-estimated>
+        这个月有资产项还没记过市值，暂按当前市值计入。
+      </p>
+    </section>
 
     <div v-if="error && hasAnalysisData" class="analysis__error" role="alert">
       <span>{{ error }}</span>
@@ -214,6 +254,35 @@ onMounted(() => void load());
 .analysis__refreshing {
   margin: calc(var(--sp-2) * -1) 0 0;
   color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.analysis__balances {
+  margin: 0;
+}
+
+.analysis__balance-split {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-4);
+  margin-top: var(--sp-3);
+  font-size: var(--text-sm);
+}
+
+.analysis__balance-split > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.analysis__balance-split dt,
+.analysis__balance-note {
+  color: var(--muted);
+}
+
+.analysis__balance-note {
+  margin-top: var(--sp-2);
   font-size: var(--text-sm);
 }
 

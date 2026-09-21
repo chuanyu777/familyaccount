@@ -37,6 +37,13 @@ const members = [{ id: 1, name: '我', color: null }];
 
 let wrapper: ReturnType<typeof mount> | null = null;
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (cause: Error) => void;
+  const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+}
+
 function setupCache() {
   mockedCachedGet.mockImplementation((path: string) => {
     if (path.includes('family')) return Promise.resolve(family as never);
@@ -307,6 +314,102 @@ describe('设置页 · 删除二次确认', () => {
 });
 
 describe('设置页 · 失败降级', () => {
+  it.each(['family', 'members'] as const)('ignores old %s successes after the latest refresh', async (resource) => {
+    const old = deferred<unknown>();
+    let reads = 0;
+    mockedCachedGet.mockImplementation((path: string) => {
+      if (path === `/api/${resource}`) {
+        reads += 1;
+        return (reads === 1 ? old.promise : Promise.resolve(
+          resource === 'family' ? { ...family, name: '最新家庭' } : [{ ...members[0], name: '最新成员' }],
+        )) as never;
+      }
+      return Promise.resolve((path === '/api/family' ? family : members) as never);
+    });
+    wrapper = mount(SettingsPage, { attachTo: document.body });
+    publishResources([resource]);
+    await settle();
+    old.resolve(resource === 'family' ? family : members);
+    await settle();
+    if (resource === 'family') expect(fieldInput('家庭名称')?.value).toBe('最新家庭');
+    else expect(wrapper.get('[data-member-row="1"]').text()).toBe('最新成员');
+  });
+
+  it.each(['family', 'members'] as const)('ignores old %s errors and keeps the latest initial load pending', async (resource) => {
+    const old = deferred<unknown>();
+    const fresh = deferred<unknown>();
+    let reads = 0;
+    mockedCachedGet.mockImplementation((path: string) => {
+      if (path === `/api/${resource}`) return (++reads === 1 ? old.promise : fresh.promise) as never;
+      return Promise.resolve((path === '/api/family' ? family : members) as never);
+    });
+    wrapper = mount(SettingsPage, { attachTo: document.body });
+    publishResources([resource]);
+    await settle();
+    old.reject(new Error('过期错误'));
+    await settle();
+    expect(wrapper.text()).not.toContain('过期错误');
+    const section = wrapper.get(`[aria-labelledby="${resource === 'family' ? 'family' : 'members'}-heading"]`);
+    expect(section.find('[aria-label="加载中"]').exists()).toBe(true);
+    fresh.resolve(resource === 'family' ? family : members);
+    await settle();
+    expect(section.find('[aria-label="加载中"]').exists()).toBe(false);
+  });
+
+  it('keeps an edited family draft when a background refresh completes', async () => {
+    wrapper = mount(SettingsPage, { attachTo: document.body });
+    await settle();
+    const refresh = deferred<unknown>();
+    mockedCachedGet.mockReturnValueOnce(refresh.promise as never);
+    publishResources(['family']);
+    await settle();
+    setInput(fieldInput('家庭名称')!, '未保存的家庭');
+    refresh.resolve({ ...family, name: '后台家庭' });
+    await settle();
+    expect(fieldInput('家庭名称')?.value).toBe('未保存的家庭');
+    clickBtn('保存');
+    await settle();
+    expect(mockedApiPut).toHaveBeenCalledWith('/api/family', { name: '未保存的家庭' });
+  });
+
+  it('does not let a pre-save refresh overwrite the saved family name', async () => {
+    wrapper = mount(SettingsPage, { attachTo: document.body });
+    await settle();
+    const refresh = deferred<unknown>();
+    mockedCachedGet.mockReturnValueOnce(refresh.promise as never);
+    publishResources(['family']);
+    await settle();
+    mockedApiPut.mockResolvedValueOnce({ ...family, name: '已保存的家庭' } as never);
+    setInput(fieldInput('家庭名称')!, '已保存的家庭');
+    clickBtn('保存');
+    await settle();
+    refresh.resolve(family);
+    await settle();
+    expect(fieldInput('家庭名称')?.value).toBe('已保存的家庭');
+    expect(wrapper.text()).toContain('已保存');
+  });
+
+  it('keeps edits made while saving and does not replace an open member draft on refresh', async () => {
+    wrapper = mount(SettingsPage, { attachTo: document.body });
+    await settle();
+    const save = deferred<unknown>();
+    mockedApiPut.mockReturnValueOnce(save.promise as never);
+    setInput(fieldInput('家庭名称')!, '保存中的家庭');
+    clickBtn('保存');
+    await settle();
+    setInput(fieldInput('家庭名称')!, '继续编辑的家庭');
+    save.resolve({ ...family, name: '保存中的家庭' });
+    await settle();
+    expect(fieldInput('家庭名称')?.value).toBe('继续编辑的家庭');
+    await wrapper.get('[data-member-row="1"]').trigger('click');
+    setInput(fieldInput('成员姓名')!, '未保存的成员');
+    mockedCachedGet.mockResolvedValueOnce([{ ...members[0], name: '后台成员' }] as never);
+    publishResources(['members']);
+    await settle();
+    expect(fieldInput('成员姓名')?.value).toBe('未保存的成员');
+    expect(wrapper.get('[data-member-row="1"]').text()).toBe('后台成员');
+  });
+
   it('家庭读取失败不清除成功加载的成员', async () => {
     mockedCachedGet.mockImplementation((path: string) => {
       if (path.includes('family')) return Promise.reject(new Error('家庭加载失败'));
