@@ -87,6 +87,7 @@ afterEach(() => {
   wrapper?.unmount();
   wrapper = null;
   document.body.innerHTML = '';
+  vi.useRealTimers();
 });
 
 describe('分析页 · C3 结构', () => {
@@ -202,6 +203,8 @@ describe('分析页 · 资源加载', () => {
   });
 
   it('切月等待或失败时明确标记保留数据的月份，重试成功后恢复所选月份', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 8, 15));
     mockApi();
     wrapper = mount(AnalysisPage, { attachTo: document.body });
     await settle();
