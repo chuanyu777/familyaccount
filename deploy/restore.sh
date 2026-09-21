@@ -19,7 +19,22 @@ FILE="$1"
 cd "$(dirname "$0")/.."
 COMPOSE_FILE=${COMPOSE_FILE:-deploy/docker-compose.prod.yml}
 
-if [ -f deploy/.env ]; then
+# 兼容 docker compose v2 与 docker-compose v1
+if docker compose version >/dev/null 2>&1; then
+  DC="docker compose"
+elif command -v docker-compose >/dev/null 2>&1; then
+  DC="docker-compose"
+elif [ -x /usr/local/bin/docker-compose ]; then
+  DC="/usr/local/bin/docker-compose"
+else
+  echo "错误：未找到 docker compose / docker-compose" >&2
+  exit 1
+fi
+
+# docker-compose v1 只从「运行目录」读 .env，两个位置都兼容
+if [ -f .env ]; then
+  set -a; . ./.env; set +a
+elif [ -f deploy/.env ]; then
   set -a; . deploy/.env; set +a
 fi
 DB_PASSWORD=${DB_PASSWORD:-root123456}
@@ -32,14 +47,14 @@ read -r -p "确认请输入 yes: " CONFIRM
 ./deploy/backup.sh
 
 echo "停止后端容器..."
-docker compose -f "$COMPOSE_FILE" stop app
+$DC -f "$COMPOSE_FILE" stop app
 
 echo "导入数据..."
-gunzip -c "$FILE" | docker compose -f "$COMPOSE_FILE" exec -T -e MYSQL_PWD="$DB_PASSWORD" mysql \
+gunzip -c "$FILE" | $DC -f "$COMPOSE_FILE" exec -T -e MYSQL_PWD="$DB_PASSWORD" mysql \
   mysql -uroot --default-character-set=utf8mb4 family_ledger
 
 echo "启动后端容器（会自动执行未应用的迁移脚本）..."
-docker compose -f "$COMPOSE_FILE" start app
+$DC -f "$COMPOSE_FILE" start app
 
 echo "恢复完成，确认服务状态："
-docker compose -f "$COMPOSE_FILE" ps
+$DC -f "$COMPOSE_FILE" ps

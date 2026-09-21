@@ -162,3 +162,12 @@ docker compose -f deploy/docker-compose.prod.yml exec mysql   mysql -uroot -p"$D
 
 > 提示：zip 包不保留可执行权限，服务器上首次使用前先执行一次
 > `chmod +x deploy/*.sh`；或者直接用 `bash deploy/backup.sh` 调用。
+### 服务器环境注意（CentOS 7 / Docker 20.10 这类老环境）
+
+- 只有 `docker-compose` v1（带横杠）时，命令要写成：
+  `sudo /usr/local/bin/docker-compose -f deploy/docker-compose.prod.yml up -d --build`
+- **v1 只从"运行目录"读 `.env`**，所以 `DB_PASSWORD` 要写在项目根目录 `/home/lighthouse/app/.env`，
+  而不是 `deploy/.env`（两个位置脚本都会读，但 compose 本身只认根目录那一份）。
+- backup.sh / restore.sh 已自动兼容 v1 与 v2，无需手动切换。
+- 脚本必须是 LF 换行（Windows 编辑后请用 `sed -i 's/\r$//'` 处理），否则会报
+  `/usr/bin/env: bash : No such file or directory`。
