@@ -11,7 +11,7 @@ import LiabilitiesPage from './features/liabilities/LiabilitiesPage.vue';
 import AnalysisPage from './features/analysis/AnalysisPage.vue';
 import SettingsPage from './features/settings/SettingsPage.vue';
 import { cachedGet } from './lib/api';
-import { revision } from './lib/revision';
+import { resourceVersion } from './lib/resourceInvalidation';
 
 interface Family {
   id: number;
@@ -41,7 +41,7 @@ async function loadFamily() {
 
 onMounted(loadFamily);
 // 设置里改了家庭名，标题栏跟着变
-watch(revision, loadFamily);
+watch(resourceVersion(['family']), loadFamily);
 </script>
 
 <template>

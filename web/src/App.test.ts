@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import App from './App.vue';
+import { publishResources } from './lib/resourceInvalidation';
 import desktopNavSource from './components/DesktopNav.vue?raw';
 import statHeroSource from './components/StatHero.vue?raw';
 import accountingPageSource from './features/accounting/AccountingPage.vue?raw';
@@ -12,7 +13,7 @@ import chartPaletteSource from './features/analysis/charts/palette.ts?raw';
 
 const baseCss = readFileSync(resolve(process.cwd(), 'web/src/styles/base.css'), 'utf8');
 
-const family = { id: 1, name: '我们的家' };
+let family = { id: 1, name: '我们的家' };
 const summary = {
   totalAssetsCents: 1280000,
   totalLiabilitiesCents: 300000,
@@ -57,6 +58,7 @@ async function flush() {
 describe('App', () => {
   beforeEach(() => {
     get.mockClear();
+    family = { id: 1, name: '我们的家' };
     document.body.innerHTML = '';
     window.location.hash = '#accounting';
   });
@@ -86,6 +88,23 @@ describe('App', () => {
     await wrapper.get('[data-mobile-tab="assets"]').trigger('click');
     expect(window.location.hash).toBe('#assets');
     expect(wrapper.find('[data-page="assets"]').exists()).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('只订阅家庭资源并在家庭名变更后更新外壳', async () => {
+    const wrapper = mount(App, { attachTo: document.body });
+    await flush();
+    get.mockClear();
+
+    publishResources(['members']);
+    await flush();
+    expect(get.mock.calls.filter(([path]) => path === '/api/family')).toHaveLength(0);
+
+    family = { id: 1, name: '新家' };
+    publishResources(['family']);
+    await flush();
+    expect(get.mock.calls.filter(([path]) => path === '/api/family')).toHaveLength(1);
+    expect(wrapper.text()).toContain('新家');
     wrapper.unmount();
   });
 
