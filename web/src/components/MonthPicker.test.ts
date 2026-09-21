@@ -52,6 +52,16 @@ describe('MonthPicker', () => {
     expect(getComputedStyle(yearNav).height).toBe('44px');
   });
 
+  it('hides step arrows on mobile while preserving the 44px month selector', () => {
+    const w = mountPicker('2026-03');
+    const styles = parse(monthPickerSource).descriptor.styles[0]?.content ?? '';
+
+    expect(styles).toMatch(
+      /@media\s*\(max-width:\s*767px\)\s*{[\s\S]*?\.monthbar__nav\s*{[^}]*display:\s*none;/,
+    );
+    expect(getComputedStyle(w.get('[aria-label="选择月份"]').element).minHeight).toBe('44px');
+  });
+
   it('左右箭头按月步进', async () => {
     const w = mountPicker('2026-03');
     await w.get('[aria-label="上一月"]').trigger('click');

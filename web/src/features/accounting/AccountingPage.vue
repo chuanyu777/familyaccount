@@ -9,7 +9,6 @@ import MonthPicker from '../../components/MonthPicker.vue';
 import PageHeader from '../../components/PageHeader.vue';
 import SummaryStrip, { type SummaryMetric } from '../../components/SummaryStrip.vue';
 import { apiDelete } from '../../lib/api';
-import { monthLabel } from '../../lib/format';
 import { showToast } from '../../lib/toast';
 import TransactionForm from './TransactionForm.vue';
 import TransactionList from './TransactionList.vue';
@@ -49,6 +48,7 @@ const formMode = ref<'create' | 'edit'>('create');
 const formInitial = ref<Transaction | undefined>(undefined);
 const detailId = ref<number | null>(null);
 const confirmDeleteId = ref<number | null>(null);
+const ledgerTitle = computed(() => `${Number(month.value.slice(5))}月账本`);
 
 const netMetric = computed<SummaryMetric>(() => ({
   label: '本月结余',
@@ -133,13 +133,14 @@ function signedCents(transaction: Transaction): number {
 
 <template>
   <div class="accounting">
-    <PageHeader title="月度账本" :context="monthLabel(month)">
-      <button type="button" class="btn btn--primary desktop-create" @click="openCreate">记一笔</button>
+    <PageHeader :title="ledgerTitle">
+      <div class="accounting__header-actions">
+        <MonthPicker v-model="month" />
+        <button type="button" class="btn btn--primary desktop-create" @click="openCreate">
+          记一笔
+        </button>
+      </div>
     </PageHeader>
-
-    <div class="accounting__month">
-      <MonthPicker v-model="month" />
-    </div>
 
     <SummaryStrip
       class="accounting__summary"
@@ -313,8 +314,10 @@ function signedCents(transaction: Transaction): number {
   padding-bottom: 96px;
 }
 
-.accounting__month {
-  width: min(100%, 380px);
+.accounting__header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
 }
 
 .accounting__filters {
@@ -415,12 +418,6 @@ function signedCents(transaction: Transaction): number {
   .accounting {
     gap: 16px;
     padding-bottom: 0;
-  }
-
-  .accounting__month {
-    align-self: flex-end;
-    margin-top: -64px;
-    margin-right: 112px;
   }
 
   .accounting__fab {

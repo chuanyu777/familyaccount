@@ -288,4 +288,10 @@ function step(delta: number) {
   display: flex;
   gap: var(--sp-2);
 }
+
+@media (max-width: 767px) {
+  .monthbar__nav {
+    display: none;
+  }
+}
 </style>

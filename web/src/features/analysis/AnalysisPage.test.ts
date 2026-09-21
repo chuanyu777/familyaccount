@@ -91,6 +91,16 @@ afterEach(() => {
 });
 
 describe('分析页 · C3 结构', () => {
+  it('renders the month picker inside the page header action', async () => {
+    mockApi();
+    wrapper = mount(AnalysisPage, { attachTo: document.body });
+    await settle();
+
+    expect(
+      wrapper.get('.page-header__action').find('[aria-label="选择月份"]').exists(),
+    ).toBe(true);
+  });
+
   it('组合页头、月份选择和真实收支汇总', async () => {
     mockApi();
     wrapper = mount(AnalysisPage, { attachTo: document.body });

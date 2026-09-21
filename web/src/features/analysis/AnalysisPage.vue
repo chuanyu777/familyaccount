@@ -129,11 +129,9 @@ onMounted(() => void load());
 
 <template>
   <div class="analysis">
-    <PageHeader title="分析" :context="monthLabel(month)" />
-
-    <div class="analysis__month">
+    <PageHeader title="分析">
       <MonthPicker v-model="month" />
-    </div>
+    </PageHeader>
 
     <SummaryStrip :primary="netMetric" :secondary="[incomeMetric, expenseMetric]" />
 
@@ -211,10 +209,6 @@ onMounted(() => void load());
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
-}
-
-.analysis__month {
-  max-width: 360px;
 }
 
 .analysis__refreshing {

@@ -80,6 +80,7 @@ const list: TransactionsResponse = {
   expenseTotalCents: 98600,
   netCents: 101400,
 };
+const fixtureMonth = items[0]!.occurredOn.slice(0, 7);
 
 let wrapper: VueWrapper | null = null;
 
@@ -102,9 +103,30 @@ afterEach(() => {
   wrapper?.unmount();
   wrapper = null;
   document.body.innerHTML = '';
+  vi.useRealTimers();
 });
 
 describe('AccountingPage', () => {
+  it('renders the fixture month in the ledger title', async () => {
+    const [year, monthNumber] = fixtureMonth.split('-').map(Number);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(year!, monthNumber! - 1, 15));
+
+    wrapper = mount(AccountingPage, { attachTo: document.body });
+    await flushPromises();
+
+    expect(wrapper.get('h1').text()).toBe(`${monthNumber}月账本`);
+  });
+
+  it('renders the month picker inside the page header action', async () => {
+    wrapper = mount(AccountingPage, { attachTo: document.body });
+    await flushPromises();
+
+    expect(
+      wrapper.get('.page-header__action').find('[aria-label="选择月份"]').exists(),
+    ).toBe(true);
+  });
+
   it('renders compact mobile rows with category icons and signed amounts', async () => {
     wrapper = mount(AccountingPage, { attachTo: document.body });
     await flushPromises();
@@ -147,9 +169,9 @@ describe('AccountingPage', () => {
     wrapper = mount(AccountingPage, { attachTo: document.body });
     await flushPromises();
 
-    expect(wrapper.get('.page-header__action button').text()).toBe('记一笔');
+    expect(wrapper.get('.desktop-create').text()).toBe('记一笔');
     expect(wrapper.get('button.fab').attributes('aria-label')).toBe('记一笔');
-    await wrapper.get('.page-header__action button').trigger('click');
+    await wrapper.get('.desktop-create').trigger('click');
     await flushPromises();
     expect(document.querySelector('.sheet')?.textContent).toContain('记一笔');
   });
@@ -176,7 +198,7 @@ describe('AccountingPage', () => {
   it('performs one forced transaction refresh after save invalidation', async () => {
     wrapper = mount(AccountingPage, { attachTo: document.body });
     await flushPromises();
-    await wrapper.get('.page-header__action button').trigger('click');
+    await wrapper.get('.desktop-create').trigger('click');
     await flushPromises();
     mockedCachedGet.mockClear();
 
