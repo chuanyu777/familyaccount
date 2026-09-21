@@ -1,5 +1,5 @@
 import { idbGet, idbSet, idbClearByPrefix } from './idbCache';
-import { bumpRevision } from './revision';
+import { publishResources, resourcesForMutation } from './resourceInvalidation';
 
 // 统一 fetch 封装 + IndexedDB SWR 缓存 + 写后失效。
 // 路径既可传 '/api/xxx' 也可传相对 'xxx'，统一规整为 '/api/xxx'。
@@ -131,32 +131,34 @@ export function apiGet<T>(path: string, params?: Record<string, unknown>): Promi
   return rawFetch<T>('GET', path, undefined, params);
 }
 
-/** 写操作收尾：清缓存 + 通知所有页面重新拉取。 */
-async function afterWrite(): Promise<void> {
-  await invalidate();
-  bumpRevision();
+/** 写操作收尾：清除相关缓存 + 通知依赖对应资源的页面重新拉取。 */
+async function afterWrite(path: string, method: string): Promise<void> {
+  const resources = resourcesForMutation(fullPath(path), method);
+  const prefixes = resources.map((resource) => `/api/${resource === 'statistics' ? 'stats' : resource}`);
+  await Promise.all(prefixes.map((prefix) => invalidate(prefix)));
+  publishResources(resources);
 }
 
 export async function apiPost<T>(path: string, body: unknown): Promise<T> {
   const r = await rawFetch<T>('POST', path, body);
-  await afterWrite();
+  await afterWrite(path, 'POST');
   return r;
 }
 
 export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
   const r = await rawFetch<T>('PATCH', path, body);
-  await afterWrite();
+  await afterWrite(path, 'PATCH');
   return r;
 }
 
 export async function apiPut<T>(path: string, body: unknown): Promise<T> {
   const r = await rawFetch<T>('PUT', path, body);
-  await afterWrite();
+  await afterWrite(path, 'PUT');
   return r;
 }
 
 export async function apiDelete<T>(path: string): Promise<T> {
   const r = await rawFetch<T>('DELETE', path);
-  await afterWrite();
+  await afterWrite(path, 'DELETE');
   return r;
 }

@@ -1,14 +1,12 @@
-/** 图表配色：低饱和冷色系，取自设计令牌。环形图与图例共用，保证颜色对得上。 */
-const PALETTE = [
-  'var(--brand)',
-  'var(--income)',
+const CATEGORY_COLORS = [
   'var(--expense)',
-  'var(--slate)',
-  'var(--warn)',
-  'var(--ink-3)',
+  'var(--muted)',
+  'var(--ink)',
 ];
 
 export function sliceColor(index: number): string {
-  const i = ((index % PALETTE.length) + PALETTE.length) % PALETTE.length;
-  return PALETTE[i] ?? 'var(--ink-3)';
+  const normalized = Math.max(0, Math.trunc(index));
+  if (normalized === 1) return 'var(--chart-accent)';
+  const paletteIndex = normalized === 0 ? 0 : (normalized - 1) % CATEGORY_COLORS.length;
+  return CATEGORY_COLORS[paletteIndex] ?? 'var(--expense)';
 }

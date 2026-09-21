@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import SectionBlock from '../../components/SectionBlock.vue';
-import EmptyState from '../../components/EmptyState.vue';
+import { ChevronRight } from 'lucide-vue-next';
+import AppSheet from '../../components/AppSheet.vue';
+import AsyncState from '../../components/AsyncState.vue';
 import ConfirmDialog from '../../components/ConfirmDialog.vue';
-import { cachedGet, apiPut, apiPost, apiPatch, apiDelete } from '../../lib/api';
-import { revision } from '../../lib/revision';
+import PageHeader from '../../components/PageHeader.vue';
+import { apiDelete, apiPatch, apiPost, apiPut, cachedGet } from '../../lib/api';
+import { resourceVersion } from '../../lib/resourceInvalidation';
 
 interface Family {
   id: number;
@@ -17,41 +19,79 @@ interface Member {
   color: string | null;
 }
 
+const FAMILY_OWNERSHIP_EXPLANATION =
+  '删除成员后，其名下的账目、资产、负债会自动转为「家庭共有」，不会被一并删除。';
+
 const family = ref<Family | null>(null);
-const name = ref('');
-const members = ref<Member[]>([]);
-const newName = ref('');
-const newColor = ref('');
-const pendingDelete = ref<Member | null>(null);
-const error = ref<string | null>(null);
+const familyName = ref('');
+const familyLoading = ref(true);
+const familyError = ref<string | null>(null);
+const familyMutationError = ref<string | null>(null);
+const familySavePending = ref(false);
 const saved = ref(false);
-const loading = ref(true);
 
-const editingId = ref<number | null>(null);
-const editName = ref('');
+const members = ref<Member[]>([]);
+const membersLoading = ref(true);
+const membersError = ref<string | null>(null);
+const memberSheetMode = ref<'create' | 'edit' | null>(null);
+const editingMember = ref<Member | null>(null);
+const memberName = ref('');
+const memberColor = ref('');
+const memberMutationError = ref<string | null>(null);
+const memberSavePending = ref(false);
 
-const hasMembers = computed(() => members.value.length > 0);
+const pendingDelete = ref<Member | null>(null);
+const deletePending = ref(false);
+const deleteError = ref<string | null>(null);
+
+const memberSheetTitle = computed(() =>
+  memberSheetMode.value === 'edit' ? '编辑成员' : '添加成员',
+);
 
 let savedTimer: ReturnType<typeof setTimeout> | null = null;
+let familySequence = 0;
+let membersSequence = 0;
 
-async function load() {
-  loading.value = true;
-  error.value = null;
+function errorMessage(cause: unknown, fallback: string): string {
+  return cause instanceof Error ? cause.message : fallback;
+}
+
+async function loadFamily(force = false) {
+  const request = ++familySequence;
+  familyLoading.value = true;
+  familyError.value = null;
   try {
-    const [f, m] = await Promise.all([
-      cachedGet<Family>('/api/family'),
-      cachedGet<Member[]>('/api/members'),
-    ]);
-    family.value = f ?? null;
-    name.value = f?.name ?? '';
-    members.value = Array.isArray(m) ? m : [];
-  } catch (e) {
-    // 加载失败降级，绝不让页面崩溃
-    family.value = null;
-    members.value = [];
-    error.value = e instanceof Error ? e.message : '加载失败';
+    const loaded = await cachedGet<Family>(
+      '/api/family',
+      undefined,
+      force ? { force: true } : undefined,
+    );
+    if (request !== familySequence) return;
+    const edited = familyName.value !== (family.value?.name ?? '');
+    family.value = loaded ?? null;
+    if (!edited && !familySavePending.value) familyName.value = loaded?.name ?? '';
+  } catch (cause) {
+    if (request === familySequence) familyError.value = errorMessage(cause, '家庭信息加载失败');
   } finally {
-    loading.value = false;
+    if (request === familySequence) familyLoading.value = false;
+  }
+}
+
+async function loadMembers(force = false) {
+  const request = ++membersSequence;
+  membersLoading.value = true;
+  membersError.value = null;
+  try {
+    const loaded = await cachedGet<Member[]>(
+      '/api/members',
+      undefined,
+      force ? { force: true } : undefined,
+    );
+    if (request === membersSequence) members.value = Array.isArray(loaded) ? loaded : [];
+  } catch (cause) {
+    if (request === membersSequence) membersError.value = errorMessage(cause, '家庭成员加载失败');
+  } finally {
+    if (request === membersSequence) membersLoading.value = false;
   }
 }
 
@@ -64,177 +104,251 @@ function flashSaved() {
 }
 
 async function saveFamily() {
-  const trimmed = name.value.trim();
-  if (!trimmed) return;
-  error.value = null;
+  const draft = familyName.value;
+  const name = draft.trim();
+  if (!name || familySavePending.value) return;
+
+  familyMutationError.value = null;
+  familySavePending.value = true;
+  // Reads started before this write cannot replace its result or edited draft.
+  familySequence += 1;
+  familyLoading.value = false;
+  familyError.value = null;
   try {
-    const updated = await apiPut<Family>('/api/family', { name: trimmed });
+    const updated = await apiPut<Family>('/api/family', { name });
+    familySequence += 1;
+    familyLoading.value = false;
+    familyError.value = null;
     family.value = updated;
-    name.value = updated.name;
+    if (familyName.value === draft) familyName.value = updated.name;
     flashSaved();
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : '保存失败';
+  } catch (cause) {
+    familyMutationError.value = errorMessage(cause, '保存失败');
+  } finally {
+    familySavePending.value = false;
   }
 }
 
-async function addMember() {
-  const trimmed = newName.value.trim();
-  if (!trimmed) return;
-  error.value = null;
+function openCreateMember() {
+  editingMember.value = null;
+  memberName.value = '';
+  memberColor.value = '';
+  memberMutationError.value = null;
+  memberSheetMode.value = 'create';
+}
+
+function openEditMember(member: Member) {
+  editingMember.value = member;
+  memberName.value = member.name;
+  memberColor.value = member.color ?? '';
+  memberMutationError.value = null;
+  memberSheetMode.value = 'edit';
+}
+
+function closeMemberSheet() {
+  if (memberSavePending.value || deletePending.value) return;
+  memberSheetMode.value = null;
+  editingMember.value = null;
+  memberName.value = '';
+  memberColor.value = '';
+  memberMutationError.value = null;
+}
+
+async function saveMember() {
+  const name = memberName.value.trim();
+  if (!name || memberSavePending.value) return;
+
+  memberMutationError.value = null;
+  memberSavePending.value = true;
   try {
-    await apiPost<Member>('/api/members', {
-      name: trimmed,
-      color: newColor.value ? newColor.value : null,
-    });
-    newName.value = '';
-    newColor.value = '';
-    await load();
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : '添加失败';
+    if (memberSheetMode.value === 'create') {
+      await apiPost<Member>('/api/members', {
+        name,
+        color: memberColor.value || null,
+      });
+    } else if (editingMember.value) {
+      await apiPatch<Member>(`/api/members/${editingMember.value.id}`, { name });
+    } else {
+      return;
+    }
+  } catch (cause) {
+    memberMutationError.value = errorMessage(
+      cause,
+      memberSheetMode.value === 'create' ? '添加失败' : '修改失败',
+    );
+  } finally {
+    memberSavePending.value = false;
+    if (!memberMutationError.value) closeMemberSheet();
   }
 }
 
-function startEdit(m: Member) {
-  editingId.value = m.id;
-  editName.value = m.name;
+function askDeleteMember() {
+  if (!editingMember.value) return;
+  deleteError.value = null;
+  pendingDelete.value = editingMember.value;
 }
 
-function cancelEdit() {
-  editingId.value = null;
-  editName.value = '';
-}
-
-async function saveEdit(m: Member) {
-  const trimmed = editName.value.trim();
-  if (!trimmed) return;
-  error.value = null;
-  try {
-    await apiPatch<Member>(`/api/members/${m.id}`, { name: trimmed });
-    editingId.value = null;
-    editName.value = '';
-    await load();
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : '修改失败';
-  }
+function cancelDelete() {
+  if (deletePending.value) return;
+  pendingDelete.value = null;
+  deleteError.value = null;
 }
 
 async function confirmDelete() {
   const target = pendingDelete.value;
-  if (!target) return;
-  error.value = null;
+  if (!target || deletePending.value) return;
+
+  deleteError.value = null;
+  deletePending.value = true;
   try {
     await apiDelete(`/api/members/${target.id}`);
     pendingDelete.value = null;
-    await load();
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : '删除失败';
-    pendingDelete.value = null;
+    memberSheetMode.value = null;
+    editingMember.value = null;
+  } catch (cause) {
+    deleteError.value = errorMessage(cause, '删除失败');
+  } finally {
+    deletePending.value = false;
   }
 }
 
-// 成员/家庭名被别处改动后同步刷新
-watch(revision, () => void load());
+watch(resourceVersion(['family']), () => void loadFamily(true));
+watch(resourceVersion(['members']), () => void loadMembers(true));
 
-onMounted(() => void load());
+onMounted(() => {
+  void loadFamily();
+  void loadMembers();
+});
 </script>
 
 <template>
   <div class="settings">
-    <SectionBlock title="家庭名称">
-      <div v-if="error" class="form-error">{{ error }}</div>
+    <PageHeader title="设置" context="家庭与成员" />
 
-      <form class="inline-form" @submit.prevent="saveFamily">
-        <label class="field field--inline">
-          <span class="field__label">家庭名称</span>
-          <input
-            v-model="name"
-            class="field__control"
-            aria-label="家庭名称"
-            placeholder="我的家"
-          />
-        </label>
-        <button type="submit" class="btn btn--primary">保存</button>
-      </form>
-      <p v-if="saved" class="hint-text">已保存</p>
-    </SectionBlock>
-
-    <SectionBlock title="家庭成员">
-      <template #aside>
-        <span class="muted">删除后转为「家庭共有」</span>
-      </template>
-
-      <div v-if="!hasMembers && !loading" class="card card--flush">
-        <EmptyState
-          title="还没有成员"
-          hint="添加家庭成员后，账目、资产、负债就可以归属到个人。"
-          mark="○"
-        />
+    <section class="settings-group" aria-labelledby="family-heading">
+      <div class="settings-group__head">
+        <h2 id="family-heading">家庭名称</h2>
       </div>
 
-      <ul v-else class="card card--flush member-list">
-        <li v-for="m in members" :key="m.id" class="member">
-          <span
-            class="member__dot"
-            :style="{ background: m.color ?? 'var(--ink-3)' }"
-            aria-hidden="true"
-          />
-          <template v-if="editingId !== m.id">
-            <span class="member__name">{{ m.name }}</span>
-            <span class="member__actions">
-              <button type="button" class="btn btn--ghost btn--sm" @click="startEdit(m)">改名</button>
-              <button
-                type="button"
-                class="btn btn--ghost btn--sm btn--danger"
-                :aria-label="`删除成员 ${m.name}`"
-                @click="pendingDelete = m"
-              >
-                删除
-              </button>
-            </span>
-          </template>
-          <template v-else>
+      <AsyncState
+        :loading="familyLoading"
+        :error="familyError ?? ''"
+        :empty="family === null"
+        empty-title="暂无家庭信息"
+        @retry="loadFamily(true)"
+      >
+        <form class="family-form" @submit.prevent="saveFamily">
+          <label class="field family-form__field">
+            <span class="field__label">家庭名称</span>
             <input
-              v-model="editName"
-              class="field__control member__input"
-              :aria-label="`成员 ${m.name} 名称`"
+              v-model="familyName"
+              class="field__control"
+              aria-label="家庭名称"
+              placeholder="我的家"
             />
-            <span class="member__actions">
-              <button type="button" class="btn btn--ghost btn--sm" @click="cancelEdit">取消</button>
-              <button type="button" class="btn btn--sm btn--primary" @click="saveEdit(m)">保存</button>
-            </span>
-          </template>
-        </li>
-      </ul>
+          </label>
+          <button type="submit" class="btn btn--primary" :disabled="familySavePending">
+            {{ familySavePending ? '保存中…' : '保存' }}
+          </button>
+        </form>
+        <p v-if="familyMutationError" class="form-error" role="alert">
+          {{ familyMutationError }}
+        </p>
+        <p v-if="saved" class="settings-note" role="status">已保存</p>
+      </AsyncState>
+    </section>
 
-      <form class="inline-form inline-form--add" @submit.prevent="addMember">
-        <label class="field field--inline">
+    <section class="settings-group" aria-labelledby="members-heading">
+      <div class="settings-group__head">
+        <h2 id="members-heading">家庭成员</h2>
+        <button type="button" class="btn btn--ghost" @click="openCreateMember">添加成员</button>
+      </div>
+
+      <AsyncState
+        :loading="membersLoading"
+        :error="membersError ?? ''"
+        :empty="members.length === 0"
+        empty-title="还没有成员"
+        empty-hint="添加家庭成员后，账目、资产、负债就可以归属到个人。"
+        @retry="loadMembers(true)"
+      >
+        <div class="settings-list">
+          <button
+            v-for="member in members"
+            :key="member.id"
+            type="button"
+            class="settings-row"
+            :data-member-row="member.id"
+            @click="openEditMember(member)"
+          >
+            <span
+              class="settings-row__dot"
+              :style="{ background: member.color ?? 'var(--muted)' }"
+              aria-hidden="true"
+            />
+            <span class="settings-row__name">{{ member.name }}</span>
+            <ChevronRight class="settings-row__chevron" :size="18" aria-hidden="true" />
+          </button>
+        </div>
+      </AsyncState>
+
+      <p class="settings-note">{{ FAMILY_OWNERSHIP_EXPLANATION }}</p>
+    </section>
+
+    <AppSheet v-if="memberSheetMode" :title="memberSheetTitle" @close="closeMemberSheet">
+      <form class="member-form" @submit.prevent="saveMember">
+        <p v-if="memberMutationError" class="form-error" role="alert">
+          {{ memberMutationError }}
+        </p>
+
+        <label class="field">
           <span class="field__label">成员姓名</span>
           <input
-            v-model="newName"
+            v-model="memberName"
             class="field__control"
             aria-label="成员姓名"
             placeholder="成员姓名"
           />
         </label>
-        <label class="field field--color">
-          <span class="field__label">颜色（可选）</span>
-          <input v-model="newColor" type="color" class="field__control field__control--color" aria-label="成员颜色" />
-        </label>
-        <button type="submit" class="btn">添加成员</button>
-      </form>
 
-      <p class="hint-text">
-        删除成员后，其名下的账目、资产、负债会自动转为「家庭共有」，不会被一并删除。
-      </p>
-    </SectionBlock>
+        <label v-if="memberSheetMode === 'create'" class="field member-form__color">
+          <span class="field__label">成员颜色（可选）</span>
+          <input
+            v-model="memberColor"
+            type="color"
+            class="field__control member-form__color-control"
+            aria-label="成员颜色"
+          />
+        </label>
+
+        <div class="member-form__actions">
+          <button
+            v-if="memberSheetMode === 'edit'"
+            type="button"
+            class="btn btn--danger member-form__delete"
+            @click="askDeleteMember"
+          >
+            删除成员
+          </button>
+          <button type="button" class="btn" :disabled="memberSavePending" @click="closeMemberSheet">
+            取消
+          </button>
+          <button type="submit" class="btn btn--primary" :disabled="memberSavePending">
+            {{ memberSavePending ? '保存中…' : memberSheetMode === 'create' ? '添加' : '保存' }}
+          </button>
+        </div>
+      </form>
+    </AppSheet>
 
     <ConfirmDialog
       v-if="pendingDelete"
       :title="`删除成员「${pendingDelete.name}」？`"
-      description="删除后其名下账目、资产、负债会转为家庭共有。"
+      :description="FAMILY_OWNERSHIP_EXPLANATION"
       confirm-text="删除"
+      :pending="deletePending"
+      :error="deleteError ?? ''"
       @confirm="confirmDelete"
-      @cancel="pendingDelete = null"
+      @cancel="cancelDelete"
     />
   </div>
 </template>
@@ -243,91 +357,143 @@ onMounted(() => void load());
 .settings {
   display: flex;
   flex-direction: column;
+  gap: var(--sp-5);
 }
 
-.muted {
-  font-size: var(--text-xs);
-  color: var(--ink-3);
+.settings-group {
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
 }
 
-.inline-form {
+.settings-group__head {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-1) var(--sp-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.settings-group__head h2 {
+  font-size: var(--text-base);
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.family-form {
   display: flex;
   align-items: flex-end;
   gap: var(--sp-3);
-  flex-wrap: wrap;
+  padding: var(--sp-4);
 }
 
-.inline-form--add {
-  margin-top: var(--sp-3);
-}
-
-.field--inline {
+.family-form__field {
   flex: 1;
-  min-width: 160px;
+  min-width: 0;
   margin-bottom: 0;
 }
 
-.field--color {
-  margin-bottom: 0;
-  width: 120px;
-}
-
-.field__control--color {
-  padding: 2px;
-  height: 42px;
-}
-
-.hint-text {
-  margin: var(--sp-3) 0 0;
-  font-size: var(--text-sm);
-  color: var(--ink-3);
-  line-height: 1.7;
-}
-
-.member-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.member {
+.settings-list {
   display: flex;
+  flex-direction: column;
+}
+
+.settings-row {
+  width: 100%;
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr) 20px;
   align-items: center;
   gap: var(--sp-3);
-  padding: 10px var(--sp-4);
-  border-bottom: 1px solid var(--rule-soft);
+  padding: var(--sp-2) var(--sp-4);
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
 }
 
-.member:last-child {
-  border-bottom: none;
+.settings-row:last-child {
+  border-bottom: 0;
 }
 
-.member__dot {
+.settings-row:hover {
+  background: var(--bg);
+}
+
+.settings-row:active {
+  background: var(--surface-accent);
+}
+
+.settings-row__dot {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  flex: none;
-  box-shadow: inset 0 0 0 1px oklch(100% 0 0 / 0.25);
 }
 
-.member__name {
-  flex: 1;
-  min-width: 0;
-  font-size: var(--text-base);
-  color: var(--ink);
+.settings-row__name {
   overflow: hidden;
+  color: var(--ink);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.member__input {
-  flex: 1;
-  min-width: 120px;
+.settings-row__chevron {
+  color: var(--muted);
 }
 
-.member__actions {
+.settings-note {
+  padding: var(--sp-3) var(--sp-4);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+.form-error + .settings-note {
+  padding-top: 0;
+}
+
+.member-form__color {
+  width: 132px;
+}
+
+.member-form__color-control {
+  padding: 3px;
+}
+
+.member-form__actions {
   display: flex;
-  gap: 2px;
-  flex: none;
+  justify-content: flex-end;
+  gap: var(--sp-2);
+  margin-top: var(--sp-5);
+}
+
+.member-form__delete {
+  margin-right: auto;
+}
+
+@media (max-width: 479px) {
+  .family-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .family-form .btn,
+  .member-form__actions .btn:not(.member-form__delete) {
+    flex: 1;
+  }
+
+  .member-form__actions {
+    flex-wrap: wrap;
+  }
+
+  .member-form__delete {
+    width: 100%;
+    margin-right: 0;
+  }
 }
 </style>

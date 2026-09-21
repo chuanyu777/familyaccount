@@ -11,45 +11,47 @@ export interface TrendPoint {
 
 const props = defineProps<{ data: TrendPoint[] }>();
 
-const W = 320;
-const H = 188;
-const PAD_X = 10;
-const PAD_TOP = 16;
-const PAD_BOTTOM = 24;
+const W = 360;
+const H = 210;
+const PAD_X = 12;
+const PAD_TOP = 22;
+const PAD_BOTTOM = 30;
 const plotW = W - PAD_X * 2;
 const plotH = H - PAD_TOP - PAD_BOTTOM;
 const base = PAD_TOP + plotH;
 
 const max = computed(() =>
-  Math.max(1, ...props.data.flatMap((d) => [d.incomeCents, d.expenseCents])),
+  Math.max(1, ...props.data.flatMap((point) => [point.incomeCents, point.expenseCents])),
 );
 const groupW = computed(() => plotW / Math.max(1, props.data.length));
-const barW = computed(() => Math.min(12, groupW.value * 0.28));
-const scale = (v: number) => (v / max.value) * plotH;
+const barW = computed(() => Math.min(15, Math.max(8, groupW.value * 0.26)));
+const scale = (value: number) => (Math.max(0, value) / max.value) * plotH;
 
 const bars = computed(() =>
-  props.data.map((d, i) => {
-    const gx = PAD_X + i * groupW.value;
-    const inH = Math.max(0, scale(d.incomeCents));
-    const exH = Math.max(0, scale(d.expenseCents));
+  props.data.map((point, index) => {
+    const groupX = PAD_X + index * groupW.value;
+    const pairW = barW.value * 2 + 4;
+    const pairX = groupX + (groupW.value - pairW) / 2;
+    const incomeHeight = scale(point.incomeCents);
+    const expenseHeight = scale(point.expenseCents);
     return {
-      month: d.month,
-      inX: gx + groupW.value * 0.16,
-      exX: gx + groupW.value * 0.16 + barW.value + 3,
-      inY: base - inH,
-      exY: base - exH,
-      inH,
-      exH,
-      labelX: gx + groupW.value / 2,
+      month: point.month,
+      incomeX: pairX,
+      expenseX: pairX + barW.value + 4,
+      incomeY: base - incomeHeight,
+      expenseY: base - expenseHeight,
+      incomeHeight,
+      expenseHeight,
+      labelX: groupX + groupW.value / 2,
     };
   }),
 );
 
 const maxLabel = computed(() => formatMoney(max.value));
 
-function shortMonth(month: string): string {
-  const m = month.split('-')[1] ?? month;
-  return `${Number(m)}月`;
+function shortMonth(value: string): string {
+  const parsed = Number(value.split('-')[1] ?? value);
+  return Number.isFinite(parsed) ? `${parsed}月` : value;
 }
 </script>
 
@@ -58,34 +60,36 @@ function shortMonth(month: string): string {
     :viewBox="`0 0 ${W} ${H}`"
     width="100%"
     role="img"
-    aria-label="月度收支趋势"
+    aria-label="月度收入与支出趋势"
     class="trend"
   >
-    <line :x1="PAD_X" :y1="PAD_TOP" :x2="W - PAD_X" :y2="PAD_TOP" class="grid" />
-    <line :x1="PAD_X" :y1="base" :x2="W - PAD_X" :y2="base" class="axis" />
-    <text :x="PAD_X" :y="PAD_TOP - 4" class="axis-label">{{ maxLabel }}</text>
+    <line :x1="PAD_X" :y1="PAD_TOP" :x2="W - PAD_X" :y2="PAD_TOP" class="trend__grid" />
+    <line :x1="PAD_X" :y1="base" :x2="W - PAD_X" :y2="base" class="trend__axis" />
+    <text :x="PAD_X" :y="PAD_TOP - 6" class="trend__axis-label">{{ maxLabel }}</text>
 
-    <g v-for="b in bars" :key="b.month">
+    <g v-for="bar in bars" :key="bar.month">
       <rect
         class="trend-bar"
-        :x="b.inX"
-        :y="b.inY"
+        data-series="income"
+        :x="bar.incomeX"
+        :y="bar.incomeY"
         :width="barW"
-        :height="b.inH"
+        :height="bar.incomeHeight"
         fill="var(--income)"
-        rx="1.5"
+        rx="2"
       />
       <rect
         class="trend-bar"
-        :x="b.exX"
-        :y="b.exY"
+        data-series="expense"
+        :x="bar.expenseX"
+        :y="bar.expenseY"
         :width="barW"
-        :height="b.exH"
+        :height="bar.expenseHeight"
         fill="var(--expense)"
-        rx="1.5"
+        rx="2"
       />
-      <text :x="b.labelX" :y="H - 8" text-anchor="middle" class="x-label">
-        {{ shortMonth(b.month) }}
+      <text :x="bar.labelX" :y="H - 9" text-anchor="middle" class="trend__label">
+        {{ shortMonth(bar.month) }}
       </text>
     </g>
   </svg>
@@ -95,29 +99,30 @@ function shortMonth(month: string): string {
 .trend {
   display: block;
   width: 100%;
+  min-width: 0;
   height: auto;
 }
 
-.grid {
-  stroke: var(--rule-soft);
+.trend__grid {
+  stroke: var(--line);
   stroke-width: 1;
-  stroke-dasharray: 2 3;
+  stroke-dasharray: 3 4;
 }
 
-.axis {
-  stroke: var(--rule);
+.trend__axis {
+  stroke: var(--line);
   stroke-width: 1;
 }
 
-.axis-label {
-  fill: var(--ink-3);
-  font-size: 9px;
+.trend__axis-label {
+  fill: var(--muted);
   font-family: var(--font-num);
+  font-size: 10px;
 }
 
-.x-label {
-  fill: var(--ink-2);
-  font-size: 11px;
+.trend__label {
+  fill: var(--ink);
   font-family: var(--font-sans);
+  font-size: 12px;
 }
 </style>

@@ -109,6 +109,10 @@ const transferValid = computed(
 );
 const canSubmit = computed(() => amountValid.value && transferValid.value && !saving.value);
 
+function handleClose() {
+  if (!saving.value) emit('close');
+}
+
 watch(
   () => [props.expenseCategories, props.incomeCategories],
   () => {
@@ -202,15 +206,15 @@ async function handleSubmit() {
       await apiPost('/api/transactions', payload);
     }
     emit('saved');
-  } catch {
-    error.value = '没存上，再试一次';
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : '没存上，再试一次';
     saving.value = false;
   }
 }
 </script>
 
 <template>
-  <AppSheet :title="title" @close="emit('close')">
+  <AppSheet :title="title" @close="handleClose">
     <SegmentedControl
       :model-value="type"
       :options="TYPE_OPTIONS"
@@ -324,14 +328,15 @@ async function handleSubmit() {
     <p v-if="error" class="form-error">{{ error }}</p>
 
     <div class="actions">
-      <button type="button" class="btn" :disabled="saving" @click="emit('close')">取消</button>
+      <button type="button" class="btn" :disabled="saving" @click="handleClose">取消</button>
       <button
         type="button"
         class="btn btn--primary"
+        data-submit-transaction
         :disabled="!canSubmit"
         @click="handleSubmit"
       >
-        {{ mode === 'edit' ? '更新' : '记下' }}
+        {{ saving ? '保存中…' : mode === 'edit' ? '更新' : '记下' }}
       </button>
     </div>
   </AppSheet>
@@ -348,18 +353,19 @@ async function handleSubmit() {
   align-items: baseline;
   gap: var(--sp-2);
   padding: var(--sp-2) 0 var(--sp-4);
-  border-bottom: 1px solid var(--rule-soft);
+  border-bottom: 1px solid var(--line);
   margin-bottom: var(--sp-3);
 }
 
 .amount__sign {
   font-size: var(--text-xl);
-  color: var(--ink-2);
+  color: var(--muted);
 }
 
 .amount__input {
   flex: 1;
   min-width: 0;
+  min-height: 44px;
   border: none;
   background: transparent;
   font-variant-numeric: tabular-nums;
@@ -375,7 +381,7 @@ async function handleSubmit() {
 }
 
 .amount__input::placeholder {
-  color: var(--ink-3);
+  color: var(--muted);
 }
 
 .actions {
@@ -391,7 +397,7 @@ async function handleSubmit() {
   grid-template-columns: repeat(4, 1fr);
   gap: var(--sp-2);
   padding: var(--sp-2) 0 var(--sp-3);
-  border-top: 1px solid var(--rule-soft);
+  border-top: 1px solid var(--line);
 }
 
 .cat {
@@ -410,8 +416,8 @@ async function handleSubmit() {
 }
 
 .cat.is-active {
-  border-color: var(--brand);
-  background: var(--brand-wash);
+  border-color: var(--action);
+  background: var(--action-soft);
 }
 
 .cat__bubble {
@@ -420,8 +426,8 @@ async function handleSubmit() {
   display: grid;
   place-items: center;
   border-radius: var(--radius-sm);
-  background: var(--paper-sunken);
-  color: var(--brand-2);
+  background: var(--surface-accent);
+  color: var(--action);
   font-size: var(--text-base);
   transition:
     background var(--dur-fast) var(--ease-out),
@@ -429,27 +435,27 @@ async function handleSubmit() {
 }
 
 .cat.is-active .cat__bubble {
-  background: var(--brand);
-  color: #fff;
+  background: var(--action);
+  color: var(--surface);
 }
 
 .cat__bubble--new {
   background: transparent;
-  border: 1.5px dashed var(--ink-3);
-  color: var(--ink-2);
+  border: 1.5px dashed var(--muted);
+  color: var(--muted);
 }
 
 .cat__name {
   max-width: 100%;
   font-size: 11px;
-  color: var(--ink-2);
+  color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .cat.is-active .cat__name {
-  color: var(--brand);
+  color: var(--action);
   font-weight: 500;
 }
 
@@ -477,17 +483,17 @@ async function handleSubmit() {
   display: flex;
   align-items: center;
   gap: 6px;
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 var(--sp-3);
-  border: 1px solid var(--rule);
+  border: 1px solid var(--line);
   border-radius: var(--radius-pill);
-  background: var(--paper-raised);
+  background: var(--surface);
 }
 
 .attr__label {
   flex: none;
   font-size: var(--text-xs);
-  color: var(--ink-2);
+  color: var(--muted);
 }
 
 .attr__control {
@@ -504,6 +510,12 @@ async function handleSubmit() {
   outline: none;
 }
 
+.attr:focus-within {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-color: var(--primary);
+}
+
 select.attr__control {
   appearance: none;
 }
@@ -515,23 +527,23 @@ input[type='date'].attr__control {
 /* —— 备注 —— */
 .note-input {
   width: 100%;
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 var(--sp-3);
   margin-bottom: var(--sp-3);
-  border: 1px solid var(--rule);
+  border: 1px solid var(--line);
   border-radius: var(--radius-pill);
-  background: var(--paper-raised);
+  background: var(--surface);
   color: var(--ink);
   font-size: var(--text-sm);
 }
 
 .note-input:focus {
-  border-color: var(--brand-2);
+  border-color: var(--action);
   outline: none;
 }
 
 .note-input::placeholder {
-  color: var(--ink-3);
+  color: var(--muted);
 }
 
 </style>

@@ -21,7 +21,12 @@ const saving = ref(false);
 
 const title = computed(() => (props.mode === 'edit' ? '编辑账户' : '新增账户'));
 
+function requestClose() {
+  if (!saving.value) emit('close');
+}
+
 async function save() {
+  if (saving.value) return;
   error.value = null;
   if (!name.value.trim()) {
     error.value = '请输入账户名称';
@@ -50,7 +55,7 @@ async function save() {
 </script>
 
 <template>
-  <AppSheet :title="title" @close="emit('close')">
+  <AppSheet :title="title" @close="requestClose">
     <label class="field">
       <span class="field__label">账户名称</span>
       <input v-model="name" class="field__control" type="text" aria-label="账户名称" />
@@ -72,8 +77,8 @@ async function save() {
     <p v-if="error" class="form-error">{{ error }}</p>
 
     <div class="actions">
-      <button type="button" class="btn" :disabled="saving" @click="emit('close')">取消</button>
-      <button type="button" class="btn btn--primary" :disabled="saving" @click="save">保存</button>
+      <button type="button" class="btn" :disabled="saving" @click="requestClose">取消</button>
+      <button type="button" class="btn btn--primary" :disabled="saving" @click="save">{{ saving ? '保存中…' : '保存' }}</button>
     </div>
   </AppSheet>
 </template>

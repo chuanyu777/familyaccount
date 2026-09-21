@@ -1,8 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import App from './App.vue';
+import { publishResources } from './lib/resourceInvalidation';
+import desktopNavSource from './components/DesktopNav.vue?raw';
+import accountingPageSource from './features/accounting/AccountingPage.vue?raw';
+import liabilityListSource from './features/liabilities/LiabilityList.vue?raw';
+import liabilitiesPageSource from './features/liabilities/LiabilitiesPage.vue?raw';
+import chartPaletteSource from './features/analysis/charts/palette.ts?raw';
 
-const family = { id: 1, name: '我们的家' };
+const baseCss = readFileSync(resolve(process.cwd(), 'web/src/styles/base.css'), 'utf8');
+
+let family = { id: 1, name: '我们的家' };
 const summary = {
   totalAssetsCents: 1280000,
   totalLiabilitiesCents: 300000,
@@ -47,7 +57,9 @@ async function flush() {
 describe('App', () => {
   beforeEach(() => {
     get.mockClear();
+    family = { id: 1, name: '我们的家' };
     document.body.innerHTML = '';
+    window.history.replaceState(null, '', '#accounting');
   });
 
   it('页头显示「家庭财务」与家庭名，不再显示净资产', async () => {
@@ -60,22 +72,143 @@ describe('App', () => {
     wrapper.unmount();
   });
 
-  it('五个 Tab 都可切换，切换后渲染对应页面', async () => {
+  it('reads a valid initial tab from the URL hash', async () => {
+    window.location.hash = '#analysis';
+    const wrapper = mount(App, { attachTo: document.body });
+    await flush();
+    expect(wrapper.find('[data-page="analysis"]').exists()).toBe(true);
+    expect(wrapper.get('[aria-current="page"]').text()).toContain('分析');
+    wrapper.unmount();
+  });
+
+  it('updates the hash from either responsive navigation', async () => {
+    const wrapper = mount(App, { attachTo: document.body });
+    await flush();
+    await wrapper.get('[data-mobile-tab="assets"]').trigger('click');
+    expect(window.location.hash).toBe('#assets');
+    expect(wrapper.find('[data-page="assets"]').exists()).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('responds to a hashchange dispatched after mount', async () => {
     const wrapper = mount(App, { attachTo: document.body });
     await flush();
 
-    const tabs = wrapper.findAll('.tabbar__item');
-    expect(tabs.map((t) => t.text())).toEqual(['记账', '资产', '负债', '分析', '设置']);
-
-    const target = tabs.find((t) => t.text() === '分析');
-    expect(target).toBeTruthy();
-    await target!.trigger('click');
+    window.history.replaceState(null, '', '#analysis');
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
     await flush();
 
-    const active = wrapper.findAll('.tabbar__item').find((t) => t.text() === '分析');
-    expect(active!.classes()).toContain('is-active');
-    expect(document.body.textContent).toContain('净资产');
+    expect(wrapper.find('[data-page="analysis"]').exists()).toBe(true);
+    expect(wrapper.get('[aria-current="page"]').text()).toContain('分析');
     wrapper.unmount();
+  });
+
+  it('updates the active page from desktop navigation', async () => {
+    const wrapper = mount(App, { attachTo: document.body });
+    await flush();
+
+    const liabilities = wrapper.findAll('.desktop-nav__item')
+      .find((button) => button.text().includes('负债'));
+    expect(liabilities).toBeTruthy();
+    await liabilities!.trigger('click');
+
+    expect(window.location.hash).toBe('#liabilities');
+    expect(wrapper.find('[data-page="liabilities"]').exists()).toBe(true);
+    expect(liabilities!.attributes('aria-current')).toBe('page');
+    wrapper.unmount();
+  });
+
+  it('只订阅家庭资源并在家庭名变更后更新外壳', async () => {
+    const wrapper = mount(App, { attachTo: document.body });
+    await flush();
+    get.mockClear();
+
+    publishResources(['members']);
+    await flush();
+    expect(get.mock.calls.filter(([path]) => path === '/api/family')).toHaveLength(0);
+
+    family = { id: 1, name: '新家' };
+    publishResources(['family']);
+    await flush();
+    expect(get.mock.calls.filter(([path]) => path === '/api/family')).toHaveLength(1);
+    expect(wrapper.text()).toContain('新家');
+    wrapper.unmount();
+  });
+
+  it('renders five labeled mobile icons with a single active item', async () => {
+    const wrapper = mount(App, { attachTo: document.body });
+    await flush();
+    expect(wrapper.findAll('.mobile-tabbar__item')).toHaveLength(5);
+    expect(wrapper.findAll('.mobile-tabbar__icon')).toHaveLength(5);
+    expect(wrapper.findAll('.mobile-tabbar__item[aria-current="page"]')).toHaveLength(1);
+    wrapper.unmount();
+  });
+
+  it('keeps compact shared controls within the approved target and radius geometry', () => {
+    expect(baseCss).toMatch(/\.btn--sm\s*{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/s);
+    expect(baseCss).toMatch(/\.chip\s*{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/s);
+    expect(baseCss).toMatch(/\.segmented__item\s*{[^}]*min-width:\s*44px;[^}]*min-height:\s*44px;/s);
+    expect(baseCss).toMatch(/\.field__control\s*{[^}]*border-radius:\s*var\(--radius-sm\);/s);
+  });
+
+  it('keeps action blue out of financial visualizations', () => {
+    expect(baseCss).toContain('--action: var(--primary);');
+    expect(liabilityListSource).toContain('background: var(--chart-accent);');
+    expect(accountingPageSource).toContain('background: var(--surface-accent);');
+    expect(accountingPageSource).toContain('color: var(--muted);');
+    expect([baseCss, liabilitiesPageSource, liabilityListSource, accountingPageSource, chartPaletteSource].join('\n')).not.toMatch(
+      /var\(--(?:paper(?:-raised|-sunken)?|brand(?:-2|-deep|-wash)?|ink-[23]|rule(?:-soft)?|expense-(?:deep|wash)|income-(?:deep|wash)|warn(?:-deep|-wash)?|slate(?:-wash)?)\)/,
+    );
+  });
+
+  it('preserves the shared select affordance after token cleanup', () => {
+    expect(baseCss).toMatch(
+      /select\.field__control\s*{[^}]*appearance:\s*none;[^}]*background-image:\s*linear-gradient/s,
+    );
+    expect(baseCss).toMatch(
+      /select\.field__control\s*{[^}]*var\(--muted\)[^}]*background-position:/s,
+    );
+  });
+
+  it('preserves the skeleton loading shimmer after token cleanup', () => {
+    expect(baseCss).toMatch(
+      /\.skeleton\s*{[^}]*background:\s*linear-gradient\([^}]*background-size:\s*200% 100%;/s,
+    );
+    expect(baseCss).toMatch(
+      /@keyframes skeleton-breathe\s*{[\s\S]*?0%\s*{[^}]*background-position:[^}]*}[\s\S]*?100%\s*{[^}]*background-position:/,
+    );
+  });
+
+  it('uses only approved C3 color literals in the shared shell', () => {
+    const approvedHex = new Set([
+      '#f4f6f9',
+      '#ffffff',
+      '#e6ebfb',
+      '#131722',
+      '#697080',
+      '#dce1e9',
+      '#121a2d',
+      '#3159d7',
+      '#294bb5',
+      '#19765d',
+      '#e4f1ed',
+      '#b84543',
+      '#f7e9e8',
+      '#d49f2f',
+    ]);
+    const shellSource = `${baseCss}\n${desktopNavSource}`;
+    const hexLiterals = [...shellSource.matchAll(/#[\da-f]{3,8}\b/gi)].map(([color]) => color.toLowerCase());
+    const approvedRgbChannels = new Set(
+      [...approvedHex].map((color) =>
+        [color.slice(1, 3), color.slice(3, 5), color.slice(5, 7)].map((channel) => Number.parseInt(channel, 16)).join(','),
+      ),
+    );
+    const rgbChannels = [...shellSource.matchAll(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/gi)].map(
+      ([, red, green, blue]) => `${red},${green},${blue}`,
+    );
+
+    expect([...new Set(hexLiterals)].filter((color) => !approvedHex.has(color))).toEqual([]);
+    expect([...new Set(rgbChannels)].filter((channels) => !approvedRgbChannels.has(channels))).toEqual([]);
   });
 
   it('请求失败时不崩溃', async () => {

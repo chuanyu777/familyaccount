@@ -86,7 +86,7 @@ export async function idbClearByPrefix(prefix: string): Promise<void> {
     try {
       const tx = db.transaction(STORE, 'readwrite');
       const store = tx.objectStore(STORE);
-      const req = store.openKeyCursor();
+      const req = store.openCursor();
       req.onsuccess = () => {
         const cursor = req.result;
         if (cursor) {

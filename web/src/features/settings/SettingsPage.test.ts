@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { cachedGet, apiPut, apiPost, apiPatch, apiDelete, ApiError } from '../../lib/api';
+import { publishResources } from '../../lib/resourceInvalidation';
 import SettingsPage from './SettingsPage.vue';
 
 vi.mock('../../lib/api', () => {
@@ -36,6 +37,13 @@ const members = [{ id: 1, name: '我', color: null }];
 
 let wrapper: ReturnType<typeof mount> | null = null;
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (cause: Error) => void;
+  const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+  return { promise, resolve, reject };
+}
+
 function setupCache() {
   mockedCachedGet.mockImplementation((path: string) => {
     if (path.includes('family')) return Promise.resolve(family as never);
@@ -57,18 +65,6 @@ function clickBtn(label: string, scope: ParentNode = document.body) {
   if (!btn) throw new Error(`button not found: ${label}`);
   btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 }
-function findBtnAria(label: string, scope: ParentNode = document.body): HTMLButtonElement | null {
-  return (
-    Array.from(scope.querySelectorAll('button')).find(
-      (b) => (b.getAttribute('aria-label') ?? '').trim() === label,
-    ) ?? null
-  );
-}
-function clickBtnAria(label: string, scope: ParentNode = document.body) {
-  const btn = findBtnAria(label, scope);
-  if (!btn) throw new Error(`button[aria-label] not found: ${label}`);
-  btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-}
 function fieldInput(label: string, scope: ParentNode = document.body): HTMLInputElement | null {
   const labels = Array.from(scope.querySelectorAll('label, .field'));
   for (const l of labels) {
@@ -83,12 +79,12 @@ function setInput(el: HTMLInputElement | HTMLSelectElement, value: string) {
   el.value = value;
   el.dispatchEvent(new Event(el instanceof HTMLSelectElement ? 'change' : 'input', { bubbles: true }));
 }
-function liByText(text: string): HTMLElement | null {
-  return (
-    Array.from(document.querySelectorAll('li')).find((li) =>
-      (li.textContent ?? '').includes(text),
-    ) ?? null
+function dialogByTitle(title: string): HTMLElement {
+  const dialog = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"]')).find((node) =>
+    (node.textContent ?? '').includes(title),
   );
+  if (!dialog) throw new Error(`dialog not found: ${title}`);
+  return dialog;
 }
 
 async function settle() {
@@ -125,6 +121,26 @@ describe('设置页 · 家庭名称', () => {
     expect(mockedApiPut).toHaveBeenCalledWith('/api/family', { name: '新家' });
     expect(document.body.textContent).toContain('已保存');
   });
+
+  it('保存失败时保留用户输入', async () => {
+    mockedApiPut.mockRejectedValueOnce(new ApiError(500, 'SAVE_FAILED', '保存失败'));
+    wrapper = mount(SettingsPage, { attachTo: document.body });
+    await settle();
+    setInput(fieldInput('家庭名称')!, '新家');
+    clickBtn('保存');
+    await settle();
+    expect((fieldInput('家庭名称') as HTMLInputElement).value).toBe('新家');
+    expect(document.body.textContent).toContain('保存失败');
+  });
+
+  it('空家庭名称不提交', async () => {
+    wrapper = mount(SettingsPage, { attachTo: document.body });
+    await settle();
+    setInput(fieldInput('家庭名称')!, '   ');
+    clickBtn('保存');
+    await settle();
+    expect(mockedApiPut).not.toHaveBeenCalled();
+  });
 });
 
 describe('设置页 · 成员列表', () => {
@@ -134,29 +150,93 @@ describe('设置页 · 成员列表', () => {
     expect(document.body.textContent).toContain('我');
   });
 
-  it('可新增成员（只需姓名，颜色可选）', async () => {
+  it('使用安静分组行，并从整行打开成员编辑弹层', async () => {
     wrapper = mount(SettingsPage, { attachTo: document.body });
     await settle();
-    const input = fieldInput('成员姓名');
-    setInput(input!, '妈妈');
+    const row = document.querySelector('[data-member-row="1"]') as HTMLButtonElement;
+    expect(row).toBeTruthy();
+    row.click();
+    await settle();
+    expect(dialogByTitle('编辑成员')).toBeTruthy();
+  });
+
+  it('新增成员未选颜色时保留 null payload', async () => {
+    wrapper = mount(SettingsPage, { attachTo: document.body });
+    await settle();
     clickBtn('添加成员');
+    await settle();
+    const dialog = dialogByTitle('添加成员');
+    setInput(fieldInput('成员姓名', dialog)!, '妈妈');
+    clickBtn('添加', dialog);
     await settle();
     expect(mockedApiPost).toHaveBeenCalledWith('/api/members', { name: '妈妈', color: null });
   });
 
-  it('可改名成员，调 PATCH /api/members/:id', async () => {
+  it('新增成员保留选择的颜色 payload', async () => {
     wrapper = mount(SettingsPage, { attachTo: document.body });
     await settle();
-    const row = liByText('我');
-    expect(row).not.toBeNull();
-    clickBtnIn(row!, '改名');
+    clickBtn('添加成员');
     await settle();
-    const nameInput = row!.querySelector('input[aria-label="成员 我 名称"]') as HTMLInputElement | null;
-    expect(nameInput).not.toBeNull();
-    setInput(nameInput!, '阿爸');
-    clickBtnIn(row!, '保存');
+    const dialog = dialogByTitle('添加成员');
+    setInput(fieldInput('成员姓名', dialog)!, '妈妈');
+    setInput(fieldInput('成员颜色', dialog)!, '#3159d7');
+    clickBtn('添加', dialog);
+    await settle();
+    expect(mockedApiPost).toHaveBeenCalledWith('/api/members', { name: '妈妈', color: '#3159d7' });
+  });
+
+  it('新增失败时保留弹层和表单输入', async () => {
+    mockedApiPost.mockRejectedValueOnce(new ApiError(500, 'CREATE_FAILED', '添加失败'));
+    wrapper = mount(SettingsPage, { attachTo: document.body });
+    await settle();
+    clickBtn('添加成员');
+    await settle();
+    const dialog = dialogByTitle('添加成员');
+    setInput(fieldInput('成员姓名', dialog)!, '妈妈');
+    clickBtn('添加', dialog);
+    await settle();
+    expect(dialogByTitle('添加成员')).toBeTruthy();
+    expect(fieldInput('成员姓名', dialog)?.value).toBe('妈妈');
+    expect(dialog.textContent).toContain('添加失败');
+  });
+
+  it('可在弹层改名成员，调 PATCH /api/members/:id', async () => {
+    wrapper = mount(SettingsPage, { attachTo: document.body });
+    await settle();
+    (document.querySelector('[data-member-row="1"]') as HTMLButtonElement).click();
+    await settle();
+    const dialog = dialogByTitle('编辑成员');
+    setInput(fieldInput('成员姓名', dialog)!, '阿爸');
+    clickBtn('保存', dialog);
     await settle();
     expect(mockedApiPatch).toHaveBeenCalledWith('/api/members/1', { name: '阿爸' });
+  });
+
+  it('编辑失败时保留弹层和表单输入', async () => {
+    mockedApiPatch.mockRejectedValueOnce(new ApiError(500, 'UPDATE_FAILED', '修改失败'));
+    wrapper = mount(SettingsPage, { attachTo: document.body });
+    await settle();
+    (document.querySelector('[data-member-row="1"]') as HTMLButtonElement).click();
+    await settle();
+    const dialog = dialogByTitle('编辑成员');
+    setInput(fieldInput('成员姓名', dialog)!, '阿爸');
+    clickBtn('保存', dialog);
+    await settle();
+    expect(dialogByTitle('编辑成员')).toBeTruthy();
+    expect(fieldInput('成员姓名', dialog)?.value).toBe('阿爸');
+    expect(dialog.textContent).toContain('修改失败');
+  });
+
+  it('空姓名不提交成员编辑', async () => {
+    wrapper = mount(SettingsPage, { attachTo: document.body });
+    await settle();
+    (document.querySelector('[data-member-row="1"]') as HTMLButtonElement).click();
+    await settle();
+    const dialog = dialogByTitle('编辑成员');
+    setInput(fieldInput('成员姓名', dialog)!, '   ');
+    clickBtn('保存', dialog);
+    await settle();
+    expect(mockedApiPatch).not.toHaveBeenCalled();
   });
 
   it('空姓名不提交新增', async () => {
@@ -164,7 +244,21 @@ describe('设置页 · 成员列表', () => {
     await settle();
     clickBtn('添加成员');
     await settle();
+    clickBtn('添加', dialogByTitle('添加成员'));
+    await settle();
     expect(mockedApiPost).not.toHaveBeenCalled();
+  });
+
+  it('关闭成员弹层后通过共享遮罩恢复整行焦点', async () => {
+    wrapper = mount(SettingsPage, { attachTo: document.body });
+    await settle();
+    const row = document.querySelector('[data-member-row="1"]') as HTMLButtonElement;
+    row.focus();
+    row.click();
+    await settle();
+    clickBtn('关闭', dialogByTitle('编辑成员'));
+    await settle();
+    expect(document.activeElement).toBe(row);
   });
 });
 
@@ -172,12 +266,13 @@ describe('设置页 · 删除二次确认', () => {
   it('删除需二次确认，确认后才调用删除', async () => {
     wrapper = mount(SettingsPage, { attachTo: document.body });
     await settle();
-    clickBtnAria('删除成员 我');
+    (document.querySelector('[data-member-row="1"]') as HTMLButtonElement).click();
     await settle();
-    const dialog = document.querySelector('.dialog');
-    expect(dialog).not.toBeNull();
+    clickBtn('删除成员', dialogByTitle('编辑成员'));
+    await settle();
+    const dialog = dialogByTitle('删除成员「我」？');
     expect(mockedApiDelete).not.toHaveBeenCalled();
-    clickBtn('删除', dialog!);
+    clickBtn('删除', dialog);
     await settle();
     expect(mockedApiDelete).toHaveBeenCalledWith('/api/members/1');
   });
@@ -185,42 +280,178 @@ describe('设置页 · 删除二次确认', () => {
   it('二次确认时取消则不删除', async () => {
     wrapper = mount(SettingsPage, { attachTo: document.body });
     await settle();
-    clickBtnAria('删除成员 我');
+    (document.querySelector('[data-member-row="1"]') as HTMLButtonElement).click();
     await settle();
-    const dialog = document.querySelector('.dialog');
-    expect(dialog).not.toBeNull();
-    clickBtn('取消', dialog!);
+    clickBtn('删除成员', dialogByTitle('编辑成员'));
+    await settle();
+    const dialog = dialogByTitle('删除成员「我」？');
+    clickBtn('取消', dialog);
     await settle();
     expect(mockedApiDelete).not.toHaveBeenCalled();
+    expect(dialogByTitle('编辑成员')).toBeTruthy();
   });
 
-  it('说明文案提到删除后转为家庭共有', async () => {
+  it('使用完整的家庭归属说明', async () => {
     wrapper = mount(SettingsPage, { attachTo: document.body });
     await settle();
-    expect(document.body.textContent).toContain('家庭共有');
+    expect(document.body.textContent).toContain(
+      '删除成员后，其名下的账目、资产、负债会自动转为「家庭共有」，不会被一并删除。',
+    );
+  });
+
+  it('删除失败时保留确认弹层并显示错误', async () => {
+    mockedApiDelete.mockRejectedValueOnce(new ApiError(500, 'DELETE_FAILED', '删除失败'));
+    wrapper = mount(SettingsPage, { attachTo: document.body });
+    await settle();
+    (document.querySelector('[data-member-row="1"]') as HTMLButtonElement).click();
+    await settle();
+    clickBtn('删除成员', dialogByTitle('编辑成员'));
+    await settle();
+    clickBtn('删除', dialogByTitle('删除成员「我」？'));
+    await settle();
+    expect(dialogByTitle('删除成员「我」？').textContent).toContain('删除失败');
   });
 });
 
 describe('设置页 · 失败降级', () => {
-  it('接口异常时显示错误提示而不崩溃', async () => {
-    mockedCachedGet.mockRejectedValue(new Error('加载失败'));
+  it.each(['family', 'members'] as const)('ignores old %s successes after the latest refresh', async (resource) => {
+    const old = deferred<unknown>();
+    let reads = 0;
+    mockedCachedGet.mockImplementation((path: string) => {
+      if (path === `/api/${resource}`) {
+        reads += 1;
+        return (reads === 1 ? old.promise : Promise.resolve(
+          resource === 'family' ? { ...family, name: '最新家庭' } : [{ ...members[0], name: '最新成员' }],
+        )) as never;
+      }
+      return Promise.resolve((path === '/api/family' ? family : members) as never);
+    });
     wrapper = mount(SettingsPage, { attachTo: document.body });
+    publishResources([resource]);
     await settle();
-    expect(document.body.textContent).toContain('加载失败');
+    old.resolve(resource === 'family' ? family : members);
+    await settle();
+    if (resource === 'family') expect(fieldInput('家庭名称')?.value).toBe('最新家庭');
+    else expect(wrapper.get('[data-member-row="1"]').text()).toBe('最新成员');
   });
 
-  it('保存失败时显示错误提示不崩', async () => {
-    mockedApiPut.mockRejectedValueOnce(new ApiError(500, 'E', '保存失败'));
+  it.each(['family', 'members'] as const)('ignores old %s errors and keeps the latest initial load pending', async (resource) => {
+    const old = deferred<unknown>();
+    const fresh = deferred<unknown>();
+    let reads = 0;
+    mockedCachedGet.mockImplementation((path: string) => {
+      if (path === `/api/${resource}`) return (++reads === 1 ? old.promise : fresh.promise) as never;
+      return Promise.resolve((path === '/api/family' ? family : members) as never);
+    });
+    wrapper = mount(SettingsPage, { attachTo: document.body });
+    publishResources([resource]);
+    await settle();
+    old.reject(new Error('过期错误'));
+    await settle();
+    expect(wrapper.text()).not.toContain('过期错误');
+    const section = wrapper.get(`[aria-labelledby="${resource === 'family' ? 'family' : 'members'}-heading"]`);
+    expect(section.find('[aria-label="加载中"]').exists()).toBe(true);
+    fresh.resolve(resource === 'family' ? family : members);
+    await settle();
+    expect(section.find('[aria-label="加载中"]').exists()).toBe(false);
+  });
+
+  it('keeps an edited family draft when a background refresh completes', async () => {
     wrapper = mount(SettingsPage, { attachTo: document.body });
     await settle();
-    const input = fieldInput('家庭名称');
-    setInput(input!, '新家');
+    const refresh = deferred<unknown>();
+    mockedCachedGet.mockReturnValueOnce(refresh.promise as never);
+    publishResources(['family']);
+    await settle();
+    setInput(fieldInput('家庭名称')!, '未保存的家庭');
+    refresh.resolve({ ...family, name: '后台家庭' });
+    await settle();
+    expect(fieldInput('家庭名称')?.value).toBe('未保存的家庭');
     clickBtn('保存');
     await settle();
-    expect(document.body.textContent).toContain('保存失败');
+    expect(mockedApiPut).toHaveBeenCalledWith('/api/family', { name: '未保存的家庭' });
+  });
+
+  it('does not let a pre-save refresh overwrite the saved family name', async () => {
+    wrapper = mount(SettingsPage, { attachTo: document.body });
+    await settle();
+    const refresh = deferred<unknown>();
+    mockedCachedGet.mockReturnValueOnce(refresh.promise as never);
+    publishResources(['family']);
+    await settle();
+    mockedApiPut.mockResolvedValueOnce({ ...family, name: '已保存的家庭' } as never);
+    setInput(fieldInput('家庭名称')!, '已保存的家庭');
+    clickBtn('保存');
+    await settle();
+    refresh.resolve(family);
+    await settle();
+    expect(fieldInput('家庭名称')?.value).toBe('已保存的家庭');
+    expect(wrapper.text()).toContain('已保存');
+  });
+
+  it('keeps edits made while saving and does not replace an open member draft on refresh', async () => {
+    wrapper = mount(SettingsPage, { attachTo: document.body });
+    await settle();
+    const save = deferred<unknown>();
+    mockedApiPut.mockReturnValueOnce(save.promise as never);
+    setInput(fieldInput('家庭名称')!, '保存中的家庭');
+    clickBtn('保存');
+    await settle();
+    setInput(fieldInput('家庭名称')!, '继续编辑的家庭');
+    save.resolve({ ...family, name: '保存中的家庭' });
+    await settle();
+    expect(fieldInput('家庭名称')?.value).toBe('继续编辑的家庭');
+    await wrapper.get('[data-member-row="1"]').trigger('click');
+    setInput(fieldInput('成员姓名')!, '未保存的成员');
+    mockedCachedGet.mockResolvedValueOnce([{ ...members[0], name: '后台成员' }] as never);
+    publishResources(['members']);
+    await settle();
+    expect(fieldInput('成员姓名')?.value).toBe('未保存的成员');
+    expect(wrapper.get('[data-member-row="1"]').text()).toBe('后台成员');
+  });
+
+  it('家庭读取失败不清除成功加载的成员', async () => {
+    mockedCachedGet.mockImplementation((path: string) => {
+      if (path.includes('family')) return Promise.reject(new Error('家庭加载失败'));
+      return Promise.resolve(members as never);
+    });
+    wrapper = mount(SettingsPage, { attachTo: document.body });
+    await settle();
+    expect(document.body.textContent).toContain('家庭加载失败');
+    expect(document.querySelector('[data-member-row="1"]')).toBeTruthy();
+  });
+
+  it('刷新读取失败时保留之前成功的数据', async () => {
+    wrapper = mount(SettingsPage, { attachTo: document.body });
+    await settle();
+    mockedCachedGet.mockImplementation((path: string) => {
+      if (path.includes('family')) return Promise.reject(new Error('家庭刷新失败'));
+      if (path.includes('members')) return Promise.reject(new Error('成员刷新失败'));
+      return Promise.resolve(undefined as never);
+    });
+    publishResources(['family']);
+    publishResources(['members']);
+    await settle();
+    expect(fieldInput('家庭名称')?.value).toBe('我的家');
+    expect(document.querySelector('[data-member-row="1"]')).toBeTruthy();
+    expect(document.body.textContent).toContain('家庭刷新失败');
+    expect(document.body.textContent).toContain('成员刷新失败');
+  });
+
+  it('分别订阅家庭和成员资源', async () => {
+    wrapper = mount(SettingsPage, { attachTo: document.body });
+    await settle();
+    mockedCachedGet.mockClear();
+
+    publishResources(['family']);
+    await settle();
+    expect(mockedCachedGet).toHaveBeenCalledTimes(1);
+    expect(mockedCachedGet).toHaveBeenCalledWith('/api/family', undefined, { force: true });
+
+    mockedCachedGet.mockClear();
+    publishResources(['members']);
+    await settle();
+    expect(mockedCachedGet).toHaveBeenCalledTimes(1);
+    expect(mockedCachedGet).toHaveBeenCalledWith('/api/members', undefined, { force: true });
   });
 });
-
-function clickBtnIn(scope: ParentNode, label: string) {
-  clickBtn(label, scope);
-}
