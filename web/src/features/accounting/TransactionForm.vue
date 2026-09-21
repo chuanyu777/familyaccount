@@ -129,6 +129,28 @@ function handleTypeChange(v: TransactionType) {
   error.value = null;
 }
 
+/** 选分类：收起「新分类」输入，二者永远互斥，不会出现两个都选中 */
+function pickCategory(id: number) {
+  categoryId.value = id;
+  newCatOpen.value = false;
+  newCatName.value = '';
+}
+
+/** 点「新分类」：清空已选分类，避免与新分类同时高亮 */
+function toggleNewCat() {
+  newCatOpen.value = !newCatOpen.value;
+  if (newCatOpen.value) {
+    categoryId.value = undefined;
+    newCatName.value = '';
+  } else {
+    // 收起时回到当前类型的默认分类，保证始终有分类可提交
+    categoryId.value = defaultCategory(
+      currentCats.value,
+      kind.value === 'income' ? DEFAULT_INCOME_CATEGORY : DEFAULT_EXPENSE_CATEGORY,
+    );
+  }
+}
+
 /** 金额只接受数字与两位小数，避免输入框里塞进乱七八糟的字符 */
 function onAmountInput(e: Event) {
   const raw = (e.target as HTMLInputElement).value;
@@ -261,8 +283,8 @@ async function handleSubmit() {
         :key="c.id"
         type="button"
         class="cat"
-        :class="{ 'is-active': categoryId === c.id }"
-        @click="categoryId = c.id"
+        :class="{ 'is-active': !newCatOpen && categoryId === c.id }"
+        @click="pickCategory(c.id)"
       >
         <span class="cat__bubble" aria-hidden="true">{{ c.name.slice(0, 1) }}</span>
         <span class="cat__name">{{ c.name }}</span>
@@ -271,7 +293,7 @@ async function handleSubmit() {
         type="button"
         class="cat cat--new"
         :class="{ 'is-active': newCatOpen }"
-        @click="newCatOpen = !newCatOpen"
+        @click="toggleNewCat"
       >
         <span class="cat__bubble cat__bubble--new" aria-hidden="true">＋</span>
         <span class="cat__name">新分类</span>

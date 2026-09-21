@@ -86,7 +86,8 @@ public class RepaymentService {
     String occurredOn = input.get("occurredOn") == null ? Time.today()
         : String.valueOf(input.get("occurredOn")).trim();
     if (occurredOn.isEmpty()) occurredOn = Time.today();
-    long categoryId = Row.lng(categories.ensureDefault("expense"), "id");
+    // 还款自���生成的支出，归入专门的「还款」分类而不是「其他」
+    long categoryId = Row.lng(categories.upsert("expense", "还款"), "id");
     String note = input.get("note") == null ? "还款 - " + Row.str(liability, "name")
         : String.valueOf(input.get("note"));
 

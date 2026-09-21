@@ -155,13 +155,14 @@ class SmokeTest {
     assertThat(thisMonth.get("expenseCents").asLong()).isEqualTo(510000L);
 
     JsonNode breakdown = get("/api/stats/category-breakdown");
-    boolean hasOther = false;
+    boolean hasRepayment = false;
     double percentSum = 0;
     for (JsonNode c : breakdown) {
-      if ("其他".equals(c.get("name").asText())) hasOther = true;
+      if ("还款".equals(c.get("name").asText())) hasRepayment = true;
       percentSum += c.get("percent").asDouble();
     }
-    assertThat(hasOther).isTrue();
+    assertThat(hasRepayment).isTrue();
+    assertThat(percentSum).isGreaterThan(0);
     assertThat(Math.abs(percentSum - 100)).isLessThan(0.01);
 
     // 删除还款：完整回滚

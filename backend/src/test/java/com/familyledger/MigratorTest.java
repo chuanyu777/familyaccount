@@ -33,16 +33,16 @@ class MigratorTest {
   @Test
   void 应用新脚本后记录版本且不会重复执行() {
     migrator.migrate();
-    migrator.applyScript(2, "probe", "CREATE TABLE IF NOT EXISTS migration_probe (id BIGINT)");
+    migrator.applyScript(99, "probe", "CREATE TABLE IF NOT EXISTS migration_probe (id BIGINT)");
 
     assertThat(tableExists("migration_probe")).isTrue();
     Integer n =
-        db.queryForObject("SELECT COUNT(*) FROM schema_migration WHERE version = 2", Integer.class);
+        db.queryForObject("SELECT COUNT(*) FROM schema_migration WHERE version = 99", Integer.class);
     assertThat(n).isEqualTo(1);
 
     // 再跑一次不应重复插入记录
     migrator.migrate();
-    n = db.queryForObject("SELECT COUNT(*) FROM schema_migration WHERE version = 2", Integer.class);
+    n = db.queryForObject("SELECT COUNT(*) FROM schema_migration WHERE version = 99", Integer.class);
     assertThat(n).isEqualTo(1);
   }
 

@@ -145,6 +145,8 @@ function sourceOf(transaction: Transaction): string {
   if (transaction.type === 'transfer') {
     return `${transaction.accountName ?? ''} → ${transaction.toAccountName ?? ''}`;
   }
+  // 还款自动生成的账目统一显示为「还款」，不再借用「其他」
+  if (transaction.sourceType === 'repayment') return '还款';
   return transaction.categoryName || '未分类';
 }
 

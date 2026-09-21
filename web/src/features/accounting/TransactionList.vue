@@ -48,6 +48,8 @@ function sourceOf(transaction: Transaction): string {
   if (transaction.type === 'transfer') {
     return `${transaction.accountName ?? ''} → ${transaction.toAccountName ?? ''}`;
   }
+  // 还款自动生成的账目统一显示为「还款」，不再借用「其他」
+  if (transaction.sourceType === 'repayment') return '还款';
   return transaction.categoryName || '未分类';
 }
 
@@ -96,7 +98,6 @@ function signedAmount(transaction: Transaction): string {
           <span class="transaction-mobile-row__body">
             <span class="transaction-mobile-row__title">
               {{ sourceOf(transaction) }}
-              <span v-if="transaction.sourceType === 'repayment'" class="tag tag--debt">还款</span>
             </span>
             <span class="transaction-mobile-row__meta">{{ metaOf(transaction) }}</span>
           </span>
