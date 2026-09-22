@@ -27,6 +27,20 @@ describe('access configuration', () => {
   it('leaves development access disabled without a code', () => {
     expect(readAccessConfig({ NODE_ENV: 'development' }).enabled).toBe(false);
   });
+
+  it('defaults proxy trust to no hops', () => {
+    expect(readAccessConfig({}).trustProxyHops).toBe(0);
+  });
+
+  it('reads an explicit non-negative proxy hop count', () => {
+    expect(readAccessConfig({ TRUST_PROXY_HOPS: '1' }).trustProxyHops).toBe(1);
+  });
+
+  it.each(['-1', '1.5', 'one', ''])('rejects invalid proxy hop count %j', (trustProxyHops) => {
+    expect(() => readAccessConfig({ TRUST_PROXY_HOPS: trustProxyHops })).toThrow(
+      'TRUST_PROXY_HOPS must be a non-negative integer',
+    );
+  });
 });
 
 describe('signed household access sessions', () => {

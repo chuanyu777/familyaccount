@@ -72,6 +72,18 @@ describe('access routes', () => {
     expect(unlock.headers['set-cookie']![0]).toContain('Secure');
   });
 
+  it('configures Express with the explicit proxy hop count', () => {
+    const app = createApp(db, {
+      accessConfig: readAccessConfig({
+        FAMILY_ACCESS_CODE: 'house-code',
+        SESSION_SECRET: 'x'.repeat(48),
+        TRUST_PROXY_HOPS: '1',
+      }),
+    });
+
+    expect(app.get('trust proxy')).toBe(1);
+  });
+
   it('keeps access disabled when createApp is called without access configuration', async () => {
     const app = createApp(db);
 

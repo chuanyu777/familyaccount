@@ -27,7 +27,7 @@ export function createApp(db: Db, options: { accessConfig?: AccessConfig } = {})
     failedAttemptLimiter: new FailedAttemptLimiter(),
   };
 
-  app.set('trust proxy', accessConfig.production);
+  app.set('trust proxy', accessConfig.trustProxyHops);
   app.use(express.json());
   app.use('/api/access', accessRoutes(accessDeps));
   app.get('/healthz', (_req, res) => res.status(204).end());
