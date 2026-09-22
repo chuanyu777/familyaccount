@@ -39,7 +39,8 @@
       const code = document.querySelector('#code');
       const error = document.querySelector('#error');
       const button = form.querySelector('button');
-      const next = new URLSearchParams(window.location.search).get('next');
+      const requestedNext = new URLSearchParams(window.location.search).get('next');
+      const next = requestedNext?.startsWith('#') && !requestedNext.startsWith('##') ? requestedNext : '';
 
       form.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -53,7 +54,7 @@
             body: JSON.stringify({ code: code.value }),
           });
           if (response.status === 204) {
-            window.location.replace(next || '/');
+            window.location.replace(next ? `/${next}` : '/');
             return;
           }
           error.textContent = response.status === 429
