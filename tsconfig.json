@@ -16,7 +16,6 @@
     "types": ["node", "vitest/globals"]
   },
   "include": [
-    "server/src/**/*.ts",
     "web/src/**/*.ts",
     "web/src/**/*.vue",
     "vitest.workspace.ts",
