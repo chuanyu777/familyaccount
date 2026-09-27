@@ -1,1 +1,11 @@
-*.sh text eol=lf
+# 统一以 LF 入库、以 LF 导出。两条规则缺一不可：
+#
+#   1. 入库（text=auto）：提交时把 CRLF 规范化成 LF，仓库里永远只有一种换行。
+#   2. 导出（eol=lf）：checkout / git archive / scp 出来的文件也保持 LF。
+#
+# 只写 `*.sh text eol=lf` 是不够的 —— 其余文件在 Windows（core.autocrlf=true）下会被
+# `git archive` 导出成 CRLF，实测后果：
+#   db/migration/V*.sql 字节数变化 → 迁移器 MD5 校验和与线上库记录不符
+#   → 后端抛 IllegalStateException「迁移脚本已被修改，拒绝启动」→ 容器无限重启。
+# 详见 deploy/README.md 的「服务器环境注意」。
+* text=auto eol=lf

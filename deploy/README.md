@@ -258,3 +258,27 @@ docker compose -f deploy/docker-compose.prod.yml exec mysql   mysql -uroot -p"$D
 - backup.sh / restore.sh 已自动兼容 v1 与 v2，无需手动切换。
 - 脚本必须是 LF 换行（Windows 编辑后请用 `sed -i 's/\r$//'` 处理），否则会报
   `/usr/bin/env: bash : No such file or directory`。
+
+#### ⚠️ 从 Windows 打包上传：CRLF 会打挂后端（已实际踩过）
+
+Windows 上 `core.autocrlf=true` 时，`git archive` / `git clone` 非交互导出的文件可能是 **CRLF**。
+`db/migration/V*.sql` 的字节一变，迁移器的 MD5 校验和就与线上 `schema_migration` 记录不符，
+后端会抛 `IllegalStateException: 迁移脚本已被修改，拒绝启动`，容器**无限重启**、接口全挂。
+
+打包命令（显式关掉 autocrlf，最稳）：
+
+```bash
+git -c core.autocrlf=false archive --format=tar.gz -o family-ledger.tar.gz v1.0
+```
+
+上传后用这条自检，**含 CR 的文件数必须是 0**：
+
+```bash
+mkdir -p /tmp/chk && tar -xzf family-ledger.tar.gz -C /tmp/chk
+grep -rlUP '\r' /tmp/chk | wc -l          # 必须是 0
+md5sum /tmp/chk/backend/src/main/resources/db/migration/V1__baseline.sql
+# 应与线上库一致：2bbeed0c6893e7c4e5370a67fcd36e33（449 字节）
+```
+
+仓库根的 `.gitattributes` 已加 `* text=auto eol=lf`，正常情况下不会再复现；
+上面这条自检留着，改动迁移脚本时值得跑一遍。
