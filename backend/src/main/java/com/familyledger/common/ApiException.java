@@ -30,4 +30,12 @@ public class ApiException extends RuntimeException {
   public static ApiException conflict(String code, String message) {
     return new ApiException(409, code, message);
   }
+
+  public static ApiException unauthorized(String code, String message) {
+    return new ApiException(401, code, message);
+  }
+
+  public static ApiException tooManyRequests(String code, String message) {
+    return new ApiException(429, code, message);
+  }
 }
