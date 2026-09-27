@@ -10,6 +10,19 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-22-access-control-and-category-management-design.md`
 
+**Progress:** Task 1 ✅ · Task 2 ✅ · Task 3 ✅ · Task 4 ⬜ 未开始 · Task 5 ⬜ 未开始.
+
+> **后记（架构迁移后）：** Task 1–3 最初实现在 Node 的 `server/`（`c9ee79d`、`462c4eb`、`acae727`、
+> `8b39b96`、`468b1e2`）。随着架构统一到 Spring Boot，`server/` 已整体删除，同等能力改由
+> `backend/` 的 `com.familyledger.access` 包实现（含 `AccessSessionTest`、`AccessControllerTest`）。
+> 下文 Task 1–3 里的 Node 文件路径均已失效，但**能力契约仍然有效**，可作为回归清单使用。
+
+Task 4 is blocked on deployment work that has not happened: `deploy/Dockerfile.app` does not
+exist, `deploy/nginx.conf` has no `auth_request` or HTTPS redirect, and
+`deploy/docker-compose.prod.yml` still builds the Java/MySQL app from `../backend`. Note that the
+root `.dockerignore` lists `server`, so `COPY server ./server` will silently copy nothing until it
+is changed. Current facts are recorded in `docs/status.md`.
+
 ## Global Constraints
 
 - Production requires non-empty `FAMILY_ACCESS_CODE` and `SESSION_SECRET`.
@@ -42,6 +55,8 @@
 
 ### Task 1: Add Configurable, Testable Session Primitives
 
+> **已完成** — commit `c9ee79d feat: add signed household access sessions`
+
 **Files:**
 - Create: `server/src/auth/config.ts`
 - Create: `server/src/auth/session.ts`
@@ -52,7 +67,7 @@
 - Produces: `AccessConfig`, `readAccessConfig(env)`, `assertProductionAccessConfig(config)`, `createSessionCookie(config, now)`, `verifySessionCookie(value, config, now)`, `clearSessionCookie(config)`, `codesMatch(provided, expected)`, and `FailedAttemptLimiter`.
 - Consumes: Node `crypto`; no Express imports.
 
-- [ ] **Step 1: Write failing session and limiter tests**
+- [x] **Step 1: Write failing session and limiter tests**
 
 ```ts
 const config = readAccessConfig({
@@ -66,13 +81,13 @@ expect(codesMatch('house-code', config.accessCode)).toBe(true);
 expect(codesMatch('wrong', config.accessCode)).toBe(false);
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 Run: `npm test -- server/src/auth/session.test.ts`
 
 Expected: FAIL because `server/src/auth/session.ts` does not exist.
 
-- [ ] **Step 3: Implement config, signed payload, and bounded limiter**
+- [x] **Step 3: Implement config, signed payload, and bounded limiter**
 
 ```ts
 export interface AccessConfig {
@@ -94,20 +109,24 @@ export function codesMatch(provided: string, expected: string): boolean {
 Use a base64url JSON payload containing `{ exp: number }` plus a SHA-256 HMAC.
 Reject malformed payloads, signature mismatches, and expired payloads. Limiters must purge expired timestamps before checking the five-attempt threshold.
 
-- [ ] **Step 4: Run focused tests**
+- [x] **Step 4: Run focused tests**
 
 Run: `npm test -- server/src/auth/session.test.ts`
 
 Expected: PASS, including malformed cookie, expiration, secret rotation, wrong code, and five-attempt cases.
 
-- [ ] **Step 5: Commit primitives**
+- [x] **Step 5: Commit primitives**
 
 ```bash
 git add server/src/auth
 git commit -m "feat: add signed household access sessions"
 ```
 
+实际提交：`c9ee79d`
+
 ### Task 2: Guard Server APIs and Expose Access Endpoints
+
+> **已完成** — commits `462c4eb feat: protect ledger APIs with household access`、`acae727 fix: configure trusted proxy hops explicitly`
 
 **Files:**
 - Create: `server/src/middleware/access.ts`
@@ -122,7 +141,7 @@ git commit -m "feat: add signed household access sessions"
 - Produces: `accessRoutes(deps)`, `requireAccess(deps)`, and `createApp(db, { accessConfig? })`.
 - Contract: `POST /api/access/unlock` accepts `{ code: string }`; `POST /api/access/lock` clears the cookie; `GET /api/access/session` returns 204 only with a valid session; denied protected APIs return `{ error: { code: 'ACCESS_REQUIRED', message: '需要家庭访问口令' } }` with 401.
 
-- [ ] **Step 1: Write failing route tests**
+- [x] **Step 1: Write failing route tests**
 
 ```ts
 const app = createApp(db, { accessConfig: enabledTestConfig });
@@ -135,13 +154,13 @@ await request(app).post('/api/access/lock').set('Cookie', cookie).expect(204);
 
 Also cover incorrect code, sixth failed attempt (429), an invalid cookie, `Secure` cookie behavior in production, and disabled configuration preserving existing test behavior.
 
-- [ ] **Step 2: Run route tests to verify failure**
+- [x] **Step 2: Run route tests to verify failure**
 
 Run: `npm test -- server/src/routes/access.routes.test.ts`
 
 Expected: FAIL because access routes and middleware are absent.
 
-- [ ] **Step 3: Implement public-before-guard routing**
+- [x] **Step 3: Implement public-before-guard routing**
 
 ```ts
 app.set('trust proxy', accessConfig.trustProxy);
@@ -153,13 +172,13 @@ app.use('/api/family', familyRoutes(db));
 
 `requireAccess` must be a no-op when access is disabled. `main.ts` must call `assertProductionAccessConfig` before `listen`, so a production process never starts with an unprotected configuration.
 
-- [ ] **Step 4: Run focused and regression server tests**
+- [x] **Step 4: Run focused and regression server tests**
 
 Run: `npm test -- server/src/routes/access.routes.test.ts server/src/smoke.test.ts`
 
 Expected: PASS. The smoke suite must keep its existing behavior by constructing `createApp` with access disabled.
 
-- [ ] **Step 5: Commit server access control**
+- [x] **Step 5: Commit server access control**
 
 ```bash
 git add server/src/app.ts server/src/main.ts server/src/middleware/access.ts server/src/routes/access.routes.ts server/src/routes/access.routes.test.ts server/src/smoke.test.ts
@@ -167,6 +186,8 @@ git commit -m "feat: protect ledger APIs with household access"
 ```
 
 ### Task 3: Add Public Unlock UX and 401 Recovery
+
+> **已完成** — commits `8b39b96 feat: add household unlock flow`、`468b1e2 fix: constrain household unlock redirects`
 
 **Files:**
 - Create: `web/public/unlock.html`
@@ -179,7 +200,7 @@ git commit -m "feat: protect ledger APIs with household access"
 - Consumes: `POST /api/access/unlock` and `POST /api/access/lock` from Task 2.
 - Produces: a public unlock page that accepts `?next=%23settings` and a browser `family-access-lost` event carrying no secret data.
 
-- [ ] **Step 1: Write failing client tests**
+- [x] **Step 1: Write failing client tests**
 
 ```ts
 window.addEventListener('family-access-lost', onLost, { once: true });
@@ -190,13 +211,13 @@ expect(onLost).toHaveBeenCalledTimes(1);
 
 Add an `App.test.ts` case that dispatches the event and expects navigation to start with `/unlock.html?next=`.
 
-- [ ] **Step 2: Run tests to verify failure**
+- [x] **Step 2: Run tests to verify failure**
 
 Run: `npm test -- web/src/lib/api.test.ts web/src/App.test.ts`
 
 Expected: FAIL because no event or redirect exists.
 
-- [ ] **Step 3: Implement the unlock page and session-loss redirect**
+- [x] **Step 3: Implement the unlock page and session-loss redirect**
 
 ```ts
 if (res.status === 401) {
@@ -206,13 +227,13 @@ if (res.status === 401) {
 
 `unlock.html` must use an inline form, submit JSON to `/api/access/unlock`, display generic failure/rate-limit text, and use `location.replace(next || '/')` after 204. It must not cache, log, or persist the entered code. `App.vue` must register and remove one listener and preserve `window.location.hash` using `encodeURIComponent`.
 
-- [ ] **Step 4: Run frontend tests and typecheck**
+- [x] **Step 4: Run frontend tests and typecheck**
 
 Run: `npm test -- web/src/lib/api.test.ts web/src/App.test.ts && npm run typecheck`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit unlock UX**
+- [x] **Step 5: Commit unlock UX**
 
 ```bash
 git add web/public/unlock.html web/src/lib/api.ts web/src/lib/api.test.ts web/src/App.vue web/src/App.test.ts
@@ -220,6 +241,8 @@ git commit -m "feat: add household unlock flow"
 ```
 
 ### Task 4: Make the Production Proxy Run and Enforce the Node Guard
+
+> **未开始** — `deploy/Dockerfile.app` 不存在；`deploy/nginx.conf` 无 `auth_request`/HTTPS；`deploy/docker-compose.prod.yml` 仍指向 `../backend`(Java+MySQL)；`deploy/README.md` 未记录 `FAMILY_ACCESS_CODE`/`SESSION_SECRET`
 
 **Files:**
 - Create: `deploy/Dockerfile.app`
@@ -286,6 +309,8 @@ git commit -m "deploy: protect household ledger behind nginx access check"
 ```
 
 ### Task 5: Run End-to-End Verification
+
+> **未开始** — 依赖 Task 4；另外「锁定本设备」前端入口也不存在（后端 `POST /api/access/lock` 已就绪但无人调用）
 
 **Files:**
 - Modify: `server/src/routes/access.routes.test.ts` only if gaps are found.

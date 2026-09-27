@@ -6,9 +6,27 @@
 
 **Architecture:** Category lifecycle remains in the Node service, which returns active categories by default and protects historical records through archive semantics. The Vue settings page manages each kind, while the transaction form receives active lists and derives six common categories from pinned status and transaction recency.
 
-**Tech Stack:** Node 22 SQLite, Express 4, Zod, Vue 3, lucide-vue-next, Vitest, Vue Test Utils, Supertest.
+**Tech Stack:** ~~Node 22 SQLite, Express 4, Zod~~ → **Java 17 + Spring Boot 3.3 + MySQL 8**（架构迁移后）、Vue 3、lucide-vue-next、Vitest + Vue Test Utils（前端）、JUnit 5 + H2（后端）。
 
 **Spec:** `docs/superpowers/specs/2026-09-22-access-control-and-category-management-design.md`
+
+**Progress: 全部未开始（Task 1–5 一个都没动）。**
+
+> **注意（架构迁移后）：** 本计划原按 Node `server/` 编写。后端已统一到 Spring Boot、`server/` 已删除，
+> 因此实施时文件路径需改为 Java：`backend/src/main/resources/db/migration/V3__*.sql` +
+> `schema.sql`（或仅迁移脚本）、`service/CategoryService.java`、`controller/CategoryController.java`，
+> 测试用 `backend/src/test/java/...`。前端部分（`web/src/features/...`）路径不变。
+
+代码侧证据：
+
+- `backend/src/main/resources/schema.sql` 的 `category` 表仍只有 `id / kind / name / created_at`，没有 `is_archived`、`is_pinned`；`db/migration` 下也没有相关迁移脚本。
+- `service/CategoryService.java` 只提供 `upsert` 与 `ensureDefault`；无重命名/置顶/归档/删除/常用排序。
+- `controller/CategoryController.java` 只有 `GET ?kind=` 与 `POST`；无 `/common`、`PATCH /{id}`、`POST /{id}/archive|restore`、`DELETE /{id}`。
+- `web/src/features/accounting/` 无 `CategoryPicker.vue`（选择器仍内联在 `TransactionForm.vue`，平铺全部类别 + 内联新建，无 6 槽上限、无「全部」抽屉、无搜索、无置顶/最近使用）。
+- `web/src/features/settings/` 无 `CategoryManager.vue`；`SettingsPage.vue` 只有家庭名与成员两块，也没有「锁定本设备」入口。
+- 相关测试（`CategoryPicker.test.ts`、`CategoryManager.test.ts`、分类生命周期用例）均不存在。
+
+开工前请先读 `docs/status.md` §6 确认这些前提是否仍然成立。
 
 ## Global Constraints
 
@@ -22,7 +40,7 @@
 
 ---
 
-## File Structure
+## File Structure（后端路径已过时，按上文提示改到 `backend/`；前端路径仍有效）
 
 - Modify: `server/src/db/schema.sql` - add category lifecycle fields and indexes with an idempotent existing-database migration path.
 - Modify: `server/src/db/connection.ts` - run `ensureCategoryColumns(db)` after schema creation so existing SQLite files gain both columns.

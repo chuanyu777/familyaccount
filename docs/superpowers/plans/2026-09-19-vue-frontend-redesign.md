@@ -10,6 +10,15 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-18-vue-frontend-redesign-design.md`
 
+**Progress (updated at `468b1e2`): 已完成并合并。** PR #1（`3ce06d2 Merge pull request #1 from chuanyu777/codex/vue-frontend-redesign`），后续修复 `461f6e8 fix(web): resolve final redesign review findings`、`336d4cc`、`7319784`、`8df7e82` 等。
+
+代码侧的落地证据：`web/src/app/tabs.ts`、`web/src/composables/useHashTab.ts`、`useModalFocus.ts`、`web/src/lib/resourceInvalidation.ts`、`latestGate.ts`、`web/src/components/`（AppShell / DesktopNav / MobileNav / AppSheet / ConfirmDialog / MonthPicker / SummaryStrip / AsyncState / AppToast）、五个 feature 各自的 page + composable + 组件，以及 `web/src/styles/base.css` 里的 C3 令牌，均与设计一致。
+
+两点提醒：
+1. 本计划的 C3 配色是**唯一生效**的视觉基线。曾有一份替代方案「燕麦焦糖」写在 `docs/design-v2.md`，
+   从未实现，已归档删除（可从 git 历史 `git show b080ad9:docs/design-v2.md` 取回），不要混用。
+2. 若个别步骤的实现细节与代码有出入，以 `web/src` 实际代码为准。
+
 ## Global Constraints
 
 - Modify `web/` only except for package metadata, tests, and this plan.
@@ -94,7 +103,7 @@
 - `AppShell` exposes default, `desktop-nav`, and `mobile-nav` slots.
 - Later page tasks consume C3 CSS tokens, `.page-layout`, and `PageHeader`.
 
-- [ ] **Step 1: Write failing navigation tests**
+- [x] **Step 1: Write failing navigation tests**
 
 Replace the navigation assertions in `web/src/App.test.ts` with explicit hash and dual-navigation behavior:
 
@@ -126,19 +135,19 @@ expect(wrapper.findAll('.mobile-tabbar__item[aria-current="page"]')).toHaveLengt
 
 Extend the existing `beforeEach` with `window.location.hash = '#accounting'` so tests do not leak navigation state.
 
-- [ ] **Step 2: Run the focused test and confirm RED**
+- [x] **Step 2: Run the focused test and confirm RED**
 
 Run: `npm test -- --run web/src/App.test.ts`
 
 Expected: FAIL because the new hash synchronization and responsive navigation selectors do not exist.
 
-- [ ] **Step 3: Add the icon dependency**
+- [x] **Step 3: Add the icon dependency**
 
 Run: `npm install lucide-vue-next`
 
 Expected: `package.json` and `package-lock.json` add `lucide-vue-next` without changing Vue or Vite versions.
 
-- [ ] **Step 4: Implement tab definitions and hash synchronization**
+- [x] **Step 4: Implement tab definitions and hash synchronization**
 
 Create `web/src/app/tabs.ts`:
 
@@ -182,7 +191,7 @@ export function useHashTab(defaultTab: TabKey) {
 }
 ```
 
-- [ ] **Step 5: Implement shell and navigation components**
+- [x] **Step 5: Implement shell and navigation components**
 
 Use component icons from `TAB_DEFINITIONS` and preserve native buttons:
 
@@ -204,7 +213,7 @@ Use component icons from `TAB_DEFINITIONS` and preserve native buttons:
 
 `App.vue` maps `activeTab` to the existing five page components, renders both navigation variants, and adds `data-page="<tab>"` to the current page wrapper.
 
-- [ ] **Step 6: Replace global styles with the approved C3 tokens and shell geometry**
+- [x] **Step 6: Replace global styles with the approved C3 tokens and shell geometry**
 
 At the start of `web/src/styles/base.css`, define:
 
@@ -230,7 +239,7 @@ At the start of `web/src/styles/base.css`, define:
 
 Implement a 70px mobile bar with 20px icons, 11px labels, 44px targets, and the 24px top active indicator. Hide desktop navigation below 768px and hide mobile navigation at and above 768px.
 
-- [ ] **Step 7: Run navigation tests, typecheck, and build**
+- [x] **Step 7: Run navigation tests, typecheck, and build**
 
 Run: `npm test -- --run web/src/App.test.ts`
 
@@ -244,7 +253,7 @@ Run: `npm run build`
 
 Expected: exit 0 and Vite emits the production bundle.
 
-- [ ] **Step 8: Commit the shell**
+- [x] **Step 8: Commit the shell**
 
 ```bash
 git add package.json package-lock.json web/src/app web/src/composables/useHashTab.ts web/src/components/AppShell.vue web/src/components/DesktopNav.vue web/src/components/MobileTabBar.vue web/src/components/PageHeader.vue web/src/App.vue web/src/App.test.ts web/src/styles/base.css
@@ -267,7 +276,7 @@ git commit -m "feat(web): add responsive C3 application shell"
 - Produces: `createLatestGate()` with `run(loader)` returning `{ current, value }`.
 - Existing `apiPost`, `apiPatch`, `apiPut`, and `apiDelete` signatures stay unchanged.
 
-- [ ] **Step 1: Write failing resource and race tests**
+- [x] **Step 1: Write failing resource and race tests**
 
 Create `resourceInvalidation.test.ts`:
 
@@ -305,13 +314,13 @@ it('marks an older request stale when a newer request finishes first', async () 
 });
 ```
 
-- [ ] **Step 2: Run focused tests and confirm RED**
+- [x] **Step 2: Run focused tests and confirm RED**
 
 Run: `npm test -- --run web/src/lib/resourceInvalidation.test.ts web/src/lib/latestGate.test.ts`
 
 Expected: FAIL because both modules are missing.
 
-- [ ] **Step 3: Implement the typed resource registry**
+- [x] **Step 3: Implement the typed resource registry**
 
 Create `resourceInvalidation.ts` with the exact keys and mutation map:
 
@@ -350,7 +359,7 @@ export function resourcesForMutation(path: string, method: string): ResourceKey[
 }
 ```
 
-- [ ] **Step 4: Implement the latest-request gate**
+- [x] **Step 4: Implement the latest-request gate**
 
 Create `latestGate.ts`:
 
@@ -367,7 +376,7 @@ export function createLatestGate() {
 }
 ```
 
-- [ ] **Step 5: Update mutation completion in the API client**
+- [x] **Step 5: Update mutation completion in the API client**
 
 Change `afterWrite` in `api.ts` to invalidate only matching API cache prefixes and publish matching resource keys:
 
@@ -382,13 +391,13 @@ async function afterWrite(path: string, method: string): Promise<void> {
 
 Pass `path` and the HTTP method from each mutation function, for example `await afterWrite(path, 'POST')`, and replace the revision assertion in `api.test.ts` with an assertion against `resourceVersion(['transactions'])`.
 
-- [ ] **Step 6: Run library tests**
+- [x] **Step 6: Run library tests**
 
 Run: `npm test -- --run web/src/lib/api.test.ts web/src/lib/resourceInvalidation.test.ts web/src/lib/latestGate.test.ts`
 
 Expected: PASS with cache epoch protection retained.
 
-- [ ] **Step 7: Commit resource invalidation**
+- [x] **Step 7: Commit resource invalidation**
 
 ```bash
 git add web/src/lib/api.ts web/src/lib/api.test.ts web/src/lib/resourceInvalidation.ts web/src/lib/resourceInvalidation.test.ts web/src/lib/latestGate.ts web/src/lib/latestGate.test.ts
@@ -412,7 +421,7 @@ git commit -m "refactor(web): invalidate data by resource"
 - `SummaryStrip` props: `primary`, `secondary`; money values remain cents.
 - `AppSheet` keeps `title`, `close`, and default slot interfaces so existing forms compile.
 
-- [ ] **Step 1: Write failing shared-component tests**
+- [x] **Step 1: Write failing shared-component tests**
 
 ```ts
 it('shows retry without discarding slotted stale content', async () => {
@@ -438,13 +447,13 @@ it('closes a sheet with Escape and restores focus', async () => {
 });
 ```
 
-- [ ] **Step 2: Run focused tests and confirm RED**
+- [x] **Step 2: Run focused tests and confirm RED**
 
 Run: `npm test -- --run web/src/components/AsyncState.test.ts web/src/components/SummaryStrip.test.ts web/src/components/AppSheet.test.ts`
 
 Expected: FAIL because new components and focus behavior are missing.
 
-- [ ] **Step 3: Implement modal focus behavior**
+- [x] **Step 3: Implement modal focus behavior**
 
 Create `useModalFocus.ts` with the focusable selector and lifecycle behavior below:
 
@@ -482,7 +491,7 @@ export function useModalFocus(root: Ref<HTMLElement | null>, onEscape: () => voi
 
 Use it from `AppSheet.vue` and `ConfirmDialog.vue`; give each dialog a heading `id` and `aria-labelledby` instead of only `aria-label`.
 
-- [ ] **Step 4: Implement `AsyncState` and `SummaryStrip`**
+- [x] **Step 4: Implement `AsyncState` and `SummaryStrip`**
 
 `AsyncState` renders four structure-matched skeleton rows only when loading and no slot data exists. When slot content exists, an error appears above it with a secondary retry button. Its branch order is:
 
@@ -510,7 +519,7 @@ export interface SummaryMetric {
 }
 ```
 
-- [ ] **Step 5: Implement responsive overlay CSS**
+- [x] **Step 5: Implement responsive overlay CSS**
 
 Below 768px, `.sheet` is bottom-aligned. At 768px and above, it becomes the approved centered form dialog:
 
@@ -524,7 +533,7 @@ Below 768px, `.sheet` is bottom-aligned. At 768px and above, it becomes the appr
 }
 ```
 
-- [ ] **Step 6: Run shared tests and typecheck**
+- [x] **Step 6: Run shared tests and typecheck**
 
 Run: `npm test -- --run web/src/components/AsyncState.test.ts web/src/components/SummaryStrip.test.ts web/src/components/AppSheet.test.ts`
 
@@ -534,7 +543,7 @@ Run: `npm run typecheck`
 
 Expected: exit 0.
 
-- [ ] **Step 7: Commit shared primitives**
+- [x] **Step 7: Commit shared primitives**
 
 ```bash
 git add web/src/composables/useModalFocus.ts web/src/components/AsyncState.vue web/src/components/AsyncState.test.ts web/src/components/SummaryStrip.vue web/src/components/SummaryStrip.test.ts web/src/components/AppSheet.vue web/src/components/AppSheet.test.ts web/src/components/ConfirmDialog.vue web/src/styles/base.css
@@ -558,7 +567,7 @@ git commit -m "feat(web): add accessible responsive UI primitives"
 - `TransactionTable` and `TransactionList` receive `items` and emit `select(transaction)`.
 - `TransactionForm` preserves its current props and emits.
 
-- [ ] **Step 1: Write failing accounting tests**
+- [x] **Step 1: Write failing accounting tests**
 
 Add assertions for the approved mobile anatomy and pessimistic save:
 
@@ -584,13 +593,13 @@ it('keeps the form open and preserves input after a failed save', async () => {
 });
 ```
 
-- [ ] **Step 2: Run accounting tests and confirm RED**
+- [x] **Step 2: Run accounting tests and confirm RED**
 
 Run: `npm test -- --run web/src/features/accounting/AccountingPage.test.ts web/src/features/accounting/TransactionForm.test.ts web/src/features/accounting/useTransactions.test.ts`
 
 Expected: FAIL because the composable, responsive displays, and selectors are missing.
 
-- [ ] **Step 3: Implement `useTransactions` with stale-response protection**
+- [x] **Step 3: Implement `useTransactions` with stale-response protection**
 
 Use `createLatestGate()` around the transaction list request. Apply results only when `current` is true. Watch resource versions separately and preserve prior items while a refresh is in flight:
 
@@ -637,7 +646,7 @@ return {
 };
 ```
 
-- [ ] **Step 4: Implement desktop table and approved compact mobile list**
+- [x] **Step 4: Implement desktop table and approved compact mobile list**
 
 Desktop uses columns category/note, account, member, and amount. Mobile groups by date and each row uses:
 
@@ -654,7 +663,7 @@ Desktop uses columns category/note, account, member, and amount. Mobile groups b
 
 Map category names to Lucide icons with a deterministic fallback `CircleDollarSign`. Do not render edit or delete buttons in either list.
 
-- [ ] **Step 5: Refactor the page and form**
+- [x] **Step 5: Refactor the page and form**
 
 Compose `PageHeader`, `SummaryStrip`, `AsyncState`, table/list, detail sheet, and confirm dialog. Keep all current filters, pagination, transaction types, inline category creation, default account/member/category behavior, transfer validation, repayment deletion protection, and API payloads:
 
@@ -671,13 +680,13 @@ Compose `PageHeader`, `SummaryStrip`, `AsyncState`, table/list, detail sheet, an
 
 The submit button must expose `data-submit-transaction`, show `保存中…` while pending, and remain in the overlay when a request fails.
 
-- [ ] **Step 6: Run accounting tests and the current API tests**
+- [x] **Step 6: Run accounting tests and the current API tests**
 
 Run: `npm test -- --run web/src/features/accounting web/src/lib/api.test.ts`
 
 Expected: PASS.
 
-- [ ] **Step 7: Browser checkpoint for the primary workflow**
+- [x] **Step 7: Browser checkpoint for the primary workflow**
 
 Start the app with `npm run dev`. At 1440x900 and 390x844 verify:
 
@@ -685,7 +694,7 @@ Start the app with `npm run dev`. At 1440x900 and 390x844 verify:
 
 Capture screenshots outside the repo and compare the mobile list/nav against `.superpowers/brainstorm/9619-1789723320/content/mobile-density-nav-v2.html`.
 
-- [ ] **Step 8: Commit accounting**
+- [x] **Step 8: Commit accounting**
 
 ```bash
 git add web/src/features/accounting web/src/styles/base.css
@@ -709,7 +718,7 @@ git commit -m "feat(web): rebuild the responsive accounting workflow"
 - `useAssets()` returns summary, accounts, assets, members, snapshots, async state, and reload functions.
 - Lists emit `select-account` and `select-asset`; no low-frequency row actions are visible.
 
-- [ ] **Step 1: Add failing responsive and resource tests**
+- [x] **Step 1: Add failing responsive and resource tests**
 
 ```ts
 it('renders separate account and asset groups with whole-row detail actions', async () => {
@@ -731,13 +740,13 @@ it('reloads assets and statistics but not members after an asset update', async 
 });
 ```
 
-- [ ] **Step 2: Run assets tests and confirm RED**
+- [x] **Step 2: Run assets tests and confirm RED**
 
 Run: `npm test -- --run web/src/features/assets`
 
 Expected: FAIL because the composable and new list selectors do not exist.
 
-- [ ] **Step 3: Implement `useAssets` and list components**
+- [x] **Step 3: Implement `useAssets` and list components**
 
 Move request state from the 648-line page into `useAssets`. Subscribe to `accounts`, `assets`, `members`, and `statistics` independently. Keep snapshot loading keyed to the selected asset:
 
@@ -761,7 +770,7 @@ async function loadSnapshots(assetId: number, force = false) {
 
 Desktop renders two side-by-side groups at 1024px; mobile stacks compact list groups. Negative balances retain the explicit `余额为负` text in addition to red color.
 
-- [ ] **Step 4: Recompose the page and preserve workflows**
+- [x] **Step 4: Recompose the page and preserve workflows**
 
 Use `SummaryStrip` for net worth/total assets/total liabilities. Keep create/edit account, calibration, set-default, account-in-use error, asset create/edit/delete, snapshot history, and snapshot creation behavior unchanged:
 
@@ -781,7 +790,7 @@ Forms expose pending labels and preserve values on API errors:
 </button>
 ```
 
-- [ ] **Step 5: Run assets tests and typecheck**
+- [x] **Step 5: Run assets tests and typecheck**
 
 Run: `npm test -- --run web/src/features/assets`
 
@@ -791,7 +800,7 @@ Run: `npm run typecheck`
 
 Expected: exit 0.
 
-- [ ] **Step 6: Commit assets**
+- [x] **Step 6: Commit assets**
 
 ```bash
 git add web/src/features/assets
@@ -814,7 +823,7 @@ git commit -m "feat(web): rebuild the responsive assets workspace"
 - `useLiabilities()` returns liabilities, repayments, accounts, members, summary, async state, and resource-scoped reloads.
 - `LiabilityList` emits `select` and `repay`; `repay` remains the only inline high-frequency action.
 
-- [ ] **Step 1: Add failing liability tests**
+- [x] **Step 1: Add failing liability tests**
 
 ```ts
 it('shows remaining principal, progress, and one inline repay action', async () => {
@@ -833,13 +842,13 @@ it('publishes all repayment dependencies after save', () => {
 });
 ```
 
-- [ ] **Step 2: Run liabilities tests and confirm RED**
+- [x] **Step 2: Run liabilities tests and confirm RED**
 
 Run: `npm test -- --run web/src/features/liabilities`
 
 Expected: FAIL because the new list and composable do not exist.
 
-- [ ] **Step 3: Implement liability data ownership and list**
+- [x] **Step 3: Implement liability data ownership and list**
 
 Move page requests into `useLiabilities`. Load repayment history only for selected liabilities. Derive progress from recorded repayment history plus current remaining principal, matching the existing calculation:
 
@@ -854,7 +863,7 @@ function progressOf(liability: Liability, repayments: Repayment[]): number {
 }
 ```
 
-- [ ] **Step 4: Recompose page and forms**
+- [x] **Step 4: Recompose page and forms**
 
 Use `PageHeader`, `SummaryStrip`, `AsyncState`, responsive list/table, detail overlay, repayment history, and confirmation dialogs:
 
@@ -871,13 +880,13 @@ Use `PageHeader`, `SummaryStrip`, `AsyncState`, responsive list/table, detail ov
 
 Preserve default monthly repayment, manual amount fallback, overpayment errors, account selection, reverse rollback on delete, and liability deletion warnings.
 
-- [ ] **Step 5: Run liabilities tests**
+- [x] **Step 5: Run liabilities tests**
 
 Run: `npm test -- --run web/src/features/liabilities`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit liabilities**
+- [x] **Step 6: Commit liabilities**
 
 ```bash
 git add web/src/features/liabilities
@@ -897,7 +906,7 @@ git commit -m "feat(web): rebuild liabilities and repayment UX"
 - Preserve `/api/stats/monthly-snapshot` and `/api/stats/monthly-trend` reads.
 - Charts remain pure prop-driven components and do not fetch data.
 
-- [ ] **Step 1: Add failing visual-structure tests**
+- [x] **Step 1: Add failing visual-structure tests**
 
 ```ts
 it('renders paired income/expense bars and direct category percentages', async () => {
@@ -917,13 +926,13 @@ it('shows an actionable empty state instead of an empty chart frame', async () =
 });
 ```
 
-- [ ] **Step 2: Run analysis tests and confirm RED**
+- [x] **Step 2: Run analysis tests and confirm RED**
 
 Run: `npm test -- --run web/src/features/analysis`
 
 Expected: FAIL because the new series and empty-state selectors are missing.
 
-- [ ] **Step 3: Apply the C3 dashboard composition**
+- [x] **Step 3: Apply the C3 dashboard composition**
 
 Use `PageHeader`, month selection, `SummaryStrip`, paired bars, and horizontal category bars. Use only existing API fields; do not add fake savings or comparison metrics:
 
@@ -943,7 +952,7 @@ Use `PageHeader`, month selection, `SummaryStrip`, paired bars, and horizontal c
 
 Keep direct labels legible at 360px and use `--chart-accent` only for a secondary category series.
 
-- [ ] **Step 4: Add resource-scoped refresh and stale request protection**
+- [x] **Step 4: Add resource-scoped refresh and stale request protection**
 
 Watch `resourceVersion(['statistics'])`, use `createLatestGate()` for month changes, preserve the previous snapshot during refresh, and render an inline retry on failure:
 
@@ -964,7 +973,7 @@ async function load(force = false) {
 }
 ```
 
-- [ ] **Step 5: Run analysis tests and typecheck**
+- [x] **Step 5: Run analysis tests and typecheck**
 
 Run: `npm test -- --run web/src/features/analysis`
 
@@ -974,7 +983,7 @@ Run: `npm run typecheck`
 
 Expected: exit 0.
 
-- [ ] **Step 6: Commit analysis**
+- [x] **Step 6: Commit analysis**
 
 ```bash
 git add web/src/features/analysis
@@ -991,7 +1000,7 @@ git commit -m "feat(web): rebuild the analysis dashboard"
 - Preserve family and member API payloads.
 - Subscribe separately to `family` and `members` resources.
 
-- [ ] **Step 1: Add failing settings interaction tests**
+- [x] **Step 1: Add failing settings interaction tests**
 
 ```ts
 it('uses quiet grouped rows and opens member editing from the whole row', async () => {
@@ -1016,13 +1025,13 @@ it('preserves the family name when saving fails', async () => {
 });
 ```
 
-- [ ] **Step 2: Run settings tests and confirm RED**
+- [x] **Step 2: Run settings tests and confirm RED**
 
 Run: `npm test -- --run web/src/features/settings`
 
 Expected: FAIL because grouped row selectors and overlay editing are missing.
 
-- [ ] **Step 3: Recompose settings**
+- [x] **Step 3: Recompose settings**
 
 Render family and member sections as un-nested, quiet groups. Move add/edit member forms into the responsive overlay:
 
@@ -1054,13 +1063,13 @@ watch(resourceVersion(['family']), () => loadFamily(true));
 watch(resourceVersion(['members']), () => loadMembers(true));
 ```
 
-- [ ] **Step 4: Run settings and app tests**
+- [x] **Step 4: Run settings and app tests**
 
 Run: `npm test -- --run web/src/features/settings web/src/App.test.ts`
 
 Expected: PASS and the shell family name updates after save.
 
-- [ ] **Step 5: Commit settings**
+- [x] **Step 5: Commit settings**
 
 ```bash
 git add web/src/features/settings web/src/App.vue web/src/App.test.ts
@@ -1082,7 +1091,7 @@ git commit -m "feat(web): rebuild family settings UX"
 - Final app contains no legacy oat/caramel tokens or broad revision watcher.
 - No production interface changes are introduced in this cleanup task.
 
-- [ ] **Step 1: Prove legacy modules are unreferenced**
+- [x] **Step 1: Prove legacy modules are unreferenced**
 
 Run:
 
@@ -1092,7 +1101,7 @@ rg -n "TabBar|StatHero|StatBlock|SectionBlock|revision|bumpRevision|--paper|--br
 
 Expected: references exist only inside the legacy files themselves or test descriptions. If an active import remains, migrate it to the new component/token before deleting anything.
 
-- [ ] **Step 2: Remove legacy files and CSS only after the reference check passes**
+- [x] **Step 2: Remove legacy files and CSS only after the reference check passes**
 
 Delete the listed files with `apply_patch`, then prove no imports remain:
 
@@ -1102,7 +1111,7 @@ rg -n "TabBar|StatHero|StatBlock|SectionBlock|revision|bumpRevision|--paper|--br
 
 Expected: no output. Keep only C3 tokens and selectors used by active components in `base.css`.
 
-- [ ] **Step 3: Run complete automated verification**
+- [x] **Step 3: Run complete automated verification**
 
 Run: `npm test`
 
@@ -1116,7 +1125,7 @@ Run: `npm run build`
 
 Expected: exit 0 with a production bundle and no missing assets.
 
-- [ ] **Step 4: Run browser QA through the available path**
+- [x] **Step 4: Run browser QA through the available path**
 
 The Browser plugin is not listed in this session, so use regular Playwright as the documented fallback. Start `npm run dev`, then verify at 1440x900, 900x1024, 390x844, and 360x800:
 
@@ -1130,7 +1139,7 @@ The Browser plugin is not listed in this session, so use regular Playwright as t
 
 For every viewport, check page identity, nonblank content, no Vite overlay, no relevant console warnings/errors, no horizontal overflow, no clipped controls, and no text overlap.
 
-- [ ] **Step 5: Capture and inspect fidelity screenshots**
+- [x] **Step 5: Capture and inspect fidelity screenshots**
 
 Save screenshots outside the repo, including desktop accounting, mobile accounting, mobile transaction entry, assets, liabilities, analysis, and settings. First render each HTML concept to PNG with a temporary Playwright script, then use `view_image` on:
 
@@ -1140,11 +1149,11 @@ Save screenshots outside the repo, including desktop accounting, mobile accounti
 
 Record a fidelity ledger covering at least copy, layout, typography, colors, icons, spacing, responsive behavior, and interactions. Fix every material mismatch before continuing.
 
-- [ ] **Step 6: Run the above-the-fold copy diff**
+- [x] **Step 6: Run the above-the-fold copy diff**
 
 Allowed accounting first-viewport copy is limited to the family/product name, selected month, `记一笔`, `本月结余`, `收入`, `支出`, transaction filters, date groups, transaction content, and the five navigation labels. Remove any unapproved eyebrow, badge, tutorial, keyboard shortcut, or promotional copy.
 
-- [ ] **Step 7: Commit cleanup and QA fixes**
+- [x] **Step 7: Commit cleanup and QA fixes**
 
 ```bash
 git add web package.json package-lock.json

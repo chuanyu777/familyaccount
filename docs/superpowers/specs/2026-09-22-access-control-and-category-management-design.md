@@ -1,13 +1,43 @@
 # Access Control and Category Management Design
 
+## Implementation Status (updated at commit `468b1e2`)
+
+**Access control — landed, now on Spring Boot.** The Node implementation was deleted together
+with `server/`; the same contract is implemented in `backend/` under `com.familyledger.access`
+(`AccessConfig`, `AccessSession`, `FailedAttemptLimiter`, `ClientIp`, `AccessController`,
+`AccessGuard`, `AccessWebConfig`, plus `/healthz` in `controller/HealthController`), covered by
+`AccessSessionTest` and `AccessControllerTest`. Behaviour matches this design:
+
+- 30-day signed cookie `family_access`, `Path=/; HttpOnly; SameSite=Strict` plus production
+  `Secure`; five failed unlocks per client IP over 15 rolling minutes; `TRUST_PROXY_HOPS`
+  controls proxy trust.
+- Production is detected through the Spring profile `prod`/`production`; without
+  `FAMILY_ACCESS_CODE` and `SESSION_SECRET` the application context fails to start.
+- The unlock page (`web/public/unlock.html`), the `family-access-lost` event in
+  `web/src/lib/api.ts`, and the redirect in `web/src/App.vue` are unchanged
+  (commits `8b39b96`, `468b1e2`).
+
+**Access control — not landed.** Nginx does not yet enforce the gate, so an unlocked device
+can still download the SPA bundle; `deploy/Dockerfile.app` does not exist;
+`deploy/docker-compose.prod.yml` still runs the Java/MySQL stack; the deployment README does not
+document the two secrets; and no UI calls `POST /api/access/lock` (`Lock this device`). See
+Task 4 of `docs/superpowers/plans/2026-09-22-household-access-control.md`.
+
+**Category management — not started.** Nothing in this design's category half exists in code:
+`category` has no `is_archived` or `is_pinned` columns, `services/categories.ts` only exposes
+list/upsert/ensureDefault, `routes/category.routes.ts` only serves `GET /` and `POST /`, and
+there is no `CategoryPicker.vue` or `CategoryManager.vue`. Transactions currently render every
+category of a kind in a plain four-column grid. See
+`docs/superpowers/plans/2026-09-22-category-management-and-picker.md` (Tasks 1-5 pending).
+
 ## Goal
 
 Protect a deployed household ledger without household accounts or a conventional
 username/password login. Add safe category management and an efficient picker
 when either expense or income categories exceed seven.
 
-This design covers the existing Express server, SQLite store, Vue web app, and
-Docker/Nginx deployment. Transaction, asset, liability, and reporting behavior
+This design covers the Spring Boot backend (the original Express/SQLite server was removed),
+MySQL store, Vue web app, and Docker/Nginx deployment. Transaction, asset, liability, and reporting behavior
 remain unchanged except for the category rules below.
 
 ## Confirmed Decisions

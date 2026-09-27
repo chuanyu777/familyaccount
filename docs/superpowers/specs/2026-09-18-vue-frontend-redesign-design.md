@@ -1,8 +1,21 @@
 # Vue Frontend Redesign Design
 
 Date: 2026-09-18
-Status: Approved in conversation
+Status: Approved in conversation — **implemented** (merged as PR #1, commit `3ce06d2`; follow-up fixes `461f6e8`, `336d4cc`, `be964ac`)
 Scope: `web/` only
+
+> **Implementation status (updated at `468b1e2`):** the redesign described here is the frontend
+> that currently ships — hash-based tab shell (`#accounting` … `#settings`) with no routing or
+> state-management dependency, per-feature page/container + display + form + composable split,
+> shared components in `web/src/components/`, resource-specific invalidation
+> (`web/src/lib/resourceInvalidation.ts`), and palette C3 "Ultramarine Signal" in
+> `web/src/styles/base.css` (`--primary #3159d7`, `--income #19765d`, `--expense #b84543`,
+> `--chart-accent #d49f2f`, `--nav #121a2d`).
+>
+> Direction note: an alternative warmer "oatmeal caramel" palette was once drafted as
+> `docs/design-v2.md`. It was never implemented and has been archived out of the tree; the
+> original is retrievable with `git show b080ad9:docs/design-v2.md`. The C3 tokens below are the
+> only sanctioned palette.
 
 ## 1. Context
 
