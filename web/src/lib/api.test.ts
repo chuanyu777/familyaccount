@@ -119,6 +119,16 @@ describe('apiGet 错误包装', () => {
       code: 'NOT_FOUND',
     });
   });
+
+  it('家庭访问会话失效时通知页面跳转解锁', async () => {
+    const onLost = vi.fn();
+    window.addEventListener('family-access-lost', onLost, { once: true });
+    mockFetch({ error: { code: 'ACCESS_REQUIRED', message: '需要家庭访问口令' } }, { status: 401, ok: false });
+
+    await expect(apiGet('/api/family')).rejects.toMatchObject({ status: 401 });
+
+    expect(onLost).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('写后刷新', () => {

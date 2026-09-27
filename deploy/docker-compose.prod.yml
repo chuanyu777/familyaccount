@@ -37,6 +37,14 @@ services:
       DB_NAME: family_ledger
       DB_USER: root
       DB_PASSWORD: ${DB_PASSWORD:-root123456}
+      # 家庭访问口令：prod profile 下缺任一变量，进程会拒绝启动。
+      # 默认 prod；若源站是纯 HTTP（未做 HTTPS），可在 .env 里设 SPRING_PROFILES_ACTIVE= 关掉，
+      # 门禁依然生效（配了口令就启用），只是不做生产 fail-fast 校验。详见 deploy/README.md 第八节。
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+      FAMILY_ACCESS_CODE: ${FAMILY_ACCESS_CODE:?请在 .env 中设置家庭访问口令}
+      SESSION_SECRET: ${SESSION_SECRET:?请在 .env 中设置会话签名密钥}
+      # 位于单层 Nginx 之后，信任 1 跳转发头，否则限流会把所有请求算成同一地址
+      TRUST_PROXY_HOPS: "1"
     depends_on:
       mysql:
         condition: service_healthy

@@ -71,6 +71,9 @@ async function rawFetch<T>(
     const errBody = (data ?? {}) as { error?: { code?: string; message?: string } };
     const code = errBody.error?.code ?? 'UNKNOWN';
     const message = errBody.error?.message ?? res.statusText ?? '请求失败';
+    if (res.status === 401) {
+      window.dispatchEvent(new CustomEvent('family-access-lost'));
+    }
     throw new ApiError(res.status, code, message);
   }
 

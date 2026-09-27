@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AppShell from './components/AppShell.vue';
 import DesktopNav from './components/DesktopNav.vue';
 import MobileNav from './components/MobileNav.vue';
@@ -39,7 +39,13 @@ async function loadFamily() {
   }
 }
 
+function redirectToUnlock() {
+  window.location.replace(`/unlock.html?next=${encodeURIComponent(window.location.hash)}`);
+}
+
 onMounted(loadFamily);
+onMounted(() => window.addEventListener('family-access-lost', redirectToUnlock));
+onBeforeUnmount(() => window.removeEventListener('family-access-lost', redirectToUnlock));
 // 设置里改了家庭名，标题栏跟着变
 watch(resourceVersion(['family']), loadFamily);
 </script>

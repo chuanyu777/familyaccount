@@ -34,25 +34,41 @@ sudo usermod -aG docker $USER && newgrp docker
 - `package.json`、`package-lock.json`、`tsconfig.json`
 - `.dockerignore`
 
-> 不需要上传 `node_modules/`、`backend/target/`、`server/`（旧 Node 后端）、`.git/`。
+> 不需要上传 `node_modules/`、`backend/target/`、`.git/`。
+> 注：原 Node 后端 `server/` 已整体移除，访问控制与全部业务接口都由 Spring Boot 提供。
 
 可以用 scp / rsync / git，例如：
 
 ```bash
 # 本地（项目根目录）
-rsync -av --exclude node_modules --exclude backend/target --exclude server --exclude .git \
+rsync -av --exclude node_modules --exclude backend/target --exclude .git \
   ./ user@服务器IP:/home/user/family-ledger/
 ```
 
-## 三、设置数据库密码
+## 三、设置数据库密码与家庭访问口令
 
-强烈建议改掉默认密码（默认 root123456）：
+强烈建议改掉默认密码（默认 root123456），并设置家庭访问口令：
 
 ```bash
 cd /home/user/family-ledger
-# 方式一：写进 .env（deploy 目录下，compose 自动读取）
-echo "DB_PASSWORD=你的强密码" > deploy/.env
+# compose v2 读 deploy/.env；v1 只读项目根目录 .env，两个位置都写一份最稳妥
+cat >> deploy/.env <<'EOF'
+DB_PASSWORD=你的强密码
+FAMILY_ACCESS_CODE=你的家庭访问口令
+SESSION_SECRET=随机长字符串（建议 48 位以上）
+EOF
 ```
+
+`app` 服务以 `SPRING_PROFILES_ACTIVE=prod` 启动：缺 `FAMILY_ACCESS_CODE` 或 `SESSION_SECRET`
+时进程**拒绝启动**（fail-fast），避免部署出一个没有门禁的账本。
+
+- `FAMILY_ACCESS_CODE`：全家人共用的唯一口令，只在环境变量里，不入库、不进浏览器。
+- `SESSION_SECRET`：会话签名密钥；**轮换它会让所有已解锁设备立即失效**，用于「一键踢掉全部设备」。
+- `TRUST_PROXY_HOPS`：已在 compose 里设为 `1`（单层 Nginx）。若改成多层代理，需同步调整为层数，
+  否则限流会把所有请求算成同一个地址。
+- 可信设备有效期 30 天；Cookie 为 `Path=/; HttpOnly; SameSite=Strict`，
+  是否追加 `Secure` 由**请求是否真的走 HTTPS** 决定（看 `X-Forwarded-Proto`），不是由环境决定——
+  这样纯 HTTP 源站也能正常解锁（否则浏览器会拒收带 Secure 的 Cookie）。上了 HTTPS 就自动带上。
 
 ## 四、一键启动
 
@@ -61,13 +77,33 @@ cd /home/user/family-ledger
 docker compose -f deploy/docker-compose.prod.yml up -d --build
 ```
 
+### 本地 HTTP 试跑
+
+和线上用同一条命令即可，不需要额外的覆盖文件：
+
+```bash
+docker compose -f deploy/docker-compose.prod.yml up -d --build
+```
+
+`http://localhost` 下 `X-Forwarded-Proto` 是 `http`，会话 Cookie 不会带 `Secure`，浏览器能正常存。
+唯一前提：本地 `deploy/.env` 里已经写好 `FAMILY_ACCESS_CODE` 与 `SESSION_SECRET`（prod profile
+会在启动时校验，缺了就拒绝启动）。
+
 首次会拉取基础镜像 + 构建前端/后端 + 下载依赖，视网络约 3~10 分钟。
 完成后：
 
 ```bash
 docker compose -f deploy/docker-compose.prod.yml ps   # 三个容器都 Up 即成功
-curl http://服务器IP/api/family                          # 应返回 {"id":1,"name":"我的家"}
+curl -i http://服务器IP/healthz                          # 应返回 204（健康检查公开）
+curl -i http://服务器IP/api/family                       # 未解锁应返回 401 ACCESS_REQUIRED
+curl -i -c /tmp/family-cookie -H 'Content-Type: application/json' \
+  -d '{"code":"你的家庭访问口令"}' http://服务器IP/api/access/unlock   # 204 + Set-Cookie
+curl -i -b /tmp/family-cookie http://服务器IP/api/family               # 200 {"id":1,"name":"我的家"}
 ```
+
+> 当前 Nginx 只做反代，未配置 `auth_request`，所以未解锁时仍可下载前端包，
+> 页面加载后接口返回 401 才会跳到 `/unlock.html`。若要「未解锁连页面都拿不到」，
+> 见 `docs/superpowers/plans/2026-09-22-household-access-control.md` 的 Task 4。
 
 浏览器访问 `http://服务器IP` 即可使用。
 
@@ -91,6 +127,8 @@ docker exec -i family-ledger-mysql mysql -uroot -p密码 family_ledger < backup.
 ```
 
 ## 六、更新版本
+
+> **只要线上已有数据，请走第八节的「已有数据的线上升级清单」，不要直接执行下面的命令。**
 
 本地改完代码后，重新上传，再：
 
@@ -150,6 +188,55 @@ cd /home/lighthouse/app
 docker compose -f deploy/docker-compose.prod.yml up -d --build   # 3 重建启动（自动执行迁移）
 docker compose -f deploy/docker-compose.prod.yml logs -f app     # 4 看日志，确认出现 [migrate] 且无报错
 curl http://localhost/api/family                            # 5 冒烟
+```
+
+### ⭐ 已有数据的线上升级清单（本次版本）
+
+本次发布 = **前端清理 + 后端新增家庭访问控制**，**没有任何表结构变更**（`backend/src/main/resources/schema.sql`
+与 `db/migration/` 都没动，`V1`/`V2` 的校验和不变），因此老数据不会被改写，迁移器启动后也只是空转一遍。
+按以下顺序做即可：
+
+1. **先备份**（不可跳过）：`./deploy/backup.sh`，确认 `backups/` 下生成了 `.sql.gz`。
+2. **补两个环境变量**（否则 compose 会直接拒绝启动，这是有意为之的 fail-fast）：
+
+   ```bash
+   # 项目根目录 .env（compose v1/v2 都读得到，最稳妥）
+   cat >> .env <<'EOF'
+   FAMILY_ACCESS_CODE=你的家庭访问口令
+   SESSION_SECRET=随机长字符串（建议 48 位以上）
+   EOF
+   cp .env deploy/.env      # compose v2 从 deploy/ 读，再放一份
+   ```
+
+3. **确认 HTTPS 情况**（决定 Cookie 行为，最容易踩的坑）：
+   - 站点走 **HTTPS**：保持默认 `SPRING_PROFILES_ACTIVE=prod`，会话 Cookie 带 `Secure`，正常。
+   - 站点仍是 **纯 HTTP**：必须保证 `X-Forwarded-Proto` 为 `http`（本仓库 nginx 已按 `$scheme` 转发）；
+     此时 Cookie 不会带 `Secure`，可正常解锁。
+     若你不打算上 HTTPS，也可以在 `.env` 里写 `SPRING_PROFILES_ACTIVE=` 关掉 prod profile ——
+     门禁照样生效，只是不做启动时的密钥校验。**口令在 HTTP 下是明文传输的，仍建议尽快上 HTTPS。**
+4. **重建并启动**：`docker compose -f deploy/docker-compose.prod.yml up -d --build`
+   （只重建 web 与 app；`mysql-data` 卷里的数据不动）。
+5. **冒烟**（注意第一条现在是 401，属预期）：
+
+   ```bash
+   curl -i http://服务器IP/healthz                          # 204
+   curl -i http://服务器IP/api/family                       # 401 ACCESS_REQUIRED（未解锁）
+   curl -i -c /tmp/c -H 'Content-Type: application/json' \
+     -d '{"code":"你的口令"}' http://服务器IP/api/access/unlock    # 204 + Set-Cookie
+   curl -i -b /tmp/c http://服务器IP/api/family                    # 200，且能看到原有家庭数据
+   ```
+
+   最后一条**必须能看到你原来的家庭名/账目**，这是「老数据没丢」的判定点。
+   核对数据量：`docker compose ... exec mysql mysql -uroot -p"$DB_PASSWORD" family_ledger -e "SELECT (SELECT COUNT(*) FROM txn) txn, (SELECT COUNT(*) FROM account) acct;"`
+
+6. **告知家人口令**：所有人首次访问都会跳 `/unlock.html`，输入口令后该设备 30 天免密。
+
+**回滚**（出问题 30 秒内可退）：本次没有结构变更，回滚不会动数据。
+
+```bash
+# 只想临时关掉门禁：在 .env 里删掉 FAMILY_ACCESS_CODE，或设 SPRING_PROFILES_ACTIVE=
+docker compose -f deploy/docker-compose.prod.yml up -d app
+# 整体回退版本：恢复上一版代码后 up -d --build，数据卷不动
 ```
 
 > 注意：数据库在卷 `mysql-data` 里，`docker compose down` 不会丢数据；**`down -v` 会删卷，不要随便加 `-v`**。

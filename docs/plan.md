@@ -1,4 +1,11 @@
-# 家庭记账簿 MVP — 实施计划
+# 家庭记账簿 MVP — 实施计划（历史归档）
+
+> ⚠️ **本文是历史归档文档，不代表当前现状。**
+> 它是 MVP 最初的施工计划（React + Vite 路线），其中 T1–T15 的服务端部分已随 MVP 完成，T16–T22 的前端部分已被 Vue 3 重构取代（见 `docs/superpowers/plans/2026-09-19-vue-frontend-redesign.md`，PR #1 / `3ce06d2`）。
+> 当前架构、数据模型、API 与访问控制请看 **`docs/status.md`**（代码事实基线）与 **`docs/design.md`**（按现状重写）。
+> 补充：本文提到的 Node 后端 `server/` **已被删除**，全部能力由 `backend/`（Spring Boot）承接；
+> 涉及 `server/src/**` 的路径均已失效。
+> 下文正文原样保留，仅供追溯；其中的 React 文件路径（`web/src/main.tsx`、`App.tsx`、`*.tsx`）在代码里已不存在。
 
 > 上游：`docs/design.md`。每任务 2-5 分钟，均强制 **RED → GREEN → REFACTOR**。
 > 运行命令前先执行 `export PATH="/usr/bin:/bin:$PATH"`（本机 Git Bash 的 PATH 被上层脚本破坏）。

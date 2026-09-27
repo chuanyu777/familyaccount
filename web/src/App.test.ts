@@ -56,6 +56,7 @@ async function flush() {
 
 describe('App', () => {
   beforeEach(() => {
+    vi.unstubAllGlobals();
     get.mockClear();
     family = { id: 1, name: '我们的家' };
     document.body.innerHTML = '';
@@ -100,6 +101,18 @@ describe('App', () => {
 
     expect(wrapper.find('[data-page="analysis"]').exists()).toBe(true);
     expect(wrapper.get('[aria-current="page"]').text()).toContain('分析');
+    wrapper.unmount();
+  });
+
+  it('家庭访问会话失效时带着当前标签跳转到解锁页', async () => {
+    const replace = vi.fn();
+    vi.stubGlobal('location', { hash: '#settings', replace });
+    const wrapper = mount(App, { attachTo: document.body });
+    await flush();
+
+    window.dispatchEvent(new CustomEvent('family-access-lost'));
+
+    expect(replace).toHaveBeenCalledWith('/unlock.html?next=%23settings');
     wrapper.unmount();
   });
 
