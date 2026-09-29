@@ -71,10 +71,12 @@ CREATE TABLE IF NOT EXISTS ledger_invitation (
   expires_at VARCHAR(19) NOT NULL,
   revoked_at VARCHAR(19),
   accepted_at VARCHAR(19),
+  accepted_by_user_id BIGINT,
   created_at VARCHAR(19) NOT NULL,
   CONSTRAINT uq_invitation_token UNIQUE (token_hash),
   CONSTRAINT fk_invitation_ledger FOREIGN KEY (ledger_id) REFERENCES ledger (id),
-  CONSTRAINT fk_invitation_creator FOREIGN KEY (created_by_user_id) REFERENCES app_user (id)
+  CONSTRAINT fk_invitation_creator FOREIGN KEY (created_by_user_id) REFERENCES app_user (id),
+  CONSTRAINT fk_invitation_acceptor FOREIGN KEY (accepted_by_user_id) REFERENCES app_user (id)
 );
 
 CREATE TABLE IF NOT EXISTS web_binding_code (
