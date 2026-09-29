@@ -35,6 +35,10 @@ public class ApiException extends RuntimeException {
     return new ApiException(401, code, message);
   }
 
+  public static ApiException forbidden(String code, String message) {
+    return new ApiException(403, code, message);
+  }
+
   public static ApiException tooManyRequests(String code, String message) {
     return new ApiException(429, code, message);
   }

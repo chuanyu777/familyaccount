@@ -1,11 +1,7 @@
 package com.familyledger.db;
 
 import com.familyledger.common.Time;
-import java.security.SecureRandom;
-import java.security.spec.KeySpec;
-import java.util.Base64;
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
+import com.familyledger.auth.PasswordHasher;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -16,10 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 /** 初始化固定特殊账本及其预置身份，幂等且只写入新多租户 schema。 */
 @Component
 public class Seeder {
-  private static final int HASH_ITERATIONS = 120_000;
-  private static final int HASH_BITS = 256;
-
   private final JdbcTemplate db;
+  private final PasswordHasher passwords;
   private final String ledgerName;
   private final String adminUsername;
   private final String adminPassword;
@@ -32,6 +26,7 @@ public class Seeder {
 
   public Seeder(
       JdbcTemplate db,
+      PasswordHasher passwords,
       @Value("${familyledger.seed.special-ledger-name:}") String ledgerName,
       @Value("${familyledger.seed.platform-admin.username:}") String adminUsername,
       @Value("${familyledger.seed.platform-admin.password:}") String adminPassword,
@@ -42,6 +37,7 @@ public class Seeder {
       @Value("${familyledger.seed.member.username:}") String memberUsername,
       @Value("${familyledger.seed.member.password:}") String memberPassword) {
     this.db = db;
+    this.passwords = passwords;
     this.ledgerName = required("special-ledger-name", ledgerName);
     this.adminUsername = required("platform-admin.username", adminUsername);
     this.adminPassword = required("platform-admin.password", adminPassword);
@@ -72,13 +68,13 @@ public class Seeder {
         + "VALUES (?, ?, 'MEMBER', 1, 1, ?)", ledgerId, memberId, ts);
     db.update("INSERT INTO web_credential "
         + "(user_id, username, password_hash, enabled, created_at) VALUES (?, ?, ?, 1, ?)",
-        ownerId, ownerUsername, hashPassword(ownerPassword), ts);
+        ownerId, ownerUsername, passwords.hash(ownerPassword), ts);
     db.update("INSERT INTO web_credential "
         + "(user_id, username, password_hash, enabled, created_at) VALUES (?, ?, ?, 1, ?)",
-        memberId, memberUsername, hashPassword(memberPassword), ts);
+        memberId, memberUsername, passwords.hash(memberPassword), ts);
     db.update("INSERT INTO platform_admin "
         + "(username, password_hash, enabled, created_at) VALUES (?, ?, 1, ?)",
-        adminUsername, hashPassword(adminPassword), ts);
+        adminUsername, passwords.hash(adminPassword), ts);
     db.update("INSERT INTO account "
         + "(ledger_id, name, balance_cents, is_default, archived, created_at) "
         + "VALUES (?, '默认账户', 0, 1, 0, ?)", ledgerId, ts);
@@ -128,19 +124,4 @@ public class Seeder {
     return normalized;
   }
 
-  /** PBKDF2 format is shared with the later authentication implementation. */
-  private static String hashPassword(String password) {
-    try {
-      byte[] salt = new byte[16];
-      new SecureRandom().nextBytes(salt);
-      KeySpec spec = new PBEKeySpec(password.toCharArray(), salt, HASH_ITERATIONS, HASH_BITS);
-      byte[] hash = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-          .generateSecret(spec).getEncoded();
-      return "pbkdf2-sha256$" + HASH_ITERATIONS + "$"
-          + Base64.getEncoder().encodeToString(salt) + "$"
-          + Base64.getEncoder().encodeToString(hash);
-    } catch (Exception e) {
-      throw new IllegalStateException("密码哈希失败", e);
-    }
-  }
 }

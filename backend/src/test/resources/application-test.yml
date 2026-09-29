@@ -10,6 +10,12 @@ spring:
       schema-locations: classpath:schema.sql
 
 familyledger:
+  auth:
+    session-secret: test-session-secret-0123456789abcdef
+    session-ttl-seconds: 3600
+  wechat:
+    app-id: test-app-id
+    app-secret: test-app-secret
   seed:
     special-ledger-name: 测试特殊账本
     platform-admin:
