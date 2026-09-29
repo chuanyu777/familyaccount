@@ -13,3 +13,18 @@ spring:
     init:
       mode: always
       schema-locations: classpath:schema.sql
+
+familyledger:
+  seed:
+    special-ledger-name: ${SPECIAL_LEDGER_NAME:}
+    platform-admin:
+      username: ${PLATFORM_ADMIN_USERNAME:}
+      password: ${PLATFORM_ADMIN_PASSWORD:}
+    owner:
+      display-name: ${SPECIAL_LEDGER_OWNER_DISPLAY_NAME:本人}
+      username: ${SPECIAL_LEDGER_OWNER_USERNAME:}
+      password: ${SPECIAL_LEDGER_OWNER_PASSWORD:}
+    member:
+      display-name: ${SPECIAL_LEDGER_MEMBER_DISPLAY_NAME:配偶}
+      username: ${SPECIAL_LEDGER_MEMBER_USERNAME:}
+      password: ${SPECIAL_LEDGER_MEMBER_PASSWORD:}

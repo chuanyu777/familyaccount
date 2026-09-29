@@ -7,8 +7,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 /** 测试辅助：重建内存库（先按外键逆序删表，再跑 schema.sql）。 */
 public final class TestDb {
   private static final String[] TABLES = {
-      "asset_snapshot", "repayment", "liability", "asset", "txn",
-      "category", "account", "member", "family"
+      "asset_snapshot", "repayment", "txn", "liability", "asset", "category", "account",
+      "ledger_invitation", "web_binding_code", "web_credential", "platform_admin",
+      "ledger_membership", "wechat_identity", "ledger", "app_user"
   };
 
   private TestDb() {}

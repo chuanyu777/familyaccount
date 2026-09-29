@@ -8,3 +8,18 @@ spring:
     init:
       mode: always
       schema-locations: classpath:schema.sql
+
+familyledger:
+  seed:
+    special-ledger-name: 测试特殊账本
+    platform-admin:
+      username: platform-admin
+      password: platform-admin-password
+    owner:
+      display-name: 本人
+      username: ledger-owner
+      password: ledger-owner-password
+    member:
+      display-name: 配偶
+      username: ledger-member
+      password: ledger-member-password
