@@ -32,5 +32,9 @@ class SmokeTest {
     assertThat(jdbc.queryForObject(
         "SELECT COUNT(*) FROM account WHERE is_default = 1", Integer.class)).isEqualTo(1);
     assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM category", Integer.class)).isEqualTo(2);
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM platform_admin", Integer.class)).isEqualTo(1);
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM web_credential", Integer.class)).isEqualTo(2);
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ledger_membership WHERE web_login_allowed = 1", Integer.class))
+        .isEqualTo(2);
   }
 }

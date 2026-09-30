@@ -14,14 +14,14 @@ services:
     container_name: family-ledger-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root123456}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?请在 .env 中设置数据库密码}
       MYSQL_DATABASE: family_ledger
       TZ: Asia/Shanghai
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_PASSWORD:-root123456}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_PASSWORD:?请在 .env 中设置数据库密码}"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -36,15 +36,20 @@ services:
       DB_PORT: "3306"
       DB_NAME: family_ledger
       DB_USER: root
-      DB_PASSWORD: ${DB_PASSWORD:-root123456}
-      # 家庭访问口令：prod profile 下缺任一变量，进程会拒绝启动。
-      # 默认 prod；若源站是纯 HTTP（未做 HTTPS），可在 .env 里设 SPRING_PROFILES_ACTIVE= 关掉，
-      # 门禁依然生效（配了口令就启用），只是不做生产 fail-fast 校验。详见 deploy/README.md 第八节。
+      DB_PASSWORD: ${DB_PASSWORD:?请在 .env 中设置数据库密码}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
-      FAMILY_ACCESS_CODE: ${FAMILY_ACCESS_CODE:?请在 .env 中设置家庭访问口令}
       SESSION_SECRET: ${SESSION_SECRET:?请在 .env 中设置会话签名密钥}
-      # 位于单层 Nginx 之后，信任 1 跳转发头，否则限流会把所有请求算成同一地址
-      TRUST_PROXY_HOPS: "1"
+      WECHAT_MINI_APP_ID: ${WECHAT_MINI_APP_ID:?请在 .env 中设置小程序 AppID}
+      WECHAT_MINI_APP_SECRET: ${WECHAT_MINI_APP_SECRET:?请在 .env 中设置小程序 AppSecret}
+      SPECIAL_LEDGER_NAME: ${SPECIAL_LEDGER_NAME:?请在 .env 中设置特殊账本名称}
+      PLATFORM_ADMIN_USERNAME: ${PLATFORM_ADMIN_USERNAME:?请在 .env 中设置平台管理员用户名}
+      PLATFORM_ADMIN_PASSWORD: ${PLATFORM_ADMIN_PASSWORD:?请在 .env 中设置平台管理员密码}
+      SPECIAL_LEDGER_OWNER_DISPLAY_NAME: ${SPECIAL_LEDGER_OWNER_DISPLAY_NAME:-本人}
+      SPECIAL_LEDGER_OWNER_USERNAME: ${SPECIAL_LEDGER_OWNER_USERNAME:?请在 .env 中设置特殊账本 Web 用户名}
+      SPECIAL_LEDGER_OWNER_PASSWORD: ${SPECIAL_LEDGER_OWNER_PASSWORD:?请在 .env 中设置特殊账本 Web 密码}
+      SPECIAL_LEDGER_MEMBER_DISPLAY_NAME: ${SPECIAL_LEDGER_MEMBER_DISPLAY_NAME:-配偶}
+      SPECIAL_LEDGER_MEMBER_USERNAME: ${SPECIAL_LEDGER_MEMBER_USERNAME:?请在 .env 中设置配偶 Web 用户名}
+      SPECIAL_LEDGER_MEMBER_PASSWORD: ${SPECIAL_LEDGER_MEMBER_PASSWORD:?请在 .env 中设置配偶 Web 密码}
     depends_on:
       mysql:
         condition: service_healthy

@@ -16,6 +16,7 @@ familyledger:
   wechat:
     app-id: test-app-id
     app-secret: test-app-secret
+    base-url: http://localhost
   seed:
     special-ledger-name: 测试特殊账本
     platform-admin:
