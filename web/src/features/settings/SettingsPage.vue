@@ -18,6 +18,9 @@ const members = ref<Membership[]>([]);
 const categories = ref<Category[]>([]);
 const inviteToken = ref('');
 const newCategory = ref('');
+const newCategoryKind = ref<Category['kind']>('expense');
+const editingCategoryId = ref<number | null>(null);
+const editingCategoryName = ref('');
 const loading = ref(true);
 const error = ref<string | null>(null);
 const mutationError = ref<string | null>(null);
@@ -73,6 +76,33 @@ async function addCategory(kind: Category['kind']) {
   catch (cause) { mutationError.value = messageOf(cause, '分类创建失败'); }
 }
 
+function startCategoryEdit(category: Category) {
+  editingCategoryId.value = category.id;
+  editingCategoryName.value = category.name;
+  mutationError.value = null;
+}
+
+function cancelCategoryEdit() {
+  editingCategoryId.value = null;
+  editingCategoryName.value = '';
+}
+
+async function saveCategoryEdit(category: Category) {
+  const name = editingCategoryName.value.trim();
+  if (!name || name === category.name) {
+    cancelCategoryEdit();
+    return;
+  }
+  mutationError.value = null;
+  try {
+    const updated = await apiPatch<Category>(`/api/categories/${category.id}`, { name });
+    Object.assign(category, updated);
+    cancelCategoryEdit();
+  } catch (cause) {
+    mutationError.value = messageOf(cause, '分类修改失败');
+  }
+}
+
 async function setCategoryArchived(category: Category, archived: boolean) {
   if (!props.permissions.canArchiveResources) return;
   mutationError.value = null;
@@ -103,8 +133,26 @@ onMounted(() => void load());
     </section>
     <section class="settings-group" aria-labelledby="categories-heading">
       <div class="settings-group__head"><h2 id="categories-heading">分类</h2></div>
-      <form class="family-form" @submit.prevent="addCategory('expense')"><label class="field family-form__field"><span class="field__label">新分类</span><input v-model="newCategory" class="field__control" aria-label="新分类名称" /></label><button type="submit" class="btn btn--primary">添加支出分类</button></form>
-      <ul class="settings-list"><li v-for="category in activeCategories" :key="category.id" class="settings-row"><span class="settings-row__name">{{ category.name }}</span><span class="settings-row__meta">{{ category.kind === 'expense' ? '支出' : '收入' }}</span><button v-if="props.permissions.canArchiveResources" type="button" class="btn btn--ghost btn--sm" @click="setCategoryArchived(category, true)">归档</button></li><li v-for="category in archivedCategories" :key="`archived-${category.id}`" class="settings-row"><span class="settings-row__name">{{ category.name }}</span><span class="settings-row__meta">已归档</span><button v-if="props.permissions.canArchiveResources" type="button" class="btn btn--ghost btn--sm" @click="setCategoryArchived(category, false)">恢复</button></li></ul>
+      <form class="family-form" @submit.prevent="addCategory(newCategoryKind)">
+        <label class="field family-form__field"><span class="field__label">新分类</span><input v-model="newCategory" class="field__control" aria-label="新分类名称" /></label>
+        <label class="field"><span class="field__label">分类类型</span><select v-model="newCategoryKind" class="field__control" aria-label="新分类类型"><option value="expense">支出</option><option value="income">收入</option></select></label>
+        <button type="submit" class="btn btn--primary">添加分类</button>
+      </form>
+      <ul class="settings-list">
+        <li v-for="category in activeCategories" :key="category.id" class="settings-row">
+          <template v-if="editingCategoryId === category.id">
+            <input v-model="editingCategoryName" class="field__control" :aria-label="`编辑分类 ${category.name}`" />
+            <button type="button" class="btn btn--sm" @click="saveCategoryEdit(category)">保存</button>
+            <button type="button" class="btn btn--ghost btn--sm" @click="cancelCategoryEdit">取消</button>
+          </template>
+          <template v-else>
+            <span class="settings-row__name">{{ category.name }}</span><span class="settings-row__meta">{{ category.kind === 'expense' ? '支出' : '收入' }}</span>
+            <button type="button" class="btn btn--ghost btn--sm" @click="startCategoryEdit(category)">编辑</button>
+            <button v-if="props.permissions.canArchiveResources" type="button" class="btn btn--ghost btn--sm" @click="setCategoryArchived(category, true)">归档</button>
+          </template>
+        </li>
+        <li v-for="category in archivedCategories" :key="`archived-${category.id}`" class="settings-row"><span class="settings-row__name">{{ category.name }}</span><span class="settings-row__meta">已归档</span><button v-if="props.permissions.canArchiveResources" type="button" class="btn btn--ghost btn--sm" @click="setCategoryArchived(category, false)">恢复</button></li>
+      </ul>
     </section>
   </div>
 </template>

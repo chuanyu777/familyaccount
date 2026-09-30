@@ -4,7 +4,7 @@ import { formatMoney } from '../../lib/format';
 import { cachedGet, apiPost, apiPatch, apiPut, apiDelete, ApiError } from '../../lib/api';
 import { publishResources } from '../../lib/resourceInvalidation';
 import LiabilitiesPage from './LiabilitiesPage.vue';
-import type { Account, Liability, Member, Repayment, Summary } from './types';
+import type { Account, Liability, Repayment, Summary } from './types';
 
 vi.mock('../../lib/api', () => {
   class ApiErrorImpl extends Error {
@@ -34,18 +34,14 @@ const mockedApiPatch = vi.mocked(apiPatch) as unknown as Mock;
 const mockedApiPut = vi.mocked(apiPut) as unknown as Mock;
 const mockedApiDelete = vi.mocked(apiDelete) as unknown as Mock;
 
-const members: Member[] = [
-  { id: 1, name: '我', color: '#f00' },
-  { id: 2, name: '配偶', color: '#0f0' },
-];
 const accounts: Account[] = [
-  { id: 1, name: '现金', balance: '0.00', balance_cents: 0, member_id: 1, is_default: true },
-  { id: 2, name: '银行卡', balance: '1000.00', balance_cents: 100000, member_id: 2, is_default: false },
+  { id: 1, name: '现金', balance: '0.00', balance_cents: 0, is_default: true },
+  { id: 2, name: '银行卡', balance: '1000.00', balance_cents: 100000, is_default: false },
 ];
 const liabilities: Liability[] = [
-  { id: 1, name: '房贷', remaining: '200000.00', monthlyPayment: '3000.00', payment_day: 5, member_id: 1 },
-  { id: 2, name: '消费贷', remaining: '50000.00', monthlyPayment: '', payment_day: 0, member_id: 2 },
-  { id: 3, name: '小贷', remaining: '500.00', monthlyPayment: '100.00', payment_day: 10, member_id: 2 },
+  { id: 1, name: '房贷', remaining: '200000.00', monthlyPayment: '3000.00', payment_day: 5 },
+  { id: 2, name: '消费贷', remaining: '50000.00', monthlyPayment: '', payment_day: 0 },
+  { id: 3, name: '小贷', remaining: '500.00', monthlyPayment: '100.00', payment_day: 10 },
 ];
 const repayments: Repayment[] = [
   { id: 1, liability_id: 1, amount_cents: 300000, occurred_on: '2026-09-10', account_id: 1 },
@@ -67,7 +63,6 @@ function setupCache() {
     if (path === '/api/stats/summary') return Promise.resolve(summary);
     if (path === '/api/liabilities') return Promise.resolve(liabilities);
     if (path === '/api/accounts') return Promise.resolve(accounts);
-    if (path === '/api/members') return Promise.resolve(members);
     if (path === '/api/repayments') return Promise.resolve(repayments);
     return Promise.resolve(undefined);
   });
@@ -199,6 +194,34 @@ describe('AC-01 顶部总览卡', () => {
 });
 
 describe('AC-02 负债列表', () => {
+  it('hides repayment controls for archived liabilities and filters archived accounts from repayment forms', async () => {
+    const archived = { ...liabilities[0]!, id: 9, name: '已归档负债', archived: 1 };
+    const archivedAccount = { ...accounts[0]!, id: 8, name: '已归档账户', archived: 1 };
+    mockedCachedGet.mockImplementation((path: string) => {
+      if (path === '/api/stats/summary') return Promise.resolve(summary);
+      if (path === '/api/liabilities') return Promise.resolve([...liabilities, archived]);
+      if (path === '/api/accounts') return Promise.resolve([...accounts, archivedAccount]);
+      if (path === '/api/repayments') return Promise.resolve(repayments);
+      return Promise.resolve(undefined);
+    });
+    wrapper = mount(LiabilitiesPage, { attachTo: document.body });
+    await settle();
+
+    const archivedRow = document.querySelector('[data-liability-row="9"]')!;
+    expect(archivedRow.textContent).not.toContain('还一笔');
+    (archivedRow.querySelector('.liab__hit') as HTMLElement).click();
+    await settle();
+    expect(findBtn('还一笔', document.querySelector('.sheet') ?? document.body)).toBeNull();
+    document.querySelector<HTMLButtonElement>('.sheet__close')?.click();
+    await settle();
+
+    const activeRow = document.querySelector('[data-liability-row="1"]')!;
+    (activeRow.querySelector('.liability-row__repay') as HTMLElement).click();
+    await settle();
+    const accountOptions = Array.from(document.querySelectorAll('[aria-label="还款账户"] option')).map((option) => option.textContent?.trim());
+    expect(accountOptions).not.toContain('已归档账户');
+  });
+
   it('uses a semantic unframed section for the liability list', async () => {
     wrapper = mount(LiabilitiesPage, { attachTo: document.body });
     await settle();
@@ -239,7 +262,6 @@ describe('AC-02 负债列表', () => {
       if (path === '/api/stats/summary') return Promise.resolve(summary);
       if (path === '/api/liabilities') return Promise.resolve(liabilities);
       if (path === '/api/accounts') return Promise.resolve(accounts);
-      if (path === '/api/members') return Promise.resolve(members);
       return Promise.resolve(undefined);
     });
     publishResources(['repayments']);
@@ -588,7 +610,6 @@ describe('AC-04 还款记录', () => {
       if (path === '/api/stats/summary') return Promise.resolve(summary);
       if (path === '/api/liabilities') return Promise.resolve(liabilities);
       if (path === '/api/accounts') return Promise.resolve(accounts);
-      if (path === '/api/members') return Promise.resolve(members);
       if (path === '/api/repayments') return Promise.resolve([]);
       return Promise.resolve(undefined);
     });
@@ -605,7 +626,6 @@ describe('AC-04 还款记录', () => {
       if (path === '/api/stats/summary') return Promise.resolve(summary);
       if (path === '/api/liabilities') return Promise.resolve(liabilities);
       if (path === '/api/accounts') return Promise.resolve(accounts);
-      if (path === '/api/members') return Promise.resolve(members);
       if (path === '/api/repayments') return pending.promise;
       return Promise.resolve([]);
     });
@@ -628,7 +648,6 @@ describe('AC-05 空状态与失败降级', () => {
     mockedCachedGet.mockImplementation((path: string) => {
       if (path === '/api/stats/summary') return Promise.resolve(summary);
       if (path === '/api/accounts') return Promise.resolve(accounts);
-      if (path === '/api/members') return Promise.resolve(members);
       return Promise.resolve([]);
     });
     wrapper = mount(LiabilitiesPage, { attachTo: document.body });
@@ -649,7 +668,6 @@ describe('AC-05 空状态与失败降级', () => {
       if (path === '/api/stats/summary') return Promise.resolve(summary);
       if (path === '/api/liabilities') return Promise.resolve(liabilities);
       if (path === '/api/accounts') return Promise.resolve(accounts);
-      if (path === '/api/members') return Promise.resolve(members);
       if (path === '/api/repayments') return Promise.reject(new Error('还款数据加载失败'));
       return Promise.resolve(undefined);
     });

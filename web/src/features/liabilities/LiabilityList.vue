@@ -97,6 +97,7 @@ function progressPercent(liability: Liability): number {
         </div>
 
         <button
+          v-if="!liability.archived"
           type="button"
           class="btn btn--sm liability-row__repay"
           @click.stop="emit('repay', liability)"

@@ -22,7 +22,7 @@ function setup() {
   mockedCachedGet.mockImplementation((path: string) => {
     if (path === '/api/ledgers') return Promise.resolve([ledger]);
     if (path.includes('/members')) return Promise.resolve(members);
-    return Promise.resolve(categories);
+    return Promise.resolve(categories.map((category) => ({ ...category })));
   });
   mockedApiPatch.mockResolvedValue({ ...ledger, name: '新账本' } as never);
   mockedApiPost.mockResolvedValue({ token: 'invite-token' } as never);
@@ -65,8 +65,28 @@ describe('SettingsPage ledger context', () => {
     await wrapper.get('button[type="submit"]').trigger('click');
     await settle();
     expect(mockedApiPatch).toHaveBeenCalledWith('/api/ledgers/9', { name: '新账本' });
-    await wrapper.get('[aria-labelledby="categories-heading"] .settings-row button').trigger('click');
+    await wrapper.findAll('[aria-labelledby="categories-heading"] .settings-row button').find((button) => button.text() === '归档')!.trigger('click');
     await settle();
     expect(mockedApiPost).toHaveBeenCalledWith('/api/categories/1/archive', {});
+  });
+
+  it('lets members create income categories and edit active categories', async () => {
+    mockedApiPost.mockResolvedValue({ id: 2, kind: 'income', name: '奖金', archived: false } as never);
+    mockedApiPatch.mockResolvedValue({ id: 1, kind: 'expense', name: '餐饮改名', archived: false } as never);
+    const wrapper = mount(SettingsPage, { props: { permissions: { isOwner: false, canManageMembers: false, canRenameLedger: false, canArchiveResources: false } }, attachTo: document.body });
+    await settle();
+
+    await wrapper.get('[aria-label="新分类类型"]').setValue('income');
+    await wrapper.get('[aria-label="新分类名称"]').setValue('奖金');
+    await wrapper.get('[aria-labelledby="categories-heading"] form').trigger('submit');
+    await settle();
+    expect(mockedApiPost).toHaveBeenCalledWith('/api/categories', { kind: 'income', name: '奖金' });
+
+    const activeCategoryRow = wrapper.findAll('[aria-labelledby="categories-heading"] .settings-row').find((row) => row.text().includes('餐饮') && !row.text().includes('已归档'))!;
+    await activeCategoryRow.find('button').trigger('click');
+    await wrapper.get('[aria-label="编辑分类 餐饮"]').setValue('餐饮改名');
+    await wrapper.findAll('[aria-labelledby="categories-heading"] button').find((button) => button.text() === '保存')!.trigger('click');
+    await settle();
+    expect(mockedApiPatch).toHaveBeenCalledWith('/api/categories/1', { name: '餐饮改名' });
   });
 });

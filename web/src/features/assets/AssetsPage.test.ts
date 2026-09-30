@@ -4,7 +4,7 @@ import { formatMoney } from '../../lib/format';
 import { cachedGet, apiPost, apiPatch, apiDelete, ApiError } from '../../lib/api';
 import { publishResources } from '../../lib/resourceInvalidation';
 import AssetsPage from './AssetsPage.vue';
-import type { Account, Asset, Member, Summary } from './types';
+import type { Account, Asset, Summary } from './types';
 
 vi.mock('../../lib/api', () => {
   class ApiErrorImpl extends Error {
@@ -33,13 +33,9 @@ const mockedApiPost = vi.mocked(apiPost) as unknown as Mock;
 const mockedApiPatch = vi.mocked(apiPatch) as unknown as Mock;
 const mockedApiDelete = vi.mocked(apiDelete) as unknown as Mock;
 
-const members: Member[] = [
-  { id: 1, name: '我', color: '#f00' },
-  { id: 2, name: '配偶', color: '#0f0' },
-];
 const accounts: Account[] = [
-  { id: 1, name: '现金', balance: '0.00', balance_cents: 0, member_id: 1, is_default: true },
-  { id: 2, name: '银行卡', balance: '-200.00', balance_cents: -20000, member_id: 2, is_default: false },
+  { id: 1, name: '现金', balance: '0.00', balance_cents: 0, is_default: true },
+  { id: 2, name: '银行卡', balance: '-200.00', balance_cents: -20000, is_default: false },
 ];
 const assets: Asset[] = [
   {
@@ -48,9 +44,7 @@ const assets: Asset[] = [
     value: '1000000.00',
     value_cents: 100000000,
     kind: '不动产',
-    member_id: 1,
     updated_at: '2026-09-01',
-    updated_by_member_id: 1,
   },
   {
     id: 2,
@@ -58,9 +52,7 @@ const assets: Asset[] = [
     value: '50000.00',
     value_cents: 5000000,
     kind: '投资',
-    member_id: 2,
     updated_at: '2026-09-02',
-    updated_by_member_id: 2,
   },
 ];
 const summary: Summary = {
@@ -99,7 +91,6 @@ function setupCache() {
     if (path === '/api/stats/summary') return Promise.resolve(summary);
     if (path === '/api/accounts') return Promise.resolve(accounts);
     if (path === '/api/assets') return Promise.resolve(assets);
-    if (path === '/api/members') return Promise.resolve(members);
     if (path === '/api/repayments') return Promise.resolve([]);
     if (/\/api\/assets\/\d+\/snapshots$/.test(path)) return Promise.resolve(snapshots);
     return Promise.resolve(undefined);
@@ -254,6 +245,20 @@ describe('financial writes retain their pending and failed surfaces', () => {
 });
 
 describe('shared ledger ownership', () => {
+  it('hides snapshot creation for archived assets', async () => {
+    mockedCachedGet.mockImplementation((path: string) => {
+      if (path === '/api/stats/summary') return Promise.resolve(summary);
+      if (path === '/api/accounts') return Promise.resolve(accounts);
+      if (path === '/api/assets') return Promise.resolve([{ ...assets[0]!, id: 9, name: '已归档资产', archived: 1 }]);
+      return Promise.resolve(undefined);
+    });
+    wrapper = mount(AssetsPage, { attachTo: document.body });
+    await settle();
+    document.querySelector<HTMLElement>('[data-asset-row="9"]')?.click();
+    await settle();
+    expect(findBtn('更新市值')).toBeNull();
+  });
+
   it('does not load or render legacy member ownership', async () => {
     wrapper = mount(AssetsPage, { attachTo: document.body });
     await settle();
@@ -555,7 +560,6 @@ describe('AC-04 空状态与失败降级', () => {
   it('无账户/资产时显示引导文案且不报错', async () => {
     mockedCachedGet.mockImplementation((path: string) => {
       if (path === '/api/stats/summary') return Promise.resolve(summary);
-      if (path === '/api/members') return Promise.resolve(members);
       return Promise.resolve([]);
     });
     wrapper = mount(AssetsPage, { attachTo: document.body });
@@ -577,7 +581,6 @@ describe('AC-04 空状态与失败降级', () => {
     mockedCachedGet.mockImplementation((path: string) => {
       if (path === '/api/stats/summary') return Promise.resolve(summary);
       if (path === '/api/accounts') return Promise.resolve(accounts);
-      if (path === '/api/members') return Promise.resolve(members);
       if (path === '/api/assets') {
         assetRequests += 1;
         return assetRequests === 1 ? Promise.reject(new Error('assets offline')) : Promise.resolve(assets);
@@ -651,7 +654,6 @@ describe('AC-05 资产市值历史', () => {
       if (path === '/api/stats/summary') return Promise.resolve(summary);
       if (path === '/api/accounts') return Promise.resolve(accounts);
       if (path === '/api/assets') return Promise.resolve(assets);
-      if (path === '/api/members') return Promise.resolve(members);
       if (/\/api\/assets\/\d+\/snapshots$/.test(path)) {
         return Promise.reject(new Error(options.force ? 'history offline' : 'history unavailable'));
       }

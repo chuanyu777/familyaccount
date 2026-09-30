@@ -61,3 +61,39 @@ The feature test run completed without Vue warning output.
 - Feature test fixtures still contain a small amount of legacy `member_id` data to model old backend-shaped fixtures; production request paths and UI no longer use those fields. The compatibility fields can be removed after all fixture/API consumers are fully migrated.
 - The backend category contract currently exposes create/archive/restore but no dedicated category rename endpoint, so settings supports active category creation and owner archive/restore while category editing remains represented by transaction category creation.
 - The full repository test suite was not run because the requested verification scope was the Web feature suite plus typecheck/build.
+
+## Review fixes
+
+Addressed all five review findings:
+
+- Archived liabilities no longer render row-level or detail-level `还一笔` controls.
+- Archived assets no longer render `更新市值`.
+- Repayment forms now receive only non-archived accounts; archived accounts remain available for historical repayment display.
+- Settings now lets members choose expense or income when creating a category and edit active category names. Owner-only archive/restore controls remain unchanged.
+- Removed `member_id`, `updated_by_member_id`, and the legacy `Member` type from asset/liability shared-resource contracts and updated their fixtures.
+
+Focused regression coverage was added to the assets, liabilities, and settings feature tests.
+
+Review-fix verification:
+
+```text
+$ npm test -- web/src/features/assets/AssetsPage.test.ts web/src/features/liabilities/LiabilitiesPage.test.ts web/src/features/settings/SettingsPage.test.ts
+Test Files  3 passed (3)
+Tests       78 passed (78)
+
+$ npm test -- web/src/features
+Test Files  9 passed (9)
+Tests       134 passed (134)
+
+$ npm run typecheck
+> family-ledger@0.1.0 typecheck
+> vue-tsc --noEmit
+exit 0
+
+$ npm run build
+✓ 1840 modules transformed.
+✓ built in 2.45s
+exit 0
+```
+
+Remaining concern: the current backend `CategoryController` exposes category create/upsert and archive/restore, but no `PATCH /api/categories/{id}` rename endpoint. The web edit control targets that ledger-scoped endpoint; implementing the backend route is intentionally outside this Task 2 web-only fix and should be handled with the backend contract work.

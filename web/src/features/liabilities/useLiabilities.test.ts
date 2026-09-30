@@ -4,7 +4,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils';
 import { cachedGet } from '../../lib/api';
 import { publishResources } from '../../lib/resourceInvalidation';
 import { useLiabilities } from './useLiabilities';
-import type { Account, Liability, Member, Repayment, Summary } from './types';
+import type { Account, Liability, Repayment, Summary } from './types';
 
 vi.mock('../../lib/api', () => ({
   cachedGet: vi.fn(),
@@ -21,13 +21,12 @@ const summary: Summary = {
   assetsTotalCents: 0,
 };
 const liabilities: Liability[] = [
-  { id: 1, name: '房贷', remaining: '200000.00', monthlyPayment: '3000.00', payment_day: 5, member_id: 1 },
-  { id: 2, name: '车贷', remaining: '50000.00', monthlyPayment: '1000.00', payment_day: 10, member_id: 1 },
+  { id: 1, name: '房贷', remaining: '200000.00', monthlyPayment: '3000.00', payment_day: 5 },
+  { id: 2, name: '车贷', remaining: '50000.00', monthlyPayment: '1000.00', payment_day: 10 },
 ];
 const accounts: Account[] = [
   { id: 1, name: '现金', balance: '1000.00', balance_cents: 100000, is_default: true },
 ];
-const members: Member[] = [{ id: 1, name: '我' }];
 const repayments: Repayment[] = [
   { id: 1, liability_id: 1, amount_cents: 300000, occurred_on: '2026-09-10', account_id: 1 },
   { id: 2, liability_id: 2, amount_cents: 500000, occurred_on: '2026-09-11', account_id: 1 },
@@ -47,7 +46,6 @@ function defaultResponse(path: string, params?: Record<string, unknown>) {
   if (path === '/api/stats/summary') return Promise.resolve(summary);
   if (path === '/api/liabilities') return Promise.resolve(liabilities);
   if (path === '/api/accounts') return Promise.resolve(accounts);
-  if (path === '/api/members') return Promise.resolve(members);
   if (path === '/api/repayments') return Promise.resolve(repayments);
   return Promise.resolve(undefined);
 }

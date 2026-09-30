@@ -347,7 +347,7 @@ function updatedLabel(a: Asset): string {
       </section>
 
       <div class="detail__actions">
-        <button type="button" class="btn btn--primary" @click="openSnapshotForm(detailAsset!)">
+        <button v-if="!detailAsset.archived" type="button" class="btn btn--primary" @click="openSnapshotForm(detailAsset!)">
           更新市值
         </button>
         <button type="button" class="btn" @click="editAssetFromDetail(detailAsset!)">编辑</button>
