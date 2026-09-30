@@ -33,6 +33,14 @@ services:
       DB_NAME: family_ledger
       DB_USER: root
       DB_PASSWORD: root123456
+      SESSION_SECRET: local-development-session-secret
+      SPECIAL_LEDGER_NAME: 本地测试特殊账本
+      PLATFORM_ADMIN_USERNAME: platform-admin
+      PLATFORM_ADMIN_PASSWORD: platform-admin-password
+      SPECIAL_LEDGER_OWNER_USERNAME: ledger-owner
+      SPECIAL_LEDGER_OWNER_PASSWORD: ledger-owner-password
+      SPECIAL_LEDGER_MEMBER_USERNAME: ledger-member
+      SPECIAL_LEDGER_MEMBER_PASSWORD: ledger-member-password
     ports:
       - "3001:3001"
 

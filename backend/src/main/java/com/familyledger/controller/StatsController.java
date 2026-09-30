@@ -27,7 +27,7 @@ public class StatsController {
   @GetMapping("/monthly-trend")
   public List<Map<String, Object>> trend(HttpServletRequest request, @RequestParam(value = "months", required = false) String months,
       @RequestParam(value = "end", required = false) String end) {
-    int n = months == null ? 6 : Integer.parseInt(months);
+    int n = months == null ? 6 : Params.parseIntPositive(months, "months");
     return service.monthlyTrend(LedgerRequest.context(request, null, guard, authorization), n,
         end == null ? null : Params.parseMonth(end, "end"));
   }

@@ -1,5 +1,7 @@
 # 家庭记账簿 — 设计文档
 
+> **历史文档提示（2026-09-30）：** 本文保留的是早期单家庭/共享访问口令模型，不是当前实现基线。当前多租户后端以 `docs/superpowers/specs/2026-09-29-multi-tenant-ledger-and-mini-program-design.md`、`docs/superpowers/plans/2026-09-29-multi-tenant-backend-foundation-plan.md` 和 `backend/README.md` 为准；不要按本文的 `FAMILY_ACCESS_CODE`、`/api/access/*` 或 `/api/family` 配置和调用。
+
 > 状态：**已按代码现状重写**（基线分支 `feature/access-category-management`）。
 > 本文描述的是**当前真实存在**的系统。写计划/改需求前先读 `docs/status.md`（代码事实基线），冲突时以它为准。
 > 架构口径：**Spring Boot（Java 17）+ Vue 3 + MySQL 8**。原 Node/Express + SQLite 后端 `server/` 已删除，

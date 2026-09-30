@@ -33,7 +33,7 @@ public class InvitationController {
   public ResponseEntity<InvitationView> create(@PathVariable Object ledgerId,
       HttpServletRequest request) {
     AuthPrincipal principal = guard.requireLedgerUser(request);
-    InvitationView result = invitations.create(principal.userId(), Params.parseId(ledgerId));
+    InvitationView result = invitations.create(principal, Params.parseId(ledgerId));
     return ResponseEntity.status(HttpStatus.CREATED).body(result);
   }
 
@@ -41,29 +41,29 @@ public class InvitationController {
   public LedgerMembershipView accept(HttpServletRequest request,
       @RequestBody(required = false) Map<String, Object> body) {
     AuthPrincipal principal = guard.requireLedgerUser(request);
-    return invitations.accept(principal.userId(), text(body, "token"));
+    return invitations.accept(principal, text(body, "token"));
   }
 
   @PostMapping("/api/invitations/{id}/revoke")
   public ResponseEntity<Void> revoke(@PathVariable Object id, HttpServletRequest request) {
-    invitations.revoke(guard.requireLedgerUser(request).userId(), Params.parseId(id));
+    invitations.revoke(guard.requireLedgerUser(request), Params.parseId(id));
     return ResponseEntity.noContent().build();
   }
 
   @GetMapping("/api/ledgers/{ledgerId}/members")
   public List<LedgerMembershipView> members(@PathVariable Object ledgerId, HttpServletRequest request) {
-    return memberships.list(guard.requireLedgerUser(request).userId(), Params.parseId(ledgerId));
+    return memberships.list(guard.requireLedgerUser(request), Params.parseId(ledgerId));
   }
 
   @DeleteMapping("/api/memberships/{id}")
   public ResponseEntity<Void> remove(@PathVariable Object id, HttpServletRequest request) {
-    memberships.remove(guard.requireLedgerUser(request).userId(), Params.parseId(id));
+    memberships.remove(guard.requireLedgerUser(request), Params.parseId(id));
     return ResponseEntity.noContent().build();
   }
 
   @PostMapping("/api/ledgers/{ledgerId}/leave")
   public ResponseEntity<Void> leave(@PathVariable Object ledgerId, HttpServletRequest request) {
-    memberships.leave(guard.requireLedgerUser(request).userId(), Params.parseId(ledgerId));
+    memberships.leave(guard.requireLedgerUser(request), Params.parseId(ledgerId));
     return ResponseEntity.noContent().build();
   }
 

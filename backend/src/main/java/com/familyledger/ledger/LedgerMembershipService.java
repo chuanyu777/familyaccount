@@ -19,7 +19,11 @@ public class LedgerMembershipService {
   }
 
   public List<LedgerMembershipView> list(long userId, long ledgerId) {
-    authorization.requireMembership(AuthPrincipal.ledgerUser(userId), ledgerId);
+    return list(AuthPrincipal.ledgerUser(userId), ledgerId);
+  }
+
+  public List<LedgerMembershipView> list(AuthPrincipal principal, long ledgerId) {
+    authorization.requireMembership(principal, ledgerId);
     return db.query("SELECT lm.id, lm.user_id, lm.role, lm.active, u.display_name "
             + "FROM ledger_membership lm JOIN app_user u ON u.id = lm.user_id "
             + "WHERE lm.ledger_id = ? ORDER BY lm.id",
@@ -29,8 +33,13 @@ public class LedgerMembershipService {
 
   @Transactional
   public void remove(long ownerId, long membershipId) {
+    remove(AuthPrincipal.ledgerUser(ownerId), membershipId);
+  }
+
+  @Transactional
+  public void remove(AuthPrincipal principal, long membershipId) {
     LedgerMembershipTarget target = target(membershipId);
-    authorization.requireOwner(AuthPrincipal.ledgerUser(ownerId), target.ledgerId());
+    authorization.requireOwner(principal, target.ledgerId());
     if ("OWNER".equals(target.role())) {
       throw ApiException.conflict("OWNER_CANNOT_BE_REMOVED", "账本所有者不能被移除");
     }
@@ -39,10 +48,15 @@ public class LedgerMembershipService {
 
   @Transactional
   public void leave(long userId, long ledgerId) {
-    LedgerContext context = authorization.requireMembership(AuthPrincipal.ledgerUser(userId), ledgerId);
+    leave(AuthPrincipal.ledgerUser(userId), ledgerId);
+  }
+
+  @Transactional
+  public void leave(AuthPrincipal principal, long ledgerId) {
+    LedgerContext context = authorization.requireMembership(principal, ledgerId);
     if (context.isOwner()) throw ApiException.conflict("OWNER_CANNOT_LEAVE", "账本所有者不能退出");
     db.update("UPDATE ledger_membership SET active = 0 WHERE ledger_id = ? AND user_id = ?",
-        ledgerId, userId);
+        ledgerId, principal.userId());
   }
 
   private LedgerMembershipTarget target(long membershipId) {

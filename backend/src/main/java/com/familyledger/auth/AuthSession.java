@@ -62,9 +62,10 @@ public final class AuthSession {
   }
 
   public static String cookieHeader(String name, AuthPrincipal principal, AuthConfig config, long nowMillis) {
+    String secure = config.isCookieSecure() ? "; Secure" : "";
     return name + "=" + issue(principal, config.getSessionSecret(), nowMillis, config.getSessionTtlMillis())
         + "; Max-Age=" + (config.getSessionTtlMillis() / 1000)
-        + "; Path=/; HttpOnly; SameSite=Strict";
+        + "; Path=/; HttpOnly; SameSite=Strict" + secure;
   }
 
   public static String clearCookieHeader(String name) {
@@ -74,17 +75,19 @@ public final class AuthSession {
   public static Optional<AuthPrincipal> fromRequest(HttpServletRequest request, AuthConfig config) {
     Cookie[] cookies = request.getCookies();
     if (cookies == null) return Optional.empty();
+    String uri = request.getRequestURI();
+    String expectedName = uri.startsWith("/api/platform/") ? config.getPlatformCookie()
+        : uri.equals("/api/auth/session") ? null : config.getLedgerCookie();
+    Optional<AuthPrincipal> fallback = Optional.empty();
     for (Cookie cookie : cookies) {
-      if (config.getLedgerCookie().equals(cookie.getName())) {
-        Optional<AuthPrincipal> parsed = parse(cookie.getValue(), config.getSessionSecret(), System.currentTimeMillis());
-        if (parsed.isPresent()) return parsed;
-      }
-      if (config.getPlatformCookie().equals(cookie.getName())) {
-        Optional<AuthPrincipal> parsed = parse(cookie.getValue(), config.getSessionSecret(), System.currentTimeMillis());
-        if (parsed.isPresent()) return parsed;
-      }
+      if (!config.getLedgerCookie().equals(cookie.getName())
+          && !config.getPlatformCookie().equals(cookie.getName())) continue;
+      Optional<AuthPrincipal> parsed = parse(cookie.getValue(), config.getSessionSecret(), System.currentTimeMillis());
+      if (parsed.isEmpty()) continue;
+      if (expectedName == null || expectedName.equals(cookie.getName())) return parsed;
+      fallback = parsed;
     }
-    return Optional.empty();
+    return fallback;
   }
 
   private static String value(Long value) { return value == null ? "" : Long.toString(value); }

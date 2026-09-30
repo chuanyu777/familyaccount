@@ -33,6 +33,11 @@ class MoneyTest {
     assertThatThrownBy(() -> Money.toCents("")).isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> Money.toCents(null)).isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> Money.toCents("12.34.5")).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> Money.toCents("92233720368547758.08"))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> Money.toCents("-92233720368547758.09"))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThat(Money.toCents("-92233720368547758.08")).isEqualTo(Long.MIN_VALUE);
   }
 
   @Test
@@ -42,5 +47,6 @@ class MoneyTest {
     assertThat(Money.toYuanString(0L)).isEqualTo("0.00");
     assertThat(Money.toYuanString(100000000L)).isEqualTo("1000000.00");
     assertThat(Money.toYuanString(-13024089L)).isEqualTo("-130240.89");
+    assertThat(Money.toYuanString(Long.MIN_VALUE)).isEqualTo("-92233720368547758.08");
   }
 }

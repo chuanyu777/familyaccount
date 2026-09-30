@@ -89,6 +89,9 @@ public class AuthController {
     String bindingCode = text(body, "bindingCode");
     String loginCode = text(body, "code");
     WeChatClient.WeChatIdentity identity = service.exchangeWeChatCode(loginCode);
+    if (identity == null || identity.openid() == null || identity.openid().isBlank()) {
+      throw ApiException.unauthorized("WECHAT_LOGIN_FAILED", "微信登录失败");
+    }
     AuthPrincipal principal = service.bindWeChatIdentity(bindingCode, identity.openid());
     response.addHeader("Set-Cookie", AuthSession.cookieHeader(config.getLedgerCookie(), principal, config,
         System.currentTimeMillis()));

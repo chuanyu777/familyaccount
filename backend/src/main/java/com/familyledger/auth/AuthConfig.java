@@ -17,6 +17,7 @@ public class AuthConfig {
   private final String wechatAppId;
   private final String wechatAppSecret;
   private final String wechatBaseUrl;
+  private final boolean cookieSecure;
 
   public AuthConfig(
       Environment environment,
@@ -24,13 +25,15 @@ public class AuthConfig {
       @Value("${familyledger.auth.session-ttl-seconds:2592000}") long sessionTtlSeconds,
       @Value("${familyledger.wechat.app-id:}") String wechatAppId,
       @Value("${familyledger.wechat.app-secret:}") String wechatAppSecret,
-      @Value("${familyledger.wechat.base-url:https://api.weixin.qq.com}") String wechatBaseUrl) {
+      @Value("${familyledger.wechat.base-url:https://api.weixin.qq.com}") String wechatBaseUrl,
+      @Value("${familyledger.auth.cookie-secure:false}") boolean cookieSecure) {
     this.production = environment != null && environment.acceptsProfiles(Profiles.of("prod", "production"));
     this.sessionSecret = sessionSecret == null ? "" : sessionSecret.trim();
     this.sessionTtlMillis = sessionTtlSeconds * 1000L;
     this.wechatAppId = wechatAppId == null ? "" : wechatAppId.trim();
     this.wechatAppSecret = wechatAppSecret == null ? "" : wechatAppSecret.trim();
     this.wechatBaseUrl = wechatBaseUrl == null ? "" : wechatBaseUrl.trim();
+    this.cookieSecure = cookieSecure;
     if (sessionTtlSeconds <= 0) throw new IllegalArgumentException("session TTL must be positive");
   }
 
@@ -38,6 +41,9 @@ public class AuthConfig {
   void assertProductionConfig() {
     if (production && sessionSecret.isEmpty()) {
       throw new IllegalStateException("SESSION_SECRET is required in production");
+    }
+    if (production && !cookieSecure) {
+      throw new IllegalStateException("SESSION_COOKIE_SECURE must be true in production");
     }
   }
 
@@ -48,4 +54,5 @@ public class AuthConfig {
   public String getWechatAppId() { return wechatAppId; }
   public String getWechatAppSecret() { return wechatAppSecret; }
   public String getWechatBaseUrl() { return wechatBaseUrl; }
+  public boolean isCookieSecure() { return cookieSecure; }
 }

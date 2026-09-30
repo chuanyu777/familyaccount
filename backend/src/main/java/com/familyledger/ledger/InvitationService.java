@@ -32,7 +32,13 @@ public class InvitationService {
 
   @Transactional
   public InvitationView create(long ownerId, long ledgerId) {
-    authorization.requireOwner(AuthPrincipal.ledgerUser(ownerId), ledgerId);
+    return create(AuthPrincipal.ledgerUser(ownerId), ledgerId);
+  }
+
+  @Transactional
+  public InvitationView create(AuthPrincipal principal, long ledgerId) {
+    authorization.requireOwner(principal, ledgerId);
+    long ownerId = principal.userId();
     byte[] bytes = new byte[32];
     random.nextBytes(bytes);
     String token = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
@@ -45,6 +51,12 @@ public class InvitationService {
 
   @Transactional
   public LedgerMembershipView accept(long userId, String token) {
+    return accept(AuthPrincipal.ledgerUser(userId), token);
+  }
+
+  @Transactional
+  public LedgerMembershipView accept(AuthPrincipal principal, String token) {
+    long userId = principal.userId();
     if (token == null || token.isBlank()) throw invitationInvalid();
     List<Map<String, Object>> invitations = db.queryForList(
         "SELECT id, ledger_id, expires_at, revoked_at, accepted_at, accepted_by_user_id "
@@ -52,6 +64,7 @@ public class InvitationService {
     if (invitations.isEmpty()) throw invitationInvalid();
     Map<String, Object> invitation = invitations.get(0);
     long ledgerId = ((Number) invitation.get("ledger_id")).longValue();
+    if (principal.webSession()) authorization.requireSpecialLedger(principal, ledgerId);
     if (invitation.get("accepted_at") != null) {
       Object acceptedBy = invitation.get("accepted_by_user_id");
       if (acceptedBy != null && ((Number) acceptedBy).longValue() == userId) {
@@ -81,10 +94,15 @@ public class InvitationService {
 
   @Transactional
   public void revoke(long ownerId, long invitationId) {
+    revoke(AuthPrincipal.ledgerUser(ownerId), invitationId);
+  }
+
+  @Transactional
+  public void revoke(AuthPrincipal principal, long invitationId) {
     Long ledgerId = db.queryForObject("SELECT ledger_id FROM ledger_invitation WHERE id = ?",
         Long.class, invitationId);
     if (ledgerId == null) throw ApiException.notFound("INVITATION_NOT_FOUND", "邀请不存在");
-    authorization.requireOwner(AuthPrincipal.ledgerUser(ownerId), ledgerId);
+    authorization.requireOwner(principal, ledgerId);
     db.update("UPDATE ledger_invitation SET revoked_at = ? WHERE id = ? AND accepted_at IS NULL",
         Time.now(), invitationId);
   }

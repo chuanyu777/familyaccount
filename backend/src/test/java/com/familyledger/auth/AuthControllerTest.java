@@ -86,6 +86,19 @@ class AuthControllerTest {
   }
 
   @Test
+  void ledgerEndpointUsesLedgerCookieWhenBothSessionsArePresent() throws Exception {
+    Cookie ledger = loginWeb();
+    Cookie platform = mvc.perform(post("/api/auth/platform/login")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"username\":\"platform-admin\",\"password\":\"platform-admin-password\"}"))
+        .andExpect(status().isNoContent()).andReturn().getResponse().getCookie("platform_session");
+    long ledgerId = db.queryForObject("SELECT id FROM ledger WHERE is_web_enabled = 1", Long.class);
+
+    mvc.perform(get("/api/transactions").cookie(platform, ledger).header("X-Ledger-Id", ledgerId))
+        .andExpect(status().isOk());
+  }
+
+  @Test
   void wechatLoginCreatesUserAndIdentityOnlyOnce() throws Exception {
     when(weChatClient.exchangeLoginCode("wx-code"))
         .thenReturn(new WeChatIdentity("openid-1"));

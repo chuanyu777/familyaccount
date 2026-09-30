@@ -1,6 +1,7 @@
 package com.familyledger.common;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.regex.Pattern;
 
 /**
@@ -29,29 +30,18 @@ public final class Money {
       throw new IllegalArgumentException("INVALID_AMOUNT");
     }
 
-    boolean negative = s.startsWith("-");
-    String abs = negative ? s.substring(1) : s;
-    int dotIdx = abs.indexOf('.');
-    String intPart = dotIdx == -1 ? abs : abs.substring(0, dotIdx);
-    String fracPart = dotIdx == -1 ? "" : abs.substring(dotIdx + 1);
-
-    long intVal = Long.parseLong(intPart);
-    int d1 = fracPart.length() > 0 ? fracPart.charAt(0) - '0' : 0;
-    int d2 = fracPart.length() > 1 ? fracPart.charAt(1) - '0' : 0;
-    int d3 = fracPart.length() > 2 ? fracPart.charAt(2) - '0' : 0;
-
-    long cents = intVal * 100 + d1 * 10L + d2;
-    if (d3 >= 5) cents += 1;
-    return negative ? -cents : cents;
+    try {
+      return new BigDecimal(s).movePointRight(2)
+          .setScale(0, RoundingMode.HALF_UP)
+          .longValueExact();
+    } catch (ArithmeticException e) {
+      throw new IllegalArgumentException("INVALID_AMOUNT", e);
+    }
   }
 
   /** 整数分 -> 两位小数字符串元。如 1234 -> "12.34"，-5 -> "-0.05"。 */
   public static String toYuanString(long cents) {
-    boolean negative = cents < 0;
-    long abs = Math.abs(cents);
-    long yuan = abs / 100;
-    long rem = abs % 100;
-    return (negative ? "-" : "") + yuan + "." + String.format("%02d", rem);
+    return BigDecimal.valueOf(cents, 2).setScale(2).toPlainString();
   }
 
   private static String numberToString(Number n) {

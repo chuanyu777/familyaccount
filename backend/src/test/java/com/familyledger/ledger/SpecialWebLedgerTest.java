@@ -9,6 +9,7 @@ import com.familyledger.TestDb;
 import com.familyledger.common.Db;
 import com.familyledger.common.Time;
 import com.familyledger.db.Seeder;
+import com.familyledger.ledger.InvitationService;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,7 @@ class SpecialWebLedgerTest {
   @Autowired MockMvc mvc;
   @Autowired JdbcTemplate db;
   @Autowired Seeder seeder;
+  @Autowired InvitationService invitations;
 
   @BeforeEach
   void reset() {
@@ -65,6 +67,23 @@ class SpecialWebLedgerTest {
   void webUserCannotCreateAnotherLedger() throws Exception {
     mvc.perform(post("/api/ledgers").cookie(webLogin("ledger-owner", "ledger-owner-password"))
             .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"不应创建\"}"))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void webUserCannotAcceptInvitationForAnotherLedger() throws Exception {
+    long otherOwner = Db.insert(db,
+        "INSERT INTO app_user (display_name, created_at) VALUES (?, ?)", "其他账本所有者", Time.now());
+    long otherLedger = Db.insert(db,
+        "INSERT INTO ledger (name, is_web_enabled, created_by_user_id, created_at) VALUES (?, 0, ?, ?)",
+        "其他账本", otherOwner, Time.now());
+    db.update("INSERT INTO ledger_membership (ledger_id, user_id, role, web_login_allowed, active, joined_at) "
+        + "VALUES (?, ?, 'OWNER', 0, 1, ?)", otherLedger, otherOwner, Time.now());
+    InvitationView invitation = invitations.create(otherOwner, otherLedger);
+
+    mvc.perform(post("/api/invitations/accept").cookie(webLogin("ledger-owner", "ledger-owner-password"))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"token\":\"" + invitation.token() + "\"}"))
         .andExpect(status().isForbidden());
   }
 
