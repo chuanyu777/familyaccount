@@ -4,6 +4,7 @@ import com.familyledger.common.ApiException;
 import com.familyledger.common.Money;
 import com.familyledger.common.MonthUtil;
 import com.familyledger.common.Row;
+import com.familyledger.ledger.LedgerContext;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,11 +29,12 @@ public class StatsService {
     return com.familyledger.common.Db.queryLong(db, sql, args);
   }
 
-  public Map<String, Object> summary() {
-    long accountsTotalCents = sum("SELECT COALESCE(SUM(balance_cents), 0) FROM account");
-    long assetsTotalCents = sum("SELECT COALESCE(SUM(value_cents), 0) FROM asset");
-    long totalLiabilitiesCents = sum("SELECT COALESCE(SUM(remaining_cents), 0) FROM liability");
-    long monthlyPaymentTotalCents = sum("SELECT COALESCE(SUM(monthly_payment_cents), 0) FROM liability");
+  public Map<String, Object> summary(LedgerContext context) {
+    long ledgerId = context.ledgerId();
+    long accountsTotalCents = sum("SELECT COALESCE(SUM(balance_cents), 0) FROM account WHERE ledger_id = ?", ledgerId);
+    long assetsTotalCents = sum("SELECT COALESCE(SUM(value_cents), 0) FROM asset WHERE ledger_id = ?", ledgerId);
+    long totalLiabilitiesCents = sum("SELECT COALESCE(SUM(remaining_cents), 0) FROM liability WHERE ledger_id = ?", ledgerId);
+    long monthlyPaymentTotalCents = sum("SELECT COALESCE(SUM(monthly_payment_cents), 0) FROM liability WHERE ledger_id = ? AND archived = 0", ledgerId);
     long totalAssetsCents = accountsTotalCents + assetsTotalCents;
     long netWorthCents = totalAssetsCents - totalLiabilitiesCents;
 
@@ -52,7 +54,10 @@ public class StatsService {
     return m;
   }
 
-  public List<Map<String, Object>> monthlyTrend(int months, String endMonth) {
+  public List<Map<String, Object>> monthlyTrend(LedgerContext context, int months, String endMonth) {
+    if (months < 1 || months > 24) {
+      throw ApiException.badRequest("VALIDATION_FAILED", "months 需在 1-24");
+    }
     if (endMonth != null && !MonthUtil.isValidMonth(endMonth)) {
       throw ApiException.badRequest("VALIDATION_FAILED", "end 需为 YYYY-MM");
     }
@@ -63,7 +68,7 @@ public class StatsService {
           "SELECT "
               + "COALESCE(SUM(CASE WHEN type = 'income' THEN amount_cents ELSE 0 END), 0) AS income, "
               + "COALESCE(SUM(CASE WHEN type = 'expense' THEN amount_cents ELSE 0 END), 0) AS expense "
-              + "FROM txn WHERE occurred_on LIKE ?", month + "%").get(0);
+              + "FROM txn WHERE ledger_id = ? AND occurred_on LIKE ?", context.ledgerId(), month + "%").get(0);
       long income = Row.lng(r, "income");
       long expense = Row.lng(r, "expense");
       Map<String, Object> p = new LinkedHashMap<>();
@@ -76,13 +81,13 @@ public class StatsService {
     return out;
   }
 
-  public List<Map<String, Object>> categoryBreakdown(String month) {
+  public List<Map<String, Object>> categoryBreakdown(LedgerContext context, String month) {
     String m = month == null ? MonthUtil.currentMonth() : month;
     List<Map<String, Object>> rows = db.queryForList(
         "SELECT c.id AS categoryId, c.name AS name, COALESCE(SUM(t.amount_cents), 0) AS cents "
             + "FROM txn t JOIN category c ON c.id = t.category_id "
-            + "WHERE t.type = 'expense' AND t.occurred_on LIKE ? "
-            + "GROUP BY c.id, c.name ORDER BY cents DESC", m + "%");
+            + "WHERE t.ledger_id = ? AND c.ledger_id = ? AND t.type = 'expense' AND t.occurred_on LIKE ? "
+            + "GROUP BY c.id, c.name ORDER BY cents DESC", context.ledgerId(), context.ledgerId(), m + "%");
     long total = 0;
     for (Map<String, Object> r : rows) total += Row.lng(r, "cents");
     List<Map<String, Object>> out = new ArrayList<>();
@@ -99,18 +104,18 @@ public class StatsService {
     return out;
   }
 
-  public long accountsTotalAtMonth(String month) {
-    long now = sum("SELECT COALESCE(SUM(balance_cents), 0) FROM account");
+  public long accountsTotalAtMonth(LedgerContext context, String month) {
+    long now = sum("SELECT COALESCE(SUM(balance_cents), 0) FROM account WHERE ledger_id = ?", context.ledgerId());
     long after = sum(
         "SELECT COALESCE(SUM(CASE "
             + "WHEN type = 'income' THEN amount_cents "
             + "WHEN type = 'expense' THEN -amount_cents "
-            + "ELSE 0 END), 0) FROM txn WHERE occurred_on > ?",
-        MonthUtil.lastDayOf(month));
+            + "ELSE 0 END), 0) FROM txn WHERE ledger_id = ? AND occurred_on > ?",
+        context.ledgerId(), MonthUtil.lastDayOf(month));
     return now - after;
   }
 
-  public Map<String, Object> monthSnapshot(String month) {
+  public Map<String, Object> monthSnapshot(LedgerContext context, String month) {
     String m = month == null ? MonthUtil.currentMonth() : month;
     if (!MonthUtil.isValidMonth(m)) {
       throw ApiException.badRequest("VALIDATION_FAILED", "month 需为 YYYY-MM");
@@ -119,15 +124,15 @@ public class StatsService {
         "SELECT "
             + "COALESCE(SUM(CASE WHEN type = 'income' THEN amount_cents ELSE 0 END), 0) AS income, "
             + "COALESCE(SUM(CASE WHEN type = 'expense' THEN amount_cents ELSE 0 END), 0) AS expense "
-            + "FROM txn WHERE occurred_on LIKE ?", m + "%").get(0);
+            + "FROM txn WHERE ledger_id = ? AND occurred_on LIKE ?", context.ledgerId(), m + "%").get(0);
     long income = Row.lng(r, "income");
     long expense = Row.lng(r, "expense");
 
-    long accountsTotal = accountsTotalAtMonth(m);
-    long assetsTotal = assets.assetsTotalAtMonth(m);
-    boolean assetsEstimated = assets.assetValuesAtMonth(m).stream()
+    long accountsTotal = accountsTotalAtMonth(context, m);
+    long assetsTotal = assets.assetsTotalAtMonth(context, m);
+    boolean assetsEstimated = assets.assetValuesAtMonth(context, m).stream()
         .anyMatch(v -> "current".equals(Row.str(v, "source")));
-    Map<String, Object> liab = liabilities.liabilitiesTotalAtMonth(m);
+    Map<String, Object> liab = liabilities.liabilitiesTotalAtMonth(context, m);
     long remaining = Row.lng(liab, "remainingCents");
     long monthlyPayment = Row.lng(liab, "monthlyPaymentCents");
     long totalAssets = accountsTotal + assetsTotal;
@@ -154,7 +159,7 @@ public class StatsService {
     out.put("monthlyPaymentTotalCents", monthlyPayment);
     out.put("monthlyPaymentTotal", Money.toYuanString(monthlyPayment));
     out.put("assetsEstimated", assetsEstimated);
-    out.put("breakdown", categoryBreakdown(m));
+    out.put("breakdown", categoryBreakdown(context, m));
     return out;
   }
 }

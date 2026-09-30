@@ -1,9 +1,15 @@
 package com.familyledger.controller;
 
+import com.familyledger.auth.AuthGuard;
+import com.familyledger.auth.AuthPrincipal;
 import com.familyledger.common.ApiException;
 import com.familyledger.common.Params;
+import com.familyledger.ledger.LedgerAuthorization;
+import com.familyledger.ledger.LedgerContext;
+import com.familyledger.ledger.LedgerRequest;
 import com.familyledger.service.LedgerQueryService;
 import com.familyledger.service.LedgerService;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
@@ -21,60 +27,55 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/transactions")
 public class TransactionController {
-  private final LedgerService ledger;
-  private final LedgerQueryService query;
+  private final LedgerService service;
+  private final LedgerQueryService queries;
+  private final AuthGuard guard;
+  private final LedgerAuthorization authorization;
 
-  public TransactionController(LedgerService ledger, LedgerQueryService query) {
-    this.ledger = ledger;
-    this.query = query;
+  public TransactionController(LedgerService service, LedgerQueryService queries, AuthGuard guard,
+      LedgerAuthorization authorization) {
+    this.service = service; this.queries = queries; this.guard = guard; this.authorization = authorization;
   }
 
   @GetMapping
-  public Map<String, Object> list(
+  public Map<String, Object> list(HttpServletRequest request,
       @RequestParam(value = "month", required = false) String month,
       @RequestParam(value = "type", required = false) String type,
       @RequestParam(value = "accountId", required = false) String accountId,
-      @RequestParam(value = "memberId", required = false) String memberId,
       @RequestParam(value = "page", required = false) String page,
       @RequestParam(value = "pageSize", required = false) String pageSize) {
     String m = month == null ? null : Params.parseMonth(month, "month");
     String t = type == null ? null : Params.parseEnum(type, "type", "expense", "income", "transfer");
-    Long aid = Params.parseLongPositive(accountId, "accountId");
-    Long mid = Params.parseLongPositive(memberId, "memberId");
-    Integer p = Params.parseIntPositive(page, "page");
-    Integer ps = Params.parseIntPositive(pageSize, "pageSize");
-    return query.list(m, t, aid, mid, p, ps);
+    LedgerContext context = LedgerRequest.context(request, null, guard, authorization);
+    return queries.list(context, m, t, Params.parseLongPositive(accountId, "accountId"),
+        Params.parseIntPositive(page, "page"), Params.parseIntPositive(pageSize, "pageSize"));
   }
 
   @PostMapping
-  public ResponseEntity<Map<String, Object>> create(@RequestBody Map<String, Object> body) {
-    requireType(body);
-    if (!body.containsKey("amount")) {
-      throw ApiException.badRequest("VALIDATION_FAILED", "金额不能为空");
-    }
-    return ResponseEntity.status(HttpStatus.CREATED).body(ledger.createTransaction(body));
+  public ResponseEntity<Map<String, Object>> create(HttpServletRequest request,
+      @RequestBody(required = false) Map<String, Object> body) {
+    AuthPrincipal principal = guard.requireLedgerUser(request);
+    LedgerContext context = LedgerRequest.context(request, body, guard, authorization);
+    return ResponseEntity.status(HttpStatus.CREATED).body(service.createTransaction(principal, context, body));
   }
 
   @GetMapping("/{id}")
-  public Map<String, Object> get(@PathVariable("id") Object id) {
-    return query.get(Params.parseId(id));
+  public Map<String, Object> get(@PathVariable Object id, HttpServletRequest request) {
+    return queries.get(LedgerRequest.context(request, null, guard, authorization), Params.parseId(id));
   }
 
   @PatchMapping("/{id}")
-  public Map<String, Object> update(@PathVariable("id") Object id, @RequestBody Map<String, Object> body) {
-    if (body.containsKey("type")) requireType(body);
-    return ledger.updateTransaction(Params.parseId(id), body);
+  public Map<String, Object> update(@PathVariable Object id, HttpServletRequest request,
+      @RequestBody(required = false) Map<String, Object> body) {
+    AuthPrincipal principal = guard.requireLedgerUser(request);
+    return service.updateTransaction(principal, LedgerRequest.context(request, body, guard, authorization),
+        Params.parseId(id), body);
   }
 
   @DeleteMapping("/{id}")
-  public Map<String, Object> delete(@PathVariable("id") Object id) {
-    ledger.deleteTransaction(Params.parseId(id));
-    Map<String, Object> m = new LinkedHashMap<>();
-    m.put("ok", true);
-    return m;
-  }
-
-  private void requireType(Map<String, Object> body) {
-    Params.parseEnum(body.get("type"), "type", "expense", "income", "transfer");
+  public Map<String, Object> delete(@PathVariable Object id, HttpServletRequest request) {
+    AuthPrincipal principal = guard.requireLedgerUser(request);
+    service.deleteTransaction(principal, LedgerRequest.context(request, null, guard, authorization), Params.parseId(id));
+    Map<String, Object> out = new LinkedHashMap<>(); out.put("ok", true); return out;
   }
 }
