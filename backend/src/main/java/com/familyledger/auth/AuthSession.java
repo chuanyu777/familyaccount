@@ -77,7 +77,8 @@ public final class AuthSession {
     if (cookies == null) return Optional.empty();
     String uri = request.getRequestURI();
     String expectedName = uri.startsWith("/api/platform/") ? config.getPlatformCookie()
-        : uri.equals("/api/auth/session") ? null : config.getLedgerCookie();
+        : uri.equals("/api/auth/session") ? requestedSessionCookie(request, config)
+        : config.getLedgerCookie();
     Optional<AuthPrincipal> fallback = Optional.empty();
     for (Cookie cookie : cookies) {
       if (!config.getLedgerCookie().equals(cookie.getName())
@@ -88,6 +89,13 @@ public final class AuthSession {
       fallback = parsed;
     }
     return fallback;
+  }
+
+  private static String requestedSessionCookie(HttpServletRequest request, AuthConfig config) {
+    String kind = request.getParameter("kind");
+    if ("platform".equals(kind)) return config.getPlatformCookie();
+    if ("ledger".equals(kind)) return config.getLedgerCookie();
+    return null;
   }
 
   private static String value(Long value) { return value == null ? "" : Long.toString(value); }

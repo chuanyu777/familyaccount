@@ -172,7 +172,7 @@ export function loginPlatform(username: string, password: string): Promise<Platf
 }
 
 export async function getSession(kind: WebAuthKind): Promise<SessionInfo> {
-  const session = await rawFetch<SessionInfo>('GET', '/api/auth/session', undefined, undefined, kind);
+  const session = await rawFetch<SessionInfo>('GET', '/api/auth/session', undefined, { kind }, kind);
   return expectedSession(kind, session);
 }
 

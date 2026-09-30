@@ -170,6 +170,9 @@ describe('Web authentication API', () => {
     mockFetch({ type: 'LEDGER_USER', userId: 7 });
 
     await expect(getSession('platform')).rejects.toMatchObject({ code: 'SESSION_KIND_MISMATCH' });
+    expect(fetch).toHaveBeenCalledWith('/api/auth/session?kind=platform', expect.objectContaining({
+      credentials: 'include',
+    }));
   });
 
   it('returns a binding code with an expiry for the ledger session', async () => {

@@ -107,6 +107,23 @@ class AuthControllerTest {
   }
 
   @Test
+  void sessionEndpointSelectsTheCookieForTheRequestedSurface() throws Exception {
+    Cookie ledger = loginWeb();
+    Cookie platform = mvc.perform(post("/api/auth/platform/login")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"username\":\"platform-admin\",\"password\":\"platform-admin-password\"}"))
+        .andExpect(status().isNoContent()).andReturn().getResponse().getCookie("platform_session");
+
+    mvc.perform(get("/api/auth/session").param("kind", "platform").cookie(ledger, platform))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.type").value("PLATFORM_ADMIN"));
+
+    mvc.perform(get("/api/auth/session").param("kind", "ledger").cookie(platform, ledger))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.type").value("LEDGER_USER"));
+  }
+
+  @Test
   void wechatLoginCreatesUserAndIdentityOnlyOnce() throws Exception {
     when(weChatClient.exchangeLoginCode("wx-code"))
         .thenReturn(new WeChatIdentity("openid-1"));
