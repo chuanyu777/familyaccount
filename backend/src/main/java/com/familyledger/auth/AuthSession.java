@@ -23,6 +23,7 @@ public final class AuthSession {
     String payload = "type=" + principal.type().name()
         + "&uid=" + value(principal.userId())
         + "&aid=" + value(principal.platformAdminId())
+        + "&web=" + (principal.webSession() ? "1" : "0")
         + "&exp=" + expiresAt;
     return encode(payload) + "." + sign(payload, secret);
   }
@@ -53,7 +54,8 @@ public final class AuthSession {
       long id = Long.parseLong(type == PrincipalType.LEDGER_USER
           ? fields.get("uid") : fields.get("aid"));
       return Optional.of(type == PrincipalType.LEDGER_USER
-          ? AuthPrincipal.ledgerUser(id) : AuthPrincipal.platformAdmin(id));
+          ? ("1".equals(fields.get("web")) ? AuthPrincipal.webLedgerUser(id) : AuthPrincipal.ledgerUser(id))
+          : AuthPrincipal.platformAdmin(id));
     } catch (RuntimeException e) {
       return Optional.empty();
     }

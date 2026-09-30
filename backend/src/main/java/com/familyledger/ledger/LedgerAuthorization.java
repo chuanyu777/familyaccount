@@ -18,6 +18,7 @@ public class LedgerAuthorization {
     if (principal == null || principal.type() != PrincipalType.LEDGER_USER) {
       throw ApiException.forbidden("LEDGER_MEMBERSHIP_REQUIRED", "需要账本成员身份");
     }
+    if (principal.webSession()) return requireSpecialLedger(principal, ledgerId);
     List<Map<String, Object>> rows = db.queryForList(
         "SELECT lm.user_id, lm.role, lm.web_login_allowed "
             + "FROM ledger_membership lm JOIN ledger l ON l.id = lm.ledger_id "
@@ -29,6 +30,24 @@ public class LedgerAuthorization {
     Map<String, Object> row = rows.get(0);
     return new LedgerContext(ledgerId, ((Number) row.get("user_id")).longValue(),
         String.valueOf(row.get("role")), ((Number) row.get("web_login_allowed")).intValue() == 1);
+  }
+
+  /** A Web session is pinned to the one active Web-enabled ledger. */
+  public LedgerContext requireSpecialLedger(AuthPrincipal principal, long requestedLedgerId) {
+    if (principal == null || principal.type() != PrincipalType.LEDGER_USER || !principal.webSession()) {
+      throw ApiException.forbidden("WEB_SESSION_REQUIRED", "需要特殊账本 Web 登录");
+    }
+    List<Map<String, Object>> rows = db.queryForList(
+        "SELECT l.id, lm.user_id, lm.role, lm.web_login_allowed "
+            + "FROM ledger l JOIN ledger_membership lm ON lm.ledger_id = l.id "
+            + "WHERE l.is_web_enabled = 1 AND l.id = ? AND lm.user_id = ? "
+            + "AND lm.active = 1 AND lm.web_login_allowed = 1", requestedLedgerId, principal.userId());
+    if (rows.isEmpty()) {
+      throw ApiException.forbidden("SPECIAL_LEDGER_REQUIRED", "Web 用户只能访问特殊账本");
+    }
+    Map<String, Object> row = rows.get(0);
+    return new LedgerContext(((Number) row.get("id")).longValue(),
+        ((Number) row.get("user_id")).longValue(), String.valueOf(row.get("role")), true);
   }
 
   public LedgerContext requireOwner(AuthPrincipal principal, long ledgerId) {

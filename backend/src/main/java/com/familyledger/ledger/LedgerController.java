@@ -22,21 +22,30 @@ import org.springframework.web.bind.annotation.RestController;
 public class LedgerController {
   private final AuthGuard guard;
   private final LedgerService service;
+  private final WebLedgerAuthorization webAuthorization;
 
-  public LedgerController(AuthGuard guard, LedgerService service) {
+  public LedgerController(AuthGuard guard, LedgerService service, WebLedgerAuthorization webAuthorization) {
     this.guard = guard;
     this.service = service;
+    this.webAuthorization = webAuthorization;
   }
 
   @GetMapping
   public List<LedgerSummary> list(HttpServletRequest request) {
-    return service.listForUser(guard.requireLedgerUser(request).userId());
+    AuthPrincipal principal = guard.requireLedgerUser(request);
+    if (principal.webSession()) {
+      return List.of(service.getForUser(principal, webAuthorization.requireSpecialLedger(principal).ledgerId()));
+    }
+    return service.listForUser(principal.userId());
   }
 
   @PostMapping
   public ResponseEntity<LedgerSummary> create(HttpServletRequest request,
       @RequestBody(required = false) Map<String, Object> body) {
     AuthPrincipal principal = guard.requireLedgerUser(request);
+    if (principal.webSession()) {
+      throw ApiException.forbidden("SPECIAL_LEDGER_REQUIRED", "Web 用户只能使用特殊账本");
+    }
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(service.createLedger(principal.userId(), text(body, "name")));
   }

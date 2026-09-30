@@ -42,7 +42,7 @@ public class AuthService {
     if (rows.isEmpty() || !passwords.matches(password, String.valueOf(rows.get(0).get("password_hash")))) {
       throw authFailed();
     }
-    return AuthPrincipal.ledgerUser(((Number) rows.get(0).get("user_id")).longValue());
+    return AuthPrincipal.webLedgerUser(((Number) rows.get(0).get("user_id")).longValue());
   }
 
   public AuthPrincipal authenticatePlatformAdmin(String username, String password) {
