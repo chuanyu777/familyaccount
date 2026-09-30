@@ -86,7 +86,7 @@ public class AuthService {
   }
 
   @Transactional
-  public String issueWebBindingCode(long userId) {
+  public BindingCodeView issueWebBindingCode(long userId) {
     Long allowed = db.queryForObject(
         "SELECT COUNT(*) FROM web_credential wc "
             + "JOIN ledger_membership lm ON lm.user_id = wc.user_id "
@@ -99,9 +99,10 @@ public class AuthService {
     byte[] raw = new byte[32];
     random.nextBytes(raw);
     String code = Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
+    String expiresAt = expiresAt(BINDING_TTL_SECONDS);
     db.update("INSERT INTO web_binding_code (user_id, code_hash, expires_at, used_at, created_at) "
-            + "VALUES (?, ?, ?, NULL, ?)", userId, sha256(code), expiresAt(BINDING_TTL_SECONDS), Time.now());
-    return code;
+            + "VALUES (?, ?, ?, NULL, ?)", userId, sha256(code), expiresAt, Time.now());
+    return new BindingCodeView(code, expiresAt);
   }
 
   @Transactional

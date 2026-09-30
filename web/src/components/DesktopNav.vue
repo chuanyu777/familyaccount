@@ -13,7 +13,7 @@ defineEmits<{
 </script>
 
 <template>
-  <nav class="desktop-nav" aria-label="主导航">
+  <nav class="desktop-nav" aria-label="账本主导航" data-surface="ledger">
     <div class="desktop-nav__inner">
       <span class="desktop-nav__brand">家庭财务</span>
       <div class="desktop-nav__tabs">

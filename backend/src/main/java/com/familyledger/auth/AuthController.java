@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -79,7 +80,9 @@ public class AuthController {
   public Map<String, Object> issueBindingCode(HttpServletRequest request) {
     AuthPrincipal principal = guard.requireLedgerUser(request);
     Map<String, Object> result = new LinkedHashMap<>();
-    result.put("code", service.issueWebBindingCode(principal.userId()));
+    BindingCodeView binding = service.issueWebBindingCode(principal.userId());
+    result.put("code", binding.code());
+    result.put("expiresAt", binding.expiresAt());
     return result;
   }
 
@@ -99,9 +102,15 @@ public class AuthController {
   }
 
   @PostMapping("/logout")
-  public ResponseEntity<Void> logout(HttpServletResponse response) {
-    response.addHeader("Set-Cookie", AuthSession.clearCookieHeader(config.getLedgerCookie()));
-    response.addHeader("Set-Cookie", AuthSession.clearCookieHeader(config.getPlatformCookie()));
+  public ResponseEntity<Void> logout(@RequestParam(value = "kind", defaultValue = "ledger") String kind,
+      HttpServletResponse response) {
+    if ("platform".equals(kind)) {
+      response.addHeader("Set-Cookie", AuthSession.clearCookieHeader(config.getPlatformCookie()));
+    } else if ("ledger".equals(kind)) {
+      response.addHeader("Set-Cookie", AuthSession.clearCookieHeader(config.getLedgerCookie()));
+    } else {
+      throw ApiException.badRequest("INVALID_AUTH_KIND", "登录入口类型无效");
+    }
     return ResponseEntity.noContent().build();
   }
 

@@ -7,6 +7,7 @@ const root = fileURLToPath(new URL('.', import.meta.url));
 export default defineConfig({
   root,
   plugins: [vue()],
+  appType: 'spa',
   server: {
     port: 5173,
     proxy: {

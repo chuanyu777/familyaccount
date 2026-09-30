@@ -57,6 +57,14 @@ class AuthControllerTest {
   }
 
   @Test
+  void logoutOnlyClearsTheSessionForTheRequestedSurface() throws Exception {
+    mvc.perform(post("/api/auth/logout").param("kind", "platform"))
+        .andExpect(status().isNoContent())
+        .andExpect(cookie().exists("platform_session"))
+        .andExpect(cookie().doesNotExist("ledger_session"));
+  }
+
+  @Test
   void repeatedCredentialFailuresAreRateLimited() throws Exception {
     for (int i = 0; i < AuthAttemptLimiter.MAX_FAILURES; i++) {
       mvc.perform(post("/api/auth/web/login")
@@ -198,6 +206,7 @@ class AuthControllerTest {
     MvcResult issued = mvc.perform(post("/api/auth/binding-code").cookie(web))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.code").isString())
+        .andExpect(jsonPath("$.expiresAt").isString())
         .andReturn();
     return issued.getResponse().getContentAsString()
         .replaceAll(".*\\\"code\\\":\\\"([^\\\"]+)\\\".*", "$1");

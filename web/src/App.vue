@@ -12,6 +12,11 @@ import AnalysisPage from './features/analysis/AnalysisPage.vue';
 import SettingsPage from './features/settings/SettingsPage.vue';
 import { cachedGet } from './lib/api';
 import { resourceVersion } from './lib/resourceInvalidation';
+import MiniBindingPanel from './auth/MiniBindingPanel.vue';
+
+defineEmits<{
+  logout: [];
+}>();
 
 interface Family {
   id: number;
@@ -30,6 +35,11 @@ const { activeTab, setActiveTab } = useHashTab('accounting');
 const familyName = ref('我的家');
 const currentPage = computed(() => PAGES[activeTab.value]);
 
+function redirectToLedgerLogin(event: Event) {
+  const detail = (event as CustomEvent<{ kind?: string }>).detail;
+  if (detail?.kind === 'ledger') window.location.replace('/ledger');
+}
+
 async function loadFamily() {
   try {
     const family = await cachedGet<Family>('/api/family', undefined, { force: true });
@@ -39,19 +49,18 @@ async function loadFamily() {
   }
 }
 
-function redirectToUnlock() {
-  window.location.replace(`/unlock.html?next=${encodeURIComponent(window.location.hash)}`);
-}
-
 onMounted(loadFamily);
-onMounted(() => window.addEventListener('family-access-lost', redirectToUnlock));
-onBeforeUnmount(() => window.removeEventListener('family-access-lost', redirectToUnlock));
+onMounted(() => window.addEventListener('web-auth-lost', redirectToLedgerLogin));
+onBeforeUnmount(() => window.removeEventListener('web-auth-lost', redirectToLedgerLogin));
 // 设置里改了家庭名，标题栏跟着变
 watch(resourceVersion(['family']), loadFamily);
 </script>
 
 <template>
   <AppShell>
+    <template #account-actions>
+      <button type="button" class="btn btn--ghost" @click="$emit('logout')">退出登录</button>
+    </template>
     <template #desktop-nav>
       <DesktopNav :model-value="activeTab" :family-name="familyName" @update:model-value="setActiveTab" />
     </template>
@@ -60,6 +69,7 @@ watch(resourceVersion(['family']), loadFamily);
       <Transition name="page" mode="out-in">
         <div :key="activeTab" class="page-layout" :data-page="activeTab">
           <component :is="currentPage" />
+          <MiniBindingPanel v-if="activeTab === 'settings'" />
         </div>
       </Transition>
     </template>

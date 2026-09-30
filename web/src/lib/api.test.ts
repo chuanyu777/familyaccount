@@ -13,6 +13,11 @@ import {
   apiPost,
   cachedGet,
   invalidate,
+  loginLedger,
+  loginPlatform,
+  getSession,
+  logout,
+  createMiniBindingCode,
 } from './api';
 import { resourceVersion } from './resourceInvalidation';
 import { idbGet, idbSet, idbClearByPrefix } from './idbCache';
@@ -29,8 +34,9 @@ function mockFetch(json: unknown, init: { status?: number; ok?: boolean } = {}) 
     text: async () => JSON.stringify(json),
     json: async () => json,
   };
-  vi.stubGlobal('fetch', vi.fn(async () => res as unknown as Response));
-  return res;
+  const fetchSpy = vi.fn(async () => res as unknown as Response);
+  vi.stubGlobal('fetch', fetchSpy);
+  return fetchSpy;
 }
 
 beforeEach(() => {
@@ -120,14 +126,63 @@ describe('apiGet 错误包装', () => {
     });
   });
 
-  it('家庭访问会话失效时通知页面跳转解锁', async () => {
+  it('账本会话失效时只通知账本入口', async () => {
     const onLost = vi.fn();
-    window.addEventListener('family-access-lost', onLost, { once: true });
-    mockFetch({ error: { code: 'ACCESS_REQUIRED', message: '需要家庭访问口令' } }, { status: 401, ok: false });
+    window.addEventListener('web-auth-lost', onLost, { once: true });
+    mockFetch({ error: { code: 'AUTH_REQUIRED', message: '需要登录' } }, { status: 401, ok: false });
 
     await expect(apiGet('/api/family')).rejects.toMatchObject({ status: 401 });
 
     expect(onLost).toHaveBeenCalledTimes(1);
+    expect(onLost.mock.calls[0]?.[0]).toMatchObject({ detail: { kind: 'ledger' } });
+  });
+});
+
+describe('Web authentication API', () => {
+  it('sends ledger login with cookies and returns its session', async () => {
+    mockFetch({ type: 'LEDGER_USER', userId: 7 }, { status: 200 });
+
+    await loginLedger('ledger-user', 'secret');
+
+    expect(fetch).toHaveBeenCalledWith('/api/auth/web/login', expect.objectContaining({
+      method: 'POST',
+      credentials: 'include',
+      body: JSON.stringify({ username: 'ledger-user', password: 'secret' }),
+    }));
+  });
+
+  it('keeps platform login and logout scoped to the platform kind', async () => {
+    const loginFetch = mockFetch({ type: 'PLATFORM_ADMIN', platformAdminId: 9 });
+    await loginPlatform('operator', 'secret');
+    const logoutFetch = mockFetch(null, { status: 204 });
+    await logout('platform');
+
+    expect(loginFetch).toHaveBeenCalledWith('/api/auth/platform/login', expect.objectContaining({
+      credentials: 'include',
+    }));
+    expect(logoutFetch).toHaveBeenCalledWith('/api/auth/logout?kind=platform', expect.objectContaining({
+      method: 'POST',
+      credentials: 'include',
+    }));
+  });
+
+  it('rejects a session response from the other auth surface', async () => {
+    mockFetch({ type: 'LEDGER_USER', userId: 7 });
+
+    await expect(getSession('platform')).rejects.toMatchObject({ code: 'SESSION_KIND_MISMATCH' });
+  });
+
+  it('returns a binding code with an expiry for the ledger session', async () => {
+    mockFetch({ code: 'short-lived-code', expiresAt: '2026-09-30 14:20:00' });
+
+    const result = await createMiniBindingCode();
+
+    expect(result.code).toBe('short-lived-code');
+    expect(result.expiresAt).toBe('2026-09-30 14:20:00');
+    expect(fetch).toHaveBeenCalledWith('/api/auth/binding-code', expect.objectContaining({
+      method: 'POST',
+      credentials: 'include',
+    }));
   });
 });
 

@@ -12,7 +12,7 @@ defineEmits<{
 </script>
 
 <template>
-  <nav class="mobile-tabbar" aria-label="主导航">
+  <nav class="mobile-tabbar" aria-label="账本主导航" data-surface="ledger">
     <button
       v-for="tab in TAB_DEFINITIONS"
       :key="tab.key"

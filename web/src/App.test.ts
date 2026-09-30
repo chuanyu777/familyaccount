@@ -104,15 +104,15 @@ describe('App', () => {
     wrapper.unmount();
   });
 
-  it('家庭访问会话失效时带着当前标签跳转到解锁页', async () => {
+  it('账本会话失效时跳转到账本登录入口', async () => {
     const replace = vi.fn();
-    vi.stubGlobal('location', { hash: '#settings', replace });
+    vi.stubGlobal('location', { pathname: '/ledger', hash: '#settings', replace });
     const wrapper = mount(App, { attachTo: document.body });
     await flush();
 
-    window.dispatchEvent(new CustomEvent('family-access-lost'));
+    window.dispatchEvent(new CustomEvent('web-auth-lost', { detail: { kind: 'ledger' } }));
 
-    expect(replace).toHaveBeenCalledWith('/unlock.html?next=%23settings');
+    expect(replace).toHaveBeenCalledWith('/ledger');
     wrapper.unmount();
   });
 

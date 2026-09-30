@@ -1,5 +1,12 @@
 import { idbGet, idbSet, idbClearByPrefix } from './idbCache';
 import { publishResources, resourcesForMutation } from './resourceInvalidation';
+import type {
+  LedgerSession,
+  MiniBindingCode,
+  PlatformSession,
+  SessionInfo,
+  WebAuthKind,
+} from '../auth/types';
 
 // 统一 fetch 封装 + IndexedDB SWR 缓存 + 写后失效。
 // 路径既可传 '/api/xxx' 也可传相对 'xxx'，统一规整为 '/api/xxx'。
@@ -49,12 +56,14 @@ async function rawFetch<T>(
   path: string,
   body?: unknown,
   params?: Record<string, unknown>,
+  authKind?: WebAuthKind,
 ): Promise<T> {
   const url = buildUrl(path, params);
   const res = await fetch(url, {
     method,
     headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    credentials: 'include',
   });
 
   let data: unknown = null;
@@ -72,7 +81,8 @@ async function rawFetch<T>(
     const code = errBody.error?.code ?? 'UNKNOWN';
     const message = errBody.error?.message ?? res.statusText ?? '请求失败';
     if (res.status === 401) {
-      window.dispatchEvent(new CustomEvent('family-access-lost'));
+      const kind = authKind ?? (fullPath(path).startsWith('/api/platform') ? 'platform' : 'ledger');
+      window.dispatchEvent(new CustomEvent('web-auth-lost', { detail: { kind, code } }));
     }
     throw new ApiError(res.status, code, message);
   }
@@ -132,6 +142,56 @@ export async function cachedGet<T>(
 
 export function apiGet<T>(path: string, params?: Record<string, unknown>): Promise<T> {
   return rawFetch<T>('GET', path, undefined, params);
+}
+
+function expectedSession(kind: WebAuthKind, value: SessionInfo): LedgerSession | PlatformSession {
+  const matches = kind === 'ledger'
+    ? value.type === 'LEDGER_USER' && typeof value.userId === 'number'
+    : value.type === 'PLATFORM_ADMIN' && typeof value.platformAdminId === 'number';
+  if (!matches) throw new ApiError(403, 'SESSION_KIND_MISMATCH', '当前登录会话不属于此入口');
+  return value as LedgerSession | PlatformSession;
+}
+
+async function login<T extends LedgerSession | PlatformSession>(
+  kind: WebAuthKind,
+  path: string,
+  username: string,
+  password: string,
+): Promise<T> {
+  const response = await rawFetch<Partial<T> | null>('POST', path, { username, password }, undefined, kind);
+  if (response && typeof response === 'object' && 'type' in response) return expectedSession(kind, response as SessionInfo) as T;
+  return getSession(kind) as Promise<T>;
+}
+
+export function loginLedger(username: string, password: string): Promise<LedgerSession> {
+  return login<LedgerSession>('ledger', '/api/auth/web/login', username, password);
+}
+
+export function loginPlatform(username: string, password: string): Promise<PlatformSession> {
+  return login<PlatformSession>('platform', '/api/auth/platform/login', username, password);
+}
+
+export async function getSession(kind: WebAuthKind): Promise<SessionInfo> {
+  const session = await rawFetch<SessionInfo>('GET', '/api/auth/session', undefined, undefined, kind);
+  return expectedSession(kind, session);
+}
+
+export function logout(kind: WebAuthKind): Promise<void> {
+  return rawFetch<void>('POST', `/api/auth/logout?kind=${kind}`, undefined, undefined, kind);
+}
+
+export async function createMiniBindingCode(): Promise<MiniBindingCode> {
+  const result = await rawFetch<MiniBindingCode>(
+    'POST',
+    '/api/auth/binding-code',
+    undefined,
+    undefined,
+    'ledger',
+  );
+  return {
+    code: result.code,
+    expiresAt: result.expiresAt,
+  };
 }
 
 /** 写操作收尾：清除相关缓存 + 通知依赖对应资源的页面重新拉取。 */
