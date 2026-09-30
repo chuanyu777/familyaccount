@@ -31,7 +31,6 @@ function signedCents(transaction: Transaction): number {
         <tr>
           <th scope="col">分类 / 备注</th>
           <th scope="col">账户</th>
-          <th scope="col">成员</th>
           <th scope="col" class="transaction-table__amount">金额</th>
         </tr>
       </thead>
@@ -60,7 +59,6 @@ function signedCents(transaction: Transaction): number {
                 : transaction.accountName || '—'
             }}
           </td>
-          <td>{{ transaction.memberName || '家庭共有' }}</td>
           <td class="transaction-table__amount">
             <MoneyText :cents="signedCents(transaction)" :tone="toneOf(transaction)" />
           </td>

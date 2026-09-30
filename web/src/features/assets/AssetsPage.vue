@@ -10,20 +10,22 @@ import ConfirmDialog from '../../components/ConfirmDialog.vue';
 import AccountForm from './AccountForm.vue';
 import AssetForm from './AssetForm.vue';
 import AssetSnapshotForm from './AssetSnapshotForm.vue';
-import { apiPost, apiDelete, ApiError } from '../../lib/api';
+import { apiPost, ApiError } from '../../lib/api';
 import { monthLabel } from '../../lib/format';
-import { memberName } from './util';
 import AccountList from './AccountList.vue';
 import AssetList from './AssetList.vue';
 import './assetRows.css';
 import { useAssets } from './useAssets';
 import type { Account, Asset } from './types';
+import type { LedgerPermissions } from '../../auth/types';
 
-type AssetView = 'detail' | 'byMember' | 'byKind';
+const props = withDefaults(defineProps<{ permissions?: LedgerPermissions }>(), {
+  permissions: () => ({ isOwner: true, canManageMembers: true, canRenameLedger: true, canArchiveResources: true }),
+});
+type AssetView = 'detail' | 'byKind';
 
 const VIEW_OPTIONS: { value: AssetView; label: string }[] = [
   { value: 'detail', label: '明细' },
-  { value: 'byMember', label: '按成员' },
   { value: 'byKind', label: '按类型' },
 ];
 
@@ -37,19 +39,16 @@ const {
   summary,
   accounts,
   assets,
-  members,
   snapshots,
   accountLoading,
   assetLoading,
   accountError: accountLoadError,
   assetError,
-  memberError,
   summaryError,
   snapshotsLoading,
   snapshotsError,
   reloadAccounts,
   reloadAssets,
-  reloadMembers,
   reloadSummary,
   loadSnapshots,
 } = useAssets();
@@ -93,18 +92,12 @@ const groups = computed<Group[]>(() => {
   if (assetView.value === 'detail') return [];
   const map = new Map<string, number>();
   for (const a of assets.value) {
-    const key =
-      assetView.value === 'byMember' ? String(a.member_id ?? 'family') : a.kind || 'uncat';
-    map.set(key, (map.get(key) ?? 0) + a.value_cents);
+    const key = a.kind || 'uncat';
+    map.set(key, (map.get(key) ?? 0) + (a.valueCents ?? a.value_cents ?? 0));
   }
   return Array.from(map.entries()).map(([key, cents]) => ({
     key,
-    label:
-      assetView.value === 'byMember'
-        ? key === 'family'
-          ? '家庭共有'
-          : memberName(members.value, Number(key))
-        : key === 'uncat'
+    label: key === 'uncat'
           ? '未分类'
           : key,
     cents,
@@ -151,30 +144,12 @@ function onSnapshotSaved() {
   snapshotFormAsset.value = null;
 }
 
-async function removeSnapshot(id: number) {
-  try {
-    await apiDelete(`/api/assets/snapshots/${id}`);
-    if (detailAsset.value) await loadSnapshots(detailAsset.value.id, true);
-  } catch {
-    /* 删除失败保持原样 */
-  }
-}
-
 function onAccountSaved() {
   accountFormOpen.value = false;
 }
 
 function onAssetSaved() {
   assetFormOpen.value = false;
-}
-
-async function setDefault(id: number) {
-  detailAccount.value = null;
-  try {
-    await apiPost(`/api/accounts/${id}/set-default`, {});
-  } catch {
-    /* 设为默认失败不影响列表 */
-  }
 }
 
 function askDeleteAccount(id: number) {
@@ -189,7 +164,8 @@ async function doDeleteAccount() {
   deletePending.value = true;
   deleteError.value = null;
   try {
-    await apiDelete(`/api/accounts/${id}`);
+    const account = accounts.value.find((item) => item.id === id);
+    await apiPost(`/api/accounts/${id}/${account?.archived ? 'restore' : 'archive'}`, {});
     confirmDeleteAccountId.value = null;
   } catch (e) {
     if (e instanceof ApiError && e.code === 'ACCOUNT_IN_USE') {
@@ -214,7 +190,8 @@ async function doDeleteAsset() {
   deletePending.value = true;
   deleteError.value = null;
   try {
-    await apiDelete(`/api/assets/${id}`);
+    const asset = assets.value.find((item) => item.id === id);
+    await apiPost(`/api/assets/${id}/${asset?.archived ? 'restore' : 'archive'}`, {});
     confirmDeleteAssetId.value = null;
   } catch (cause) {
     deleteError.value = cause instanceof Error ? cause.message : '删除失败，请重试';
@@ -231,8 +208,9 @@ function cancelDelete() {
 }
 
 function updatedLabel(a: Asset): string {
-  if (!a.updated_at) return '未更新';
-  return String(a.updated_at).slice(0, 10);
+  const updatedAt = a.updatedAt ?? a.updated_at;
+  if (!updatedAt) return '未更新';
+  return String(updatedAt).slice(0, 10);
 }
 </script>
 
@@ -247,11 +225,6 @@ function updatedLabel(a: Asset): string {
     <div v-if="summaryError" class="assets__status" role="alert" data-summary-status>
       <span>{{ summaryError }}</span>
       <button type="button" class="btn" @click="reloadSummary">重试资产汇总</button>
-    </div>
-
-    <div v-if="memberError" class="assets__status" role="alert" data-member-status>
-      <span>{{ memberError }}</span>
-      <button type="button" class="btn" @click="reloadMembers">重试成员信息</button>
     </div>
 
     <div class="asset-groups">
@@ -269,7 +242,7 @@ function updatedLabel(a: Asset): string {
           empty-hint="点「新增账户」记下你的第一个账户。"
           @retry="reloadAccounts"
         >
-          <AccountList :accounts="accounts" :members="members" @select-account="detailAccount = $event" />
+          <AccountList :accounts="accounts" @select-account="detailAccount = $event" />
         </AsyncState>
       </section>
 
@@ -299,7 +272,7 @@ function updatedLabel(a: Asset): string {
           empty-hint="点「新增资产」记录房产、投资等市值。"
           @retry="reloadAssets"
         >
-          <AssetList :assets="assets" :members="members" @select-asset="openAssetDetail" />
+          <AssetList :assets="assets" @select-asset="openAssetDetail" />
         </AsyncState>
       </section>
     </div>
@@ -310,19 +283,15 @@ function updatedLabel(a: Asset): string {
           <dt>余额</dt>
           <dd>
             <MoneyText
-              :cents="detailAccount.balance_cents"
-              :tone="detailAccount.balance_cents < 0 ? 'expense' : 'neutral'"
+              :cents="detailAccount.balanceCents ?? detailAccount.balance_cents ?? 0"
+              :tone="(detailAccount.balanceCents ?? detailAccount.balance_cents ?? 0) < 0 ? 'expense' : 'neutral'"
               size="lg"
             />
           </dd>
         </div>
         <div class="detail__row">
-          <dt>归属</dt>
-          <dd>{{ memberName(members, detailAccount.member_id) }}</dd>
-        </div>
-        <div class="detail__row">
           <dt>状态</dt>
-          <dd>{{ detailAccount.is_default ? '默认账户' : '非默认' }}</dd>
+          <dd>{{ detailAccount.isDefault ?? detailAccount.is_default ? '默认账户' : '非默认' }}</dd>
         </div>
       </dl>
       <div class="detail__actions">
@@ -330,19 +299,12 @@ function updatedLabel(a: Asset): string {
           编辑
         </button>
         <button
-          v-if="!detailAccount.is_default"
-          type="button"
-          class="btn"
-          @click="setDefault(detailAccount!.id)"
-        >
-          设为默认
-        </button>
-        <button
+          v-if="props.permissions.isOwner"
           type="button"
           class="btn btn--danger"
           @click="askDeleteAccount(detailAccount!.id)"
         >
-          删除
+          {{ detailAccount.archived ? '恢复' : '归档' }}
         </button>
       </div>
     </AppSheet>
@@ -351,15 +313,11 @@ function updatedLabel(a: Asset): string {
       <dl class="detail">
         <div class="detail__row">
           <dt>当前市值</dt>
-          <dd><MoneyText :cents="detailAsset.value_cents" size="lg" /></dd>
+          <dd><MoneyText :cents="detailAsset.valueCents ?? detailAsset.value_cents ?? 0" size="lg" /></dd>
         </div>
         <div class="detail__row">
           <dt>类型</dt>
           <dd>{{ detailAsset.kind || '未分类' }}</dd>
-        </div>
-        <div class="detail__row">
-          <dt>归属</dt>
-          <dd>{{ memberName(members, detailAsset.member_id) }}</dd>
         </div>
         <div class="detail__row">
           <dt>最后更新</dt>
@@ -382,17 +340,8 @@ function updatedLabel(a: Asset): string {
         <ul v-if="snapshots.length > 0" class="history__list">
           <li v-for="s in snapshots" :key="s.id" class="history__row">
             <span class="history__month">{{ monthLabel(s.month) }}</span>
-            <MoneyText :cents="s.value_cents" class="history__value" />
+            <MoneyText :cents="s.valueCents ?? s.value_cents ?? 0" class="history__value" />
             <span v-if="s.note" class="history__note">{{ s.note }}</span>
-            <button
-              type="button"
-              class="history__del"
-              style="width: 44px; height: 44px"
-              aria-label="删除这条市值记录"
-              @click="removeSnapshot(s.id)"
-            >
-              ×
-            </button>
           </li>
         </ul>
       </section>
@@ -402,8 +351,8 @@ function updatedLabel(a: Asset): string {
           更新市值
         </button>
         <button type="button" class="btn" @click="editAssetFromDetail(detailAsset!)">编辑</button>
-        <button type="button" class="btn btn--danger" @click="askDeleteAsset(detailAsset!.id)">
-          删除
+        <button v-if="props.permissions.isOwner" type="button" class="btn btn--danger" @click="askDeleteAsset(detailAsset!.id)">
+          {{ detailAsset.archived ? '恢复' : '归档' }}
         </button>
       </div>
     </AppSheet>
@@ -412,7 +361,6 @@ function updatedLabel(a: Asset): string {
       v-if="accountFormOpen"
       :mode="accountFormMode"
       :initial="accountFormInitial"
-      :members="members"
       @close="accountFormOpen = false"
       @saved="onAccountSaved"
     />
@@ -421,7 +369,6 @@ function updatedLabel(a: Asset): string {
       v-if="assetFormOpen"
       :mode="assetFormInitial ? 'edit' : 'create'"
       :initial="assetFormInitial"
-      :members="members"
       @close="assetFormOpen = false"
       @saved="onAssetSaved"
     />
@@ -435,9 +382,9 @@ function updatedLabel(a: Asset): string {
 
     <ConfirmDialog
       v-if="confirmDeleteAccountId !== null"
-      title="删除账户"
-      description="删除后不可恢复，确认删除？"
-      confirm-text="删除"
+      title="归档账户"
+      description="归档后不会出现在新账目中，历史记录仍会保留。"
+      confirm-text="归档"
       :pending="deletePending"
       :error="deleteError ?? ''"
       @confirm="doDeleteAccount"
@@ -446,9 +393,9 @@ function updatedLabel(a: Asset): string {
 
     <ConfirmDialog
       v-if="confirmDeleteAssetId !== null"
-      title="删除资产"
-      description="删除后不可恢复，确认删除？"
-      confirm-text="删除"
+      title="归档资产"
+      description="归档后不会出现在新的资产操作中，历史记录仍会保留。"
+      confirm-text="归档"
       :pending="deletePending"
       :error="deleteError ?? ''"
       @confirm="doDeleteAsset"
@@ -613,26 +560,4 @@ function updatedLabel(a: Asset): string {
   white-space: nowrap;
 }
 
-.history__del {
-  flex: none;
-  width: 44px;
-  height: 44px;
-  border: none;
-  border-radius: 50%;
-  background: none;
-  color: var(--muted);
-  font-size: 1rem;
-  line-height: 1;
-  cursor: pointer;
-  opacity: 0.5;
-  transition:
-    opacity var(--dur-fast) var(--ease-out),
-    background var(--dur-fast) var(--ease-out);
-}
-
-.history__del:hover {
-  opacity: 1;
-  background: var(--expense-soft);
-  color: var(--expense);
-}
 </style>

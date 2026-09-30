@@ -5,7 +5,7 @@ import { apiPatch, apiPost, ApiError } from '../../lib/api';
 import { todayISO } from '../../lib/format';
 import TransactionForm from './TransactionForm.vue';
 import transactionFormSource from './TransactionForm.vue?raw';
-import type { Account, Category, Member } from './types';
+import type { Account, Category } from './types';
 
 vi.mock('../../lib/api', () => {
   class ApiErrorImpl extends Error {
@@ -31,10 +31,6 @@ const accounts: Account[] = [
   { id: 1, name: '现金', balance: 0, balance_cents: 0, is_default: false },
   { id: 2, name: '微信', balance: 0, balance_cents: 0, is_default: true },
 ];
-const members: Member[] = [
-  { id: 2, name: '伴侣' },
-  { id: 1, name: '我' },
-];
 const expenseCategories: Category[] = [
   { id: 10, kind: 'expense', name: '餐饮' },
   { id: 11, kind: 'expense', name: '其他' },
@@ -47,7 +43,6 @@ const incomeCategories: Category[] = [
 const baseProps = {
   mode: 'create' as const,
   accounts,
-  members,
   expenseCategories,
   incomeCategories,
 };
@@ -112,6 +107,17 @@ afterEach(() => {
 });
 
 describe('TransactionForm', () => {
+  it('does not expose member attribution and omits memberId from a new transaction', async () => {
+    mountForm();
+    expect(document.querySelector('[aria-label="成员"]')).toBeNull();
+
+    await setValue(input('金额'), '186');
+    submit().click();
+    await flushPromises();
+
+    expect(mockedApiPost).toHaveBeenCalledWith('/api/transactions', expect.not.objectContaining({ memberId: expect.anything() }));
+  });
+
   it('keeps every compact form control at least 44px high', () => {
     mountForm();
 
@@ -195,7 +201,6 @@ describe('TransactionForm', () => {
       amount: 186,
       occurredOn: todayISO(),
       note: '家庭晚餐',
-      memberId: 1,
       accountId: 2,
       categoryId: 11,
       categoryName: '其他',
@@ -220,7 +225,6 @@ describe('TransactionForm', () => {
       amount: 88.5,
       occurredOn: todayISO(),
       note: undefined,
-      memberId: 1,
       accountId: 2,
       toAccountId: 1,
     });

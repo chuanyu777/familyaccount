@@ -6,9 +6,11 @@ import type { Account, Repayment } from './types';
 defineProps<{
   repayments: Repayment[];
   accounts: Account[];
+  canDelete?: (repayment: Repayment) => boolean;
+  canEdit?: (repayment: Repayment) => boolean;
 }>();
 
-const emit = defineEmits<{ delete: [number] }>();
+const emit = defineEmits<{ delete: [number]; edit: [Repayment] }>();
 </script>
 
 <template>
@@ -21,9 +23,14 @@ const emit = defineEmits<{ delete: [number] }>();
         <span class="repay-account">{{ accountName(accounts, r.account_id) }}</span>
       </span>
       <MoneyText :cents="r.amount_cents" tone="expense" class="repay-amount" />
-      <button type="button" class="btn btn--ghost btn--sm btn--danger" @click="emit('delete', r.id)">
-        删除
-      </button>
+      <span class="repay-actions">
+        <button v-if="canEdit?.(r) ?? true" type="button" class="btn btn--ghost btn--sm" @click="emit('edit', r)">
+          编辑
+        </button>
+        <button v-if="canDelete?.(r) ?? true" type="button" class="btn btn--ghost btn--sm btn--danger" @click="emit('delete', r.id)">
+          删除
+        </button>
+      </span>
     </li>
   </ul>
 </template>
@@ -51,6 +58,8 @@ const emit = defineEmits<{ delete: [number] }>();
   font-size: var(--text-xs);
   color: var(--muted);
 }
+
+.repay-actions { display: inline-flex; gap: 2px; }
 
 .repay-main { min-width: 0; display: grid; gap: 2px; }
 .repay-date { color: var(--ink); }

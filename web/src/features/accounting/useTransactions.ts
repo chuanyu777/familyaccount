@@ -6,7 +6,6 @@ import { resourceVersion } from '../../lib/resourceInvalidation';
 import type {
   Account,
   Category,
-  Member,
   Transaction,
   TransactionType,
   TransactionsResponse,
@@ -20,14 +19,12 @@ export function useTransactions() {
   const month = ref(currentMonth());
   const type = ref<TransactionTypeFilter>('');
   const accountFilter = ref('');
-  const memberFilter = ref('');
   const page = ref(1);
 
   const items = ref<Transaction[]>([]);
   const totals = ref({ income: 0, expense: 0, net: 0 });
   const total = ref(0);
   const accounts = ref<Account[]>([]);
-  const members = ref<Member[]>([]);
   const expenseCategories = ref<Category[]>([]);
   const incomeCategories = ref<Category[]>([]);
 
@@ -38,7 +35,6 @@ export function useTransactions() {
     month: month.value,
     type: type.value,
     accountFilter: accountFilter.value,
-    memberFilter: memberFilter.value,
   }));
   const queryKey = computed(() => JSON.stringify(query.value));
   const loadedQuery = ref<typeof query.value | null>(null);
@@ -53,7 +49,7 @@ export function useTransactions() {
   const listGate = createLatestGate();
   const referenceGate = createLatestGate();
   const transactionVersion = resourceVersion(['transactions']);
-  const referenceVersion = resourceVersion(['accounts', 'members', 'categories']);
+  const referenceVersion = resourceVersion(['accounts', 'categories']);
   let loadSequence = 0;
 
   function requestParams(): Record<string, unknown> {
@@ -64,7 +60,6 @@ export function useTransactions() {
     };
     if (type.value) params.type = type.value;
     if (accountFilter.value) params.accountId = Number(accountFilter.value);
-    if (memberFilter.value) params.memberId = Number(memberFilter.value);
     return params;
   }
 
@@ -112,17 +107,15 @@ export function useTransactions() {
     referenceError.value = null;
     const result = await referenceGate.run(() => Promise.allSettled([
       cachedGet<Account[]>('/api/accounts', undefined, { force }),
-      cachedGet<Member[]>('/api/members', undefined, { force }),
       cachedGet<Category[]>('/api/categories', { kind: 'expense' }, { force }),
       cachedGet<Category[]>('/api/categories', { kind: 'income' }, { force }),
     ]));
     if (!result.current) return;
-    const [accountItems, memberItems, expenseItems, incomeItems] = result.value;
-    if (accountItems.status === 'fulfilled') accounts.value = accountItems.value ?? [];
-    if (memberItems.status === 'fulfilled') members.value = memberItems.value ?? [];
-    if (expenseItems.status === 'fulfilled') expenseCategories.value = expenseItems.value ?? [];
-    if (incomeItems.status === 'fulfilled') incomeCategories.value = incomeItems.value ?? [];
-    const labels = ['账户', '成员', '支出分类', '收入分类'];
+    const [accountItems, expenseItems, incomeItems] = result.value;
+    if (accountItems.status === 'fulfilled') accounts.value = (accountItems.value ?? []).filter((item) => !item.archived);
+    if (expenseItems.status === 'fulfilled') expenseCategories.value = (expenseItems.value ?? []).filter((item) => !item.archived);
+    if (incomeItems.status === 'fulfilled') incomeCategories.value = (incomeItems.value ?? []).filter((item) => !item.archived);
+    const labels = ['账户', '支出分类', '收入分类'];
     referenceError.value = result.value.flatMap((item, index) => item.status === 'rejected'
       ? [`${labels[index]}：${item.reason instanceof Error ? item.reason.message : '加载失败'}`]
       : []).join('；') || null;
@@ -149,7 +142,7 @@ export function useTransactions() {
     return load({ force: true });
   }
 
-  watch([type, accountFilter, memberFilter, month], () => {
+  watch([type, accountFilter, month], () => {
     void resetAndLoad();
   });
   watch(transactionVersion, () => {
@@ -169,12 +162,10 @@ export function useTransactions() {
     month,
     type,
     accountFilter,
-    memberFilter,
     items,
     totals,
     total,
     accounts,
-    members,
     expenseCategories,
     incomeCategories,
     loading,

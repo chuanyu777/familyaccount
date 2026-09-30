@@ -2,7 +2,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { cachedGet } from '../../lib/api';
 import { createLatestGate } from '../../lib/latestGate';
 import { resourceVersion } from '../../lib/resourceInvalidation';
-import type { Account, Asset, AssetSnapshot, Member, Summary } from './types';
+import type { Account, Asset, AssetSnapshot, Summary } from './types';
 
 const EMPTY_SUMMARY: Summary = {
   totalAssetsCents: 0,
@@ -17,26 +17,23 @@ export function useAssets() {
   const summary = ref<Summary>(EMPTY_SUMMARY);
   const accounts = ref<Account[]>([]);
   const assets = ref<Asset[]>([]);
-  const members = ref<Member[]>([]);
   const snapshots = ref<AssetSnapshot[]>([]);
   const accountLoading = ref(true);
   const assetLoading = ref(true);
-  const memberLoading = ref(true);
   const summaryLoading = ref(true);
   const accountError = ref<string | null>(null);
   const assetError = ref<string | null>(null);
-  const memberError = ref<string | null>(null);
   const summaryError = ref<string | null>(null);
   const snapshotsLoading = ref(false);
   const snapshotsError = ref<string | null>(null);
   const loading = computed(
-    () => accountLoading.value || assetLoading.value || memberLoading.value || summaryLoading.value,
+    () => accountLoading.value || assetLoading.value || summaryLoading.value,
   );
   const refreshing = computed(
     () => loading.value && (accounts.value.length > 0 || assets.value.length > 0),
   );
   const error = computed(
-    () => accountError.value ?? assetError.value ?? memberError.value ?? summaryError.value,
+    () => accountError.value ?? assetError.value ?? summaryError.value,
   );
 
   function createLoader<T>(
@@ -64,11 +61,10 @@ export function useAssets() {
 
   const loadAccounts = createLoader('/api/accounts', accounts, accountLoading, accountError);
   const loadAssets = createLoader('/api/assets', assets, assetLoading, assetError);
-  const loadMembers = createLoader('/api/members', members, memberLoading, memberError);
   const loadSummary = createLoader('/api/stats/summary', summary, summaryLoading, summaryError);
 
   function load(force = false) {
-    return Promise.all([loadSummary(force), loadAccounts(force), loadAssets(force), loadMembers(force)]);
+    return Promise.all([loadSummary(force), loadAccounts(force), loadAssets(force)]);
   }
 
   let selectedAssetId: number | null = null;
@@ -93,7 +89,6 @@ export function useAssets() {
 
   watch(resourceVersion(['accounts']), () => void loadAccounts(true));
   watch(resourceVersion(['assets']), () => void loadAssets(true));
-  watch(resourceVersion(['members']), () => void loadMembers(true));
   watch(resourceVersion(['statistics']), () => void loadSummary(true));
   onMounted(() => void load());
 
@@ -101,18 +96,15 @@ export function useAssets() {
     summary,
     accounts,
     assets,
-    members,
     snapshots,
     loading,
     refreshing,
     error,
     accountLoading,
     assetLoading,
-    memberLoading,
     summaryLoading,
     accountError,
     assetError,
-    memberError,
     summaryError,
     snapshotsLoading,
     snapshotsError,
@@ -120,12 +112,10 @@ export function useAssets() {
     reload: () => load(true),
     loadAccounts,
     loadAssets,
-    loadMembers,
     loadSummary,
     loadSnapshots,
     reloadAccounts: () => loadAccounts(true),
     reloadAssets: () => loadAssets(true),
-    reloadMembers: () => loadMembers(true),
     reloadSummary: () => loadSummary(true),
   };
 }

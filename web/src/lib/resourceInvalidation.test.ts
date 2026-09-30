@@ -14,8 +14,8 @@ it('includes rollback dependencies when deleting a liability', () => {
   ]);
 });
 
-it('does not refresh family data after an asset mutation', () => {
-  const before = resourceVersion(['family']).value;
+it('does not refresh ledger membership data after an asset mutation', () => {
+  const before = resourceVersion(['members']).value;
   publishResources(resourcesForMutation('/api/assets', 'PATCH'));
-  expect(resourceVersion(['family']).value).toBe(before);
+  expect(resourceVersion(['members']).value).toBe(before);
 });

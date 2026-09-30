@@ -6,21 +6,26 @@ import AsyncState from '../../components/AsyncState.vue';
 import AppSheet from '../../components/AppSheet.vue';
 import ConfirmDialog from '../../components/ConfirmDialog.vue';
 import MoneyText from '../../components/MoneyText.vue';
-import { apiDelete } from '../../lib/api';
+import { apiDelete, apiPost } from '../../lib/api';
 import LiabilityForm from './LiabilityForm.vue';
 import LiabilityList from './LiabilityList.vue';
 import RepaymentForm from './RepaymentForm.vue';
 import RepaymentList from './RepaymentList.vue';
 import { useLiabilities } from './useLiabilities';
-import { memberName, parseYuanToCents } from './util';
-import type { Liability } from './types';
+import { parseYuanToCents } from './util';
+import type { Liability, Repayment } from './types';
+import type { LedgerPermissions, LedgerSession } from '../../auth/types';
+
+const props = withDefaults(defineProps<{ session?: LedgerSession; permissions?: LedgerPermissions }>(), {
+  session: () => ({ type: 'LEDGER_USER', userId: 0 }),
+  permissions: () => ({ isOwner: true, canManageMembers: true, canRenameLedger: true, canArchiveResources: true }),
+});
 
 const {
   summary,
   liabilities,
   repayments,
   accounts,
-  members,
   loading,
   error,
   repaymentsLoading,
@@ -48,6 +53,7 @@ const formOpen = ref(false);
 const formMode = ref<'create' | 'edit'>('create');
 const formInitial = ref<Liability | undefined>(undefined);
 const repayLiability = ref<Liability | null>(null);
+const repayInitial = ref<Repayment | undefined>(undefined);
 const confirmDeleteId = ref<number | null>(null);
 const confirmDeleteRepayId = ref<number | null>(null);
 const liabilityDeletePending = ref(false);
@@ -82,6 +88,14 @@ function editFromDetail(liability: Liability) {
 }
 
 function openRepayment(liability: Liability) {
+  repayInitial.value = undefined;
+  repayLiability.value = liability;
+}
+
+function editRepayment(repayment: Repayment) {
+  const liability = liabilities.value.find((item) => item.id === repayment.liability_id);
+  if (!liability) return;
+  repayInitial.value = repayment;
   repayLiability.value = liability;
 }
 
@@ -102,7 +116,8 @@ async function doDeleteLiability() {
   mutationError.value = null;
   liabilityDeletePending.value = true;
   try {
-    await apiDelete(`/api/liabilities/${id}`);
+    const liability = liabilities.value.find((item) => item.id === id);
+    await apiPost(`/api/liabilities/${id}/${liability?.archived ? 'restore' : 'archive'}`, {});
     confirmDeleteId.value = null;
   } catch (cause) {
     mutationError.value = cause instanceof Error ? cause.message : '删除负债失败';
@@ -142,6 +157,10 @@ function cancelDeleteRepayment() {
   confirmDeleteRepayId.value = null;
   mutationError.value = null;
 }
+
+function canMutateRepayment(repayment: { created_by_user_id?: number }): boolean {
+  return props.permissions.isOwner || repayment.created_by_user_id === props.session.userId;
+}
 </script>
 
 <template>
@@ -174,7 +193,6 @@ function cancelDeleteRepayment() {
         <LiabilityList
           :liabilities="liabilities"
           :repayments="repayments"
-          :members="members"
           @select="openDetail"
           @repay="openRepayment"
         />
@@ -193,11 +211,7 @@ function cancelDeleteRepayment() {
         </div>
         <div class="detail__row">
           <dt>还款日</dt>
-          <dd>{{ detailLiability.payment_day ? `每月 ${detailLiability.payment_day} 日` : '未设置' }}</dd>
-        </div>
-        <div class="detail__row">
-          <dt>归属</dt>
-          <dd>{{ memberName(members, detailLiability.member_id) }}</dd>
+          <dd>{{ (detailLiability.paymentDay ?? detailLiability.payment_day) ? `每月 ${detailLiability.paymentDay ?? detailLiability.payment_day} 日` : '未设置' }}</dd>
         </div>
       </dl>
 
@@ -213,7 +227,10 @@ function cancelDeleteRepayment() {
           <RepaymentList
             :repayments="detailRepayments"
             :accounts="accounts"
+            :can-delete="canMutateRepayment"
+            :can-edit="canMutateRepayment"
             @delete="askDeleteRepayment"
+            @edit="editRepayment"
           />
         </AsyncState>
       </section>
@@ -223,8 +240,8 @@ function cancelDeleteRepayment() {
           还一笔
         </button>
         <button type="button" class="btn" @click="editFromDetail(detailLiability)">编辑</button>
-        <button type="button" class="btn btn--danger" @click="askDeleteLiability(detailLiability.id)">
-          删除
+        <button v-if="props.permissions.isOwner" type="button" class="btn btn--danger" @click="askDeleteLiability(detailLiability.id)">
+          {{ detailLiability.archived ? '恢复' : '归档' }}
         </button>
       </div>
     </AppSheet>
@@ -233,7 +250,6 @@ function cancelDeleteRepayment() {
       v-if="formOpen"
       :mode="formMode"
       :initial="formInitial"
-      :members="members"
       @close="formOpen = false"
       @saved="formOpen = false"
     />
@@ -242,15 +258,17 @@ function cancelDeleteRepayment() {
       v-if="repayLiability"
       :liability="repayLiability"
       :accounts="accounts"
+      :mode="repayInitial ? 'edit' : 'create'"
+      :initial="repayInitial"
       @close="repayLiability = null"
-      @saved="repayLiability = null"
+      @saved="repayLiability = null; repayInitial = undefined"
     />
 
     <ConfirmDialog
       v-if="confirmDeleteId !== null"
-      title="删除负债"
-      description="删除后不可恢复，相关还款历史也会被删除，对应账户余额和还款流水将一并回滚。"
-      confirm-text="删除"
+      title="归档负债"
+      description="归档后不会出现在新的还款操作中，历史记录仍会保留。"
+      confirm-text="归档"
       :pending="liabilityDeletePending"
       :error="mutationError ?? ''"
       @confirm="doDeleteLiability"

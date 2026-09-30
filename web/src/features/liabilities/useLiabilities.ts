@@ -2,7 +2,7 @@ import { computed, onMounted, ref, watch, type Ref } from 'vue';
 import { cachedGet } from '../../lib/api';
 import { createLatestGate } from '../../lib/latestGate';
 import { resourceVersion } from '../../lib/resourceInvalidation';
-import type { Account, Liability, Member, Repayment, Summary } from './types';
+import type { Account, Liability, Repayment, Summary } from './types';
 
 const EMPTY_SUMMARY: Summary = {
   totalAssetsCents: 0,
@@ -21,7 +21,6 @@ export function useLiabilities() {
   const summary = ref<Summary>(EMPTY_SUMMARY);
   const liabilities = ref<Liability[]>([]);
   const accounts = ref<Account[]>([]);
-  const members = ref<Member[]>([]);
   const repayments = ref<Repayment[]>([]);
   const selectedLiabilityId = ref<number | null>(null);
   const selectedLiability = computed(
@@ -34,12 +33,10 @@ export function useLiabilities() {
   const summaryLoading = ref(true);
   const liabilityLoading = ref(true);
   const accountLoading = ref(true);
-  const memberLoading = ref(true);
   const repaymentsLoading = ref(true);
   const summaryError = ref<string | null>(null);
   const liabilityError = ref<string | null>(null);
   const accountError = ref<string | null>(null);
-  const memberError = ref<string | null>(null);
   const repaymentsError = ref<string | null>(null);
 
   const loading = computed(
@@ -47,7 +44,6 @@ export function useLiabilities() {
       summaryLoading.value ||
       liabilityLoading.value ||
       accountLoading.value ||
-      memberLoading.value ||
       repaymentsLoading.value,
   );
   const refreshing = computed(
@@ -58,8 +54,7 @@ export function useLiabilities() {
       liabilityError.value ??
       repaymentsError.value ??
       summaryError.value ??
-      accountError.value ??
-      memberError.value,
+      accountError.value,
   );
 
   function createLoader<T>(
@@ -107,13 +102,6 @@ export function useLiabilities() {
     accountError,
     '账户加载失败',
   );
-  const loadMembers = createLoader(
-    '/api/members',
-    members,
-    memberLoading,
-    memberError,
-    '成员加载失败',
-  );
   const loadRepayments = createLoader(
     '/api/repayments',
     repayments,
@@ -127,7 +115,6 @@ export function useLiabilities() {
       loadSummary(force),
       loadLiabilities(force),
       loadAccounts(force),
-      loadMembers(force),
       loadRepayments(force),
     ]);
   }
@@ -147,7 +134,6 @@ export function useLiabilities() {
   watch(resourceVersion(['statistics']), () => void loadSummary(true));
   watch(resourceVersion(['liabilities']), () => void loadLiabilities(true));
   watch(resourceVersion(['accounts']), () => void loadAccounts(true));
-  watch(resourceVersion(['members']), () => void loadMembers(true));
   watch(resourceVersion(['repayments']), () => void loadRepayments(true));
   watch(liabilities, (items) => {
     if (
@@ -164,7 +150,6 @@ export function useLiabilities() {
     liabilities,
     repayments,
     accounts,
-    members,
     selectedLiabilityId,
     selectedLiability,
     selectedRepayments,
@@ -174,24 +159,20 @@ export function useLiabilities() {
     summaryLoading,
     liabilityLoading,
     accountLoading,
-    memberLoading,
     repaymentsLoading,
     summaryError,
     liabilityError,
     accountError,
-    memberError,
     repaymentsError,
     load,
     reload: () => load(true),
     loadSummary,
     loadLiabilities,
     loadAccounts,
-    loadMembers,
     loadRepayments,
     reloadSummary: () => loadSummary(true),
     reloadLiabilities: () => loadLiabilities(true),
     reloadAccounts: () => loadAccounts(true),
-    reloadMembers: () => loadMembers(true),
     reloadRepayments,
     selectLiability,
     clearSelection,

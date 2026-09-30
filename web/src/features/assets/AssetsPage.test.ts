@@ -195,9 +195,9 @@ describe('financial writes retain their pending and failed surfaces', () => {
         await settle();
         clickBtnInSheet(form === 'account' ? '编辑' : '更新市值');
         await settle();
-        setInput(fieldInput(form === 'account' ? '余额' : '市值')!, '16840');
+        setInput(fieldInput(form === 'account' ? '账户名称' : '市值')!, form === 'account' ? '待保存的账户' : '16840');
       }
-      const field = fieldInput(form === 'account' ? '余额' : '市值')!;
+      const field = fieldInput(form === 'asset' ? '市值' : form === 'account' ? '账户名称' : '9月末市值')!;
       clickBtn('保存');
       await settle();
       expect(findBtn('保存中…')?.disabled).toBe(true);
@@ -207,11 +207,11 @@ describe('financial writes retain their pending and failed surfaces', () => {
       await settle();
       expect(document.querySelector('.sheet')).not.toBeNull();
       expect(field.isConnected).toBe(true);
-      expect(field.value).toBe('16840');
+      expect(field.value).toBe(form === 'account' ? '待保存的账户' : '16840');
       pending.reject(new Error('写入失败，请重试'));
       await settle();
       expect(document.querySelector('.sheet')?.textContent).toContain('写入失败');
-      expect(field.value).toBe('16840');
+      expect(field.value).toBe(form === 'account' ? '待保存的账户' : '16840');
       clickBtn('保存');
       await settle();
       expect(write).toHaveBeenCalledTimes(2);
@@ -220,36 +220,47 @@ describe('financial writes retain their pending and failed surfaces', () => {
   }
 
   it.each([
-    ['现金', '/api/accounts/1'],
-    ['股票', '/api/assets/2'],
-  ])('keeps %s deletion retryable and prevents duplicate or dismissed pending writes', async (name, path) => {
+    ['现金', '/api/accounts/1/archive'],
+    ['股票', '/api/assets/2/archive'],
+  ])('keeps %s archive retryable and prevents duplicate or dismissed pending writes', async (name, path) => {
     const pending = deferred<unknown>();
-    mockedApiDelete.mockReturnValueOnce(pending.promise);
+    mockedApiPost.mockReturnValueOnce(pending.promise);
     wrapper = mount(AssetsPage, { attachTo: document.body });
     await settle();
     openRow(name);
     await settle();
-    clickBtnInSheet('删除');
+    clickBtnInSheet('归档');
     await settle();
-    const confirm = findBtn('删除', document.querySelector('.dialog')!)!;
+    const confirm = findBtn('归档', document.querySelector('.dialog')!)!;
     confirm.click();
     confirm.click();
     await settle();
-    expect(mockedApiDelete).toHaveBeenCalledTimes(1);
+    expect(mockedApiPost).toHaveBeenCalledTimes(1);
     expect(confirm.disabled).toBe(true);
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     document.querySelector<HTMLElement>('.overlay--center')!.click();
     findBtn('取消', document.querySelector('.dialog')!)!.click();
     await settle();
     expect(document.querySelector('.dialog')).not.toBeNull();
-    pending.reject(new Error('删除失败，请重试'));
+    pending.reject(new Error('归档失败，请重试'));
     await settle();
-    expect(document.querySelector('.dialog [role="alert"]')?.textContent).toContain('删除失败');
+    expect(document.querySelector('.dialog [role="alert"]')?.textContent).toContain('归档失败');
     expect(liByText(name)).not.toBeNull();
     confirm.click();
     await settle();
-    expect(mockedApiDelete.mock.calls).toEqual([[path], [path]]);
+    expect(mockedApiPost.mock.calls).toEqual([[path, {}], [path, {}]]);
     expect(document.querySelector('.dialog')).toBeNull();
+  });
+});
+
+describe('shared ledger ownership', () => {
+  it('does not load or render legacy member ownership', async () => {
+    wrapper = mount(AssetsPage, { attachTo: document.body });
+    await settle();
+
+    expect(mockedCachedGet).not.toHaveBeenCalledWith('/api/members', undefined, expect.anything());
+    expect(document.body.textContent).not.toContain('成员');
+    expect(document.querySelector('[aria-label="归属成员"]')).toBeNull();
   });
 });
 
@@ -358,14 +369,14 @@ describe('AC-02 资金账户区', () => {
     expect(document.querySelector('.section')).toBeNull();
   });
 
-  it('列出账户名/余额/成员/默认标记', async () => {
+  it('列出账户名/余额/默认标记且不显示成员归属', async () => {
     wrapper = mount(AssetsPage, { attachTo: document.body });
     await settle();
     expect(document.body.textContent).toContain('现金');
     expect(document.body.textContent).toContain('银行卡');
     expect(document.body.textContent).toContain(formatMoney(0));
-    expect(document.body.textContent).toContain('我');
-    expect(document.body.textContent).toContain('配偶');
+    expect(document.body.textContent).not.toContain('我');
+    expect(document.body.textContent).not.toContain('配偶');
     expect(document.querySelectorAll('.tag').length).toBeGreaterThanOrEqual(1);
   });
 
@@ -397,28 +408,23 @@ describe('AC-02 资金账户区', () => {
     expect(mockedApiPatch).not.toHaveBeenCalledWith('/api/accounts/1/calibrate', expect.anything());
   });
 
-  it('校准余额走 PATCH /api/accounts/:id/calibrate {balance}', async () => {
+  it('编辑账户不提供不存在的余额校准接口', async () => {
     wrapper = mount(AssetsPage, { attachTo: document.body });
     await settle();
     openRow('银行卡');
     await settle();
     clickBtnInSheet('编辑');
     await settle();
-    const balInput = fieldInput('余额') as HTMLInputElement;
-    setInput(balInput, '500');
-    clickBtn('保存');
-    await settle();
-    expect(mockedApiPatch).toHaveBeenCalledWith('/api/accounts/2/calibrate', expect.objectContaining({ balance: 500 }));
+    expect(fieldInput('余额')).toBeNull();
+    expect(mockedApiPatch).not.toHaveBeenCalledWith('/api/accounts/2/calibrate', expect.anything());
   });
 
-  it('设为默认调用 POST /api/accounts/:id/set-default', async () => {
+  it('不提供后端未实现的默认账户切换操作', async () => {
     wrapper = mount(AssetsPage, { attachTo: document.body });
     await settle();
     openRow('银行卡');
     await settle();
-    clickBtnInSheet('设为默认');
-    await settle();
-    expect(mockedApiPost).toHaveBeenCalledWith('/api/accounts/2/set-default', expect.anything());
+    expect(findBtn('设为默认', document.querySelector('.sheet')!)).toBeNull();
   });
 
   it('负余额显示红色「余额为负」标记', async () => {
@@ -437,23 +443,22 @@ describe('AC-02 资金账户区', () => {
     expect(row!.textContent).not.toContain('删除');
   });
 
-  it('有交易的账户删除返回 409 时提示无法删除', async () => {
-    mockedApiDelete.mockRejectedValueOnce(new ApiError(409, 'ACCOUNT_IN_USE', '账户已有交易'));
+  it('账户归档需要所有者确认并保留历史数据', async () => {
     wrapper = mount(AssetsPage, { attachTo: document.body });
     await settle();
     openRow('现金');
     await settle();
-    clickBtnInSheet('删除');
+    clickBtnInSheet('归档');
     await settle();
-    clickBtnInDialog('删除');
+    clickBtnInDialog('归档');
     await settle();
-    expect(document.body.textContent).toContain('该账户存在交易记录，无法删除');
+    expect(mockedApiPost).toHaveBeenCalledWith('/api/accounts/1/archive', {});
     expect(document.body.textContent).toContain('现金');
   });
 });
 
 describe('AC-03 资产项区', () => {
-  it('列出名称/市值/类型/成员/最后更新', async () => {
+  it('列出名称/市值/类型/最后更新', async () => {
     wrapper = mount(AssetsPage, { attachTo: document.body });
     await settle();
     expect(document.body.textContent).toContain('房产');
@@ -502,17 +507,17 @@ describe('AC-03 资产项区', () => {
     expect(mockedApiPatch).toHaveBeenCalledWith('/api/assets/2', expect.objectContaining({ value: 60000 }));
   });
 
-  it('删除资产需二次确认后才调用 apiDelete', async () => {
+  it('归档资产需二次确认后才调用 archive API', async () => {
     wrapper = mount(AssetsPage, { attachTo: document.body });
     await settle();
     openRow('股票');
     await settle();
-    clickBtnInSheet('删除');
+    clickBtnInSheet('归档');
     await settle();
-    expect(mockedApiDelete).not.toHaveBeenCalled();
-    clickBtnInDialog('删除');
+    expect(mockedApiPost).not.toHaveBeenCalledWith('/api/assets/2/archive', {});
+    clickBtnInDialog('归档');
     await settle();
-    expect(mockedApiDelete).toHaveBeenCalledWith('/api/assets/2');
+    expect(mockedApiPost).toHaveBeenCalledWith('/api/assets/2/archive', {});
   });
 
   it('市值 < 0 时前端拦截，不提交', async () => {
@@ -528,14 +533,10 @@ describe('AC-03 资产项区', () => {
     expect(mockedApiPost).not.toHaveBeenCalledWith('/api/assets', expect.anything());
   });
 
-  it('按成员汇总切换显示各成员市值合计', async () => {
+  it('不提供按成员汇总视图', async () => {
     wrapper = mount(AssetsPage, { attachTo: document.body });
     await settle();
-    clickBtn('按成员');
-    await settle();
-    expect(document.body.textContent).toContain(formatMoney(100000000));
-    expect(document.body.textContent).toContain(formatMoney(5000000));
-    expect(document.body.textContent).toContain('配偶');
+    expect(findBtn('按成员')).toBeNull();
   });
 
   it('按类型汇总切换显示各类型市值合计', async () => {
@@ -636,55 +637,50 @@ describe('AC-05 资产市值历史', () => {
     });
   });
 
-  it('删掉一条市值记录走 DELETE /api/assets/snapshots/:id', async () => {
+  it('市值记录只提供新增或更新，不提供未实现的删除接口', async () => {
     wrapper = mount(AssetsPage, { attachTo: document.body });
     await settle();
     openRow('房产');
     await settle();
-    const del = document.querySelector<HTMLButtonElement>('.history__del');
-    expect(del).toBeTruthy();
-    del!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    await settle();
-    expect(mockedApiDelete).toHaveBeenCalledWith('/api/assets/snapshots/11');
+    expect(document.querySelector('.history__del')).toBeNull();
+    expect(mockedApiDelete).not.toHaveBeenCalled();
   });
 
-  it('keeps snapshot rows visible during a failed refresh and retries only snapshots', async () => {
+  it('shows snapshot errors and retries only snapshots', async () => {
     mockedCachedGet.mockImplementation((path: string, _params: unknown, options: { force?: boolean } = {}) => {
       if (path === '/api/stats/summary') return Promise.resolve(summary);
       if (path === '/api/accounts') return Promise.resolve(accounts);
       if (path === '/api/assets') return Promise.resolve(assets);
       if (path === '/api/members') return Promise.resolve(members);
       if (/\/api\/assets\/\d+\/snapshots$/.test(path)) {
-        return options.force ? Promise.reject(new Error('history offline')) : Promise.resolve(snapshots);
+        return Promise.reject(new Error(options.force ? 'history offline' : 'history unavailable'));
       }
       return Promise.resolve(undefined);
     });
     wrapper = mount(AssetsPage, { attachTo: document.body });
     await settle();
+    mockedCachedGet.mockClear();
     openRow('房产');
     await settle();
-    document.querySelector<HTMLButtonElement>('.history__del')!.click();
-    await settle();
-    expect(document.querySelector('.history__list')?.textContent).toContain('2026年9月');
-    expect(document.querySelector('[data-snapshot-status]')?.textContent).toContain('history offline');
-
+    expect(mockedCachedGet).toHaveBeenCalledTimes(1);
+    expect(document.querySelector('[data-snapshot-status]')?.textContent).toContain('history unavailable');
     mockedCachedGet.mockClear();
     clickBtn('重试市值记录');
     await settle();
+    expect(document.querySelector('[data-snapshot-status]')?.textContent).toContain('history offline');
     expect(mockedCachedGet).toHaveBeenCalledTimes(1);
     expect(mockedCachedGet).toHaveBeenCalledWith('/api/assets/1/snapshots', undefined, { force: true });
     expect(mockedCachedGet).not.toHaveBeenCalledWith('/api/accounts', undefined, { force: true });
     expect(mockedCachedGet).not.toHaveBeenCalledWith('/api/members', undefined, { force: true });
   });
 
-  it('provides a 44px snapshot delete target', async () => {
+  it('keeps snapshot history rows readable without a destructive delete control', async () => {
     wrapper = mount(AssetsPage, { attachTo: document.body });
     await settle();
     openRow('房产');
     await settle();
-    const del = document.querySelector<HTMLButtonElement>('.history__del')!;
-    expect(getComputedStyle(del).width).toBe('44px');
-    expect(getComputedStyle(del).height).toBe('44px');
+    expect(document.querySelector('.history__row')).toBeTruthy();
+    expect(document.querySelector('.history__del')).toBeNull();
   });
 });
 

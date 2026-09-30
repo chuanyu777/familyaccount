@@ -1,16 +1,13 @@
-export interface Member {
-  id: number;
-  name: string;
-  color?: string;
-}
-
 export interface Account {
   id: number;
   name: string;
   balance: string;
-  balance_cents: number;
+  balanceCents?: number;
+  isDefault?: number | boolean;
+  balance_cents?: number;
+  is_default?: number | boolean;
+  archived?: number | boolean;
   member_id?: number;
-  is_default: boolean;
 }
 
 export interface Liability {
@@ -18,9 +15,13 @@ export interface Liability {
   name: string;
   remaining: string;
   monthlyPayment: string;
-  payment_day: number;
+  paymentDay?: number;
+  payment_day?: number;
+  archived?: number | boolean;
   member_id?: number;
 }
+
+export interface Member { id: number; name: string; color?: string; }
 
 export interface Repayment {
   id: number;
@@ -30,6 +31,7 @@ export interface Repayment {
   occurred_on: string;
   account_id?: number;
   transaction_id?: number;
+  created_by_user_id?: number;
 }
 
 export interface Summary {

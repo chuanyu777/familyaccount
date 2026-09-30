@@ -1,22 +1,24 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import AppSheet from '../../components/AppSheet.vue';
-import { apiPost } from '../../lib/api';
+import { apiPost, apiPut } from '../../lib/api';
 import { parseYuanToCents, centsToInput } from './util';
-import type { Account, Liability } from './types';
+import type { Account, Liability, Repayment } from './types';
 
 const props = defineProps<{
   liability: Liability;
   accounts: Account[];
+  mode?: 'create' | 'edit';
+  initial?: Repayment;
 }>();
 
 const emit = defineEmits<{ close: []; saved: [] }>();
 
 const monthlyCents = parseYuanToCents(props.liability.monthlyPayment) ?? 0;
-const amount = ref(monthlyCents === 0 ? '' : centsToInput(monthlyCents));
-const date = ref(todayISO());
-const defaultAccount = props.accounts.find((a) => a.is_default);
-const accountId = ref<number | ''>(defaultAccount ? defaultAccount.id : '');
+const amount = ref(props.initial ? centsToInput(props.initial.amount_cents) : monthlyCents === 0 ? '' : centsToInput(monthlyCents));
+const date = ref(props.initial?.occurred_on ?? todayISO());
+const defaultAccount = props.accounts.find((a) => a.isDefault ?? a.is_default);
+const accountId = ref<number | ''>(props.initial?.account_id ?? (defaultAccount ? defaultAccount.id : ''));
 const error = ref<string | null>(null);
 const saving = ref(false);
 
@@ -39,7 +41,8 @@ async function save() {
     return;
   }
   const remainingCents = parseYuanToCents(props.liability.remaining) ?? 0;
-  if (cents > remainingCents) {
+  const availableCents = props.initial ? remainingCents + props.initial.amount_cents : remainingCents;
+  if (cents > availableCents) {
     error.value = '还款金额不能超过剩余本金';
     return;
   }
@@ -49,12 +52,14 @@ async function save() {
   }
   saving.value = true;
   try {
-    await apiPost('/api/repayments', {
+    const payload = {
       liabilityId: props.liability.id,
       amount: cents / 100,
       occurredOn: date.value,
       accountId: accountId.value,
-    });
+    };
+    if (props.mode === 'edit' && props.initial) await apiPut(`/api/repayments/${props.initial.id}`, payload);
+    else await apiPost('/api/repayments', payload);
     emit('saved');
   } catch (e) {
     error.value = e instanceof Error ? e.message : '还款失败';
@@ -64,7 +69,7 @@ async function save() {
 </script>
 
 <template>
-  <AppSheet title="还一笔" @close="handleClose">
+  <AppSheet :title="mode === 'edit' ? '编辑还款' : '还一笔'" @close="handleClose">
     <p class="repay-target">负债：{{ liability.name }}</p>
 
     <label class="field">

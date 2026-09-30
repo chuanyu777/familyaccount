@@ -1,4 +1,4 @@
-import type { Member, Account } from './types';
+import type { Account } from './types';
 
 /** 用户输入的「元」字符串解析为「分」；空/非法返回 null */
 export function parseYuanToCents(input: string): number | null {
@@ -17,12 +17,6 @@ export function centsToInput(cents: number): string {
   const fen = abs % 100;
   if (fen === 0) return `${sign}${yuan}`;
   return `${sign}${yuan}.${fen.toString().padStart(2, '0')}`;
-}
-
-export function memberName(members: Member[], id?: number): string {
-  if (id == null) return '家庭共有';
-  const m = members.find((x) => x.id === id);
-  return m ? m.name : '家庭共有';
 }
 
 export function accountName(accounts: Account[], id?: number): string {

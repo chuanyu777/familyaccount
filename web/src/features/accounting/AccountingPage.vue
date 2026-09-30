@@ -16,6 +16,15 @@ import TransactionList from './TransactionList.vue';
 import TransactionTable from './TransactionTable.vue';
 import { useTransactions, type TransactionTypeFilter } from './useTransactions';
 import type { Category, Transaction } from './types';
+import type { LedgerPermissions, LedgerSession } from '../../auth/types';
+
+const props = withDefaults(defineProps<{
+  session?: LedgerSession;
+  permissions?: LedgerPermissions;
+}>(), {
+  session: () => ({ type: 'LEDGER_USER', userId: 0 }),
+  permissions: () => ({ isOwner: true, canManageMembers: true, canRenameLedger: true, canArchiveResources: true }),
+});
 
 const TYPE_OPTIONS: { value: TransactionTypeFilter; label: string }[] = [
   { value: '', label: '全部' },
@@ -28,11 +37,9 @@ const {
   month,
   type,
   accountFilter,
-  memberFilter,
   items,
   totals,
   accounts,
-  members,
   expenseCategories,
   incomeCategories,
   loading,
@@ -63,7 +70,6 @@ const retainedLabel = computed(() => {
     monthLabel(query.month),
     TYPE_OPTIONS.find(({ value }) => value === query.type)?.label,
     query.accountFilter ? accounts.value.find(({ id }) => String(id) === query.accountFilter)?.name ?? `账户 ${query.accountFilter}` : '全部账户',
-    query.memberFilter ? members.value.find(({ id }) => String(id) === query.memberFilter)?.name ?? `成员 ${query.memberFilter}` : '全部成员',
   ].join(' · ');
 });
 
@@ -158,6 +164,11 @@ function toneOf(transaction: Transaction): 'income' | 'expense' | 'neutral' {
 function signedCents(transaction: Transaction): number {
   return transaction.type === 'expense' ? -transaction.amountCents : transaction.amountCents;
 }
+
+function canMutate(transaction: Transaction): boolean {
+  return transaction.sourceType !== 'repayment' &&
+    (props.permissions.isOwner || transaction.createdByUserId === props.session.userId);
+}
 </script>
 
 <template>
@@ -182,7 +193,7 @@ function signedCents(transaction: Transaction): number {
     />
 
     <div v-if="referenceLoading || referenceError" class="accounting__references" data-reference-status :aria-busy="referenceLoading">
-      <p v-if="referenceLoading" role="status">正在加载账户、成员与分类…</p>
+      <p v-if="referenceLoading" role="status">正在加载账户与分类…</p>
       <div v-if="referenceError" class="async-error" role="alert">
         <span>{{ referenceError }}</span>
         <button type="button" class="btn" :disabled="referenceLoading" @click="reloadReferences">重试基础信息</button>
@@ -219,15 +230,6 @@ function signedCents(transaction: Transaction): number {
             <option value="">全部账户</option>
             <option v-for="account in accounts" :key="account.id" :value="String(account.id)">
               {{ account.name }}
-            </option>
-          </select>
-        </label>
-        <label class="field">
-          <span class="field__label">成员</span>
-          <select v-model="memberFilter" class="field__control" aria-label="筛选成员">
-            <option value="">全部成员</option>
-            <option v-for="member in members" :key="member.id" :value="String(member.id)">
-              {{ member.name }}
             </option>
           </select>
         </label>
@@ -294,9 +296,9 @@ function signedCents(transaction: Transaction): number {
           <dt>账户</dt>
           <dd>{{ detailTransaction.accountName }}</dd>
         </div>
-        <div class="detail__row">
-          <dt>成员</dt>
-          <dd>{{ detailTransaction.memberName || '家庭共有' }}</dd>
+        <div v-if="detailTransaction.createdByUserId" class="detail__row">
+          <dt>创建者</dt>
+          <dd>用户 {{ detailTransaction.createdByUserId }}</dd>
         </div>
         <div v-if="detailTransaction.note" class="detail__row">
           <dt>备注</dt>
@@ -308,7 +310,7 @@ function signedCents(transaction: Transaction): number {
         这笔由还款自动生成，要改动请到「负债」里删除对应还款。
       </p>
 
-      <div v-else class="detail__actions">
+      <div v-else-if="canMutate(detailTransaction)" class="detail__actions">
         <button type="button" class="btn" @click="openEdit(detailTransaction)">修改</button>
         <button
           type="button"
@@ -328,7 +330,6 @@ function signedCents(transaction: Transaction): number {
       :mode="formMode"
       :initial="formInitial"
       :accounts="accounts"
-      :members="members"
       :expense-categories="expenseCategories"
       :income-categories="incomeCategories"
       @close="formOpen = false"

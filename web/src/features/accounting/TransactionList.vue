@@ -59,7 +59,7 @@ function iconOf(transaction: Transaction): Component {
 }
 
 function metaOf(transaction: Transaction): string {
-  return [transaction.note, transaction.memberName, transaction.accountName]
+  return [transaction.note, transaction.accountName]
     .filter(Boolean)
     .join(' · ');
 }

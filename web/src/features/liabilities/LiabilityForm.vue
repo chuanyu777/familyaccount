@@ -3,12 +3,11 @@ import { computed, ref } from 'vue';
 import AppSheet from '../../components/AppSheet.vue';
 import { apiPatch, apiPost } from '../../lib/api';
 import { parseYuanToCents } from './util';
-import type { Liability, Member } from './types';
+import type { Liability } from './types';
 
 const props = defineProps<{
   mode: 'create' | 'edit';
   initial?: Liability;
-  members: Member[];
 }>();
 
 const emit = defineEmits<{ close: []; saved: [] }>();
@@ -16,8 +15,7 @@ const emit = defineEmits<{ close: []; saved: [] }>();
 const name = ref(props.initial?.name ?? '');
 const remaining = ref(props.initial ? props.initial.remaining : '');
 const monthlyPayment = ref(props.initial ? props.initial.monthlyPayment : '');
-const paymentDay = ref<string>(props.initial?.payment_day ? String(props.initial.payment_day) : '');
-const memberId = ref<number | ''>(props.initial?.member_id ?? '');
+const paymentDay = ref<string>(props.initial?.paymentDay ?? props.initial?.payment_day ? String(props.initial.paymentDay ?? props.initial.payment_day) : '');
 const error = ref<string | null>(null);
 const saving = ref(false);
 
@@ -49,7 +47,6 @@ async function save() {
     remaining: number;
     monthlyPayment: number;
     paymentDay?: number;
-    memberId?: number;
   } = {
     name: name.value.trim(),
     remaining: remCents / 100,
@@ -59,7 +56,6 @@ async function save() {
     const d = Number(paymentDay.value);
     if (Number.isFinite(d)) body.paymentDay = d;
   }
-  if (memberId.value !== '') body.memberId = memberId.value;
 
   saving.value = true;
   try {
@@ -96,14 +92,6 @@ async function save() {
     <label class="field">
       <span class="field__label">还款日</span>
       <input v-model="paymentDay" class="field__control" type="text" inputmode="numeric" aria-label="还款日" placeholder="可空" />
-    </label>
-
-    <label class="field">
-      <span class="field__label">归属成员</span>
-      <select v-model="memberId" class="field__control" aria-label="归属成员">
-        <option value="">家庭共有</option>
-        <option v-for="m in members" :key="m.id" :value="m.id">{{ m.name }}</option>
-      </select>
     </label>
 
     <p v-if="error" class="form-error">{{ error }}</p>

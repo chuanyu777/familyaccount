@@ -1,13 +1,37 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import App from '../App.vue';
 import { useWebAuth } from './useWebAuth';
+import { getLedger } from '../lib/api';
+import type { LedgerPermissions, LedgerSession, LedgerSummary } from './types';
 
 const username = ref('');
 const password = ref('');
 const error = ref<string | null>(null);
 const pending = ref(false);
+const ledger = ref<LedgerSummary | null>(null);
+const ledgerSession = computed<LedgerSession | null>(() =>
+  session.value?.type === 'LEDGER_USER' ? session.value : null,
+);
 const { session, login, logout, refresh } = useWebAuth('ledger');
+const permissions = computed<LedgerPermissions>(() => ({
+  isOwner: ledger.value?.role === 'OWNER',
+  canManageMembers: ledger.value?.role === 'OWNER',
+  canRenameLedger: ledger.value?.role === 'OWNER',
+  canArchiveResources: ledger.value?.role === 'OWNER',
+}));
+
+async function loadLedger() {
+  if (!session.value) {
+    ledger.value = null;
+    return;
+  }
+  try {
+    ledger.value = await getLedger();
+  } catch {
+    ledger.value = null;
+  }
+}
 
 async function submit() {
   if (pending.value) return;
@@ -15,6 +39,7 @@ async function submit() {
   pending.value = true;
   try {
     await login(username.value.trim(), password.value);
+    await loadLedger();
   } catch (cause) {
     error.value = cause instanceof Error ? cause.message : '登录失败，请检查用户名和密码';
   } finally {
@@ -22,11 +47,14 @@ async function submit() {
   }
 }
 
-onMounted(() => void refresh());
+onMounted(async () => {
+  await refresh();
+  await loadLedger();
+});
 </script>
 
 <template>
-  <App v-if="session" @logout="logout" />
+  <App v-if="ledgerSession && ledger" :session="ledgerSession" :ledger="ledger" :permissions="permissions" @logout="logout" />
   <main v-else class="auth-page">
     <section class="auth-panel" aria-labelledby="ledger-login-title">
       <p class="auth-panel__eyebrow">家庭财务</p>

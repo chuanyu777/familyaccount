@@ -14,7 +14,7 @@ const emit = defineEmits<{ close: []; saved: [] }>();
 
 const thisMonth = currentMonth();
 const month = ref(thisMonth);
-const value = ref(centsToInput(props.asset.value_cents));
+const value = ref(centsToInput(props.asset.valueCents ?? props.asset.value_cents ?? 0));
 const note = ref('');
 const error = ref<string | null>(null);
 const saving = ref(false);

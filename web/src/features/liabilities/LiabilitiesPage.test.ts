@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { formatMoney } from '../../lib/format';
-import { cachedGet, apiPost, apiPatch, apiDelete, ApiError } from '../../lib/api';
+import { cachedGet, apiPost, apiPatch, apiPut, apiDelete, ApiError } from '../../lib/api';
 import { publishResources } from '../../lib/resourceInvalidation';
 import LiabilitiesPage from './LiabilitiesPage.vue';
 import type { Account, Liability, Member, Repayment, Summary } from './types';
@@ -31,6 +31,7 @@ vi.mock('../../lib/api', () => {
 const mockedCachedGet = vi.mocked(cachedGet) as unknown as Mock;
 const mockedApiPost = vi.mocked(apiPost) as unknown as Mock;
 const mockedApiPatch = vi.mocked(apiPatch) as unknown as Mock;
+const mockedApiPut = vi.mocked(apiPut) as unknown as Mock;
 const mockedApiDelete = vi.mocked(apiDelete) as unknown as Mock;
 
 const members: Member[] = [
@@ -167,6 +168,7 @@ beforeEach(() => {
   setupCache();
   mockedApiPost.mockResolvedValue(undefined);
   mockedApiPatch.mockResolvedValue(undefined);
+  mockedApiPut.mockResolvedValue(undefined);
   mockedApiDelete.mockResolvedValue(undefined);
 });
 
@@ -177,6 +179,15 @@ afterEach(() => {
 });
 
 describe('AC-01 顶部总览卡', () => {
+  it('does not load or render legacy member ownership', async () => {
+    wrapper = mount(LiabilitiesPage, { attachTo: document.body });
+    await settle();
+
+    expect(mockedCachedGet).not.toHaveBeenCalledWith('/api/members', undefined, expect.anything());
+    expect(document.body.textContent).not.toContain('归属');
+    expect(document.querySelector('[aria-label="归属成员"]')).toBeNull();
+  });
+
   it('显示总负债与月供合计', async () => {
     wrapper = mount(LiabilitiesPage, { attachTo: document.body });
     await settle();
@@ -344,38 +355,37 @@ describe('AC-02 负债列表', () => {
     expect(mockedApiPatch).toHaveBeenCalledWith('/api/liabilities/1', expect.objectContaining({ name: '房贷A' }));
   });
 
-  it('删除负债需二次确认', async () => {
+  it('归档负债需二次确认', async () => {
     wrapper = mount(LiabilitiesPage, { attachTo: document.body });
     await settle();
     openRow('房贷');
     await settle();
-    clickBtnInSheet('删除');
+    clickBtnInSheet('归档');
     await settle();
-    expect(mockedApiDelete).not.toHaveBeenCalled();
-    expect(document.querySelector('.dialog')?.textContent).toContain('还款历史');
-    expect(document.querySelector('.dialog')?.textContent).toContain('账户余额');
-    clickBtnInDialog('删除');
+    expect(mockedApiPost).not.toHaveBeenCalledWith('/api/liabilities/1/archive', {});
+    expect(document.querySelector('.dialog')?.textContent).toContain('历史记录仍会保留');
+    clickBtnInDialog('归档');
     await settle();
-    expect(mockedApiDelete).toHaveBeenCalledWith('/api/liabilities/1');
+    expect(mockedApiPost).toHaveBeenCalledWith('/api/liabilities/1/archive', {});
   });
 
-  it('负债删除只提交一次，失败后保留可重试确认框', async () => {
+  it('负债归档只提交一次，失败后保留可重试确认框', async () => {
     const pending = deferred<void>();
-    mockedApiDelete.mockImplementation(() => pending.promise);
+    mockedApiPost.mockImplementation(() => pending.promise);
     wrapper = mount(LiabilitiesPage, { attachTo: document.body });
     await settle();
     openRow('房贷');
     await settle();
-    clickBtnInSheet('删除');
+    clickBtnInSheet('归档');
     await settle();
 
     const dialog = document.querySelector<HTMLElement>('.dialog')!;
-    const confirm = findBtn('删除', dialog)!;
+    const confirm = findBtn('归档', dialog)!;
     confirm.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     confirm.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await flushPromises();
 
-    expect(mockedApiDelete).toHaveBeenCalledTimes(1);
+    expect(mockedApiPost).toHaveBeenCalledTimes(1);
     expect(dialog.getAttribute('aria-busy')).toBe('true');
     expect([...dialog.querySelectorAll<HTMLButtonElement>('button')].every(({ disabled }) => disabled)).toBe(true);
 
@@ -383,10 +393,10 @@ describe('AC-02 负债列表', () => {
     document.querySelector<HTMLElement>('.overlay')!.click();
     expect(document.querySelector('.dialog')).not.toBeNull();
 
-    pending.reject(new Error('删除负债失败'));
+    pending.reject(new Error('归档负债失败'));
     await settle();
-    expect(document.querySelector('.dialog')?.textContent).toContain('删除负债失败');
-    expect(findBtn('删除', document.querySelector('.dialog')!)?.disabled).toBe(false);
+    expect(document.querySelector('.dialog')?.textContent).toContain('归档负债失败');
+    expect(findBtn('归档', document.querySelector('.dialog')!)?.disabled).toBe(false);
   });
 });
 
@@ -498,6 +508,38 @@ describe('AC-03 还一笔', () => {
 });
 
 describe('AC-04 还款记录', () => {
+  it('allows the repayment creator to edit through the repayment endpoint', async () => {
+    const ownedRepayment = { ...repayments[0], created_by_user_id: 7 };
+    mockedCachedGet.mockImplementation((path: string) => {
+      if (path === '/api/stats/summary') return Promise.resolve(summary);
+      if (path === '/api/liabilities') return Promise.resolve(liabilities);
+      if (path === '/api/accounts') return Promise.resolve(accounts);
+      if (path === '/api/repayments') return Promise.resolve([ownedRepayment]);
+      return Promise.resolve(undefined);
+    });
+    wrapper = mount(LiabilitiesPage, {
+      props: {
+        session: { type: 'LEDGER_USER', userId: 7 },
+        permissions: { isOwner: false },
+      },
+      attachTo: document.body,
+    });
+    await settle();
+    openRow('房贷');
+    await settle();
+
+    clickBtnIn(rowByText('2026-09-10', 'repay-row')!, '编辑');
+    await settle();
+    setInput(fieldInput('还款金额') as HTMLInputElement, '2888');
+    clickBtn('保存');
+    await settle();
+
+    expect(mockedApiPut).toHaveBeenCalledWith('/api/repayments/1', expect.objectContaining({
+      liabilityId: 1,
+      amount: 2888,
+    }));
+  });
+
   it('展示还款记录，删除后回滚刷新', async () => {
     wrapper = mount(LiabilitiesPage, { attachTo: document.body });
     await settle();

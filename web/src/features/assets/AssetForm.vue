@@ -3,20 +3,18 @@ import { computed, ref } from 'vue';
 import AppSheet from '../../components/AppSheet.vue';
 import { apiPatch, apiPost } from '../../lib/api';
 import { parseYuanToCents, centsToInput } from './util';
-import type { Asset, Member } from './types';
+import type { Asset } from './types';
 
 const props = defineProps<{
   mode: 'create' | 'edit';
   initial?: Asset;
-  members: Member[];
 }>();
 
 const emit = defineEmits<{ close: []; saved: [] }>();
 
 const name = ref(props.initial?.name ?? '');
-const value = ref(props.initial ? centsToInput(props.initial.value_cents) : '');
+const value = ref(props.initial ? centsToInput(props.initial.valueCents ?? props.initial.value_cents ?? 0) : '');
 const kind = ref(props.initial?.kind ?? '');
-const memberId = ref<number | ''>(props.initial?.member_id ?? '');
 const error = ref<string | null>(null);
 const saving = ref(false);
 
@@ -42,12 +40,11 @@ async function save() {
     error.value = '市值不能为负';
     return;
   }
-  const body: { name: string; value: number; kind?: string; memberId?: number } = {
+  const body: { name: string; value: number; kind?: string } = {
     name: name.value.trim(),
     value: vCents / 100,
   };
   if (kind.value.trim()) body.kind = kind.value.trim();
-  if (memberId.value !== '') body.memberId = memberId.value;
 
   saving.value = true;
   try {
@@ -79,14 +76,6 @@ async function save() {
     <label class="field">
       <span class="field__label">类型</span>
       <input v-model="kind" class="field__control" type="text" aria-label="类型" placeholder="如 不动产 / 投资" />
-    </label>
-
-    <label class="field">
-      <span class="field__label">归属成员</span>
-      <select v-model="memberId" class="field__control" aria-label="归属成员">
-        <option value="">家庭共有</option>
-        <option v-for="m in members" :key="m.id" :value="m.id">{{ m.name }}</option>
-      </select>
     </label>
 
     <p v-if="error" class="form-error">{{ error }}</p>

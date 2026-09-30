@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import MoneyText from '../../components/MoneyText.vue';
-import { memberName } from './util';
-import type { Asset, Member } from './types';
+import type { Asset } from './types';
 
-defineProps<{ assets: Asset[]; members: Member[] }>();
+defineProps<{ assets: Asset[] }>();
 defineEmits<{ 'select-asset': [asset: Asset] }>();
 </script>
 
@@ -14,9 +13,9 @@ defineEmits<{ 'select-asset': [asset: Asset] }>();
         <span class="row__bubble" aria-hidden="true">{{ (asset.kind || asset.name).slice(0, 1) }}</span>
         <span class="row__main">
           <span class="row__title">{{ asset.name }}</span>
-          <span class="row__meta"><span>{{ asset.kind || '未分类' }}</span><span>{{ memberName(members, asset.member_id) }}</span></span>
+          <span class="row__meta"><span>{{ asset.kind || '未分类' }}</span></span>
         </span>
-        <MoneyText :cents="asset.value_cents" class="row__amount" />
+        <MoneyText :cents="asset.valueCents ?? asset.value_cents ?? 0" class="row__amount" />
       </button>
     </li>
   </ul>

@@ -7,10 +7,8 @@ import { centsToInput, todayISO } from '../../lib/format';
 import {
   DEFAULT_EXPENSE_CATEGORY,
   DEFAULT_INCOME_CATEGORY,
-  DEFAULT_MEMBER_NAME,
   type Account,
   type Category,
-  type Member,
   type Transaction,
   type TransactionType,
 } from './types';
@@ -19,7 +17,6 @@ const props = defineProps<{
   mode: 'create' | 'edit';
   initial?: Transaction;
   accounts: Account[];
-  members: Member[];
   expenseCategories: Category[];
   incomeCategories: Category[];
 }>();
@@ -42,7 +39,6 @@ const occurredOn = ref(todayISO());
 const accountId = ref<number | undefined>(undefined);
 const toAccountId = ref('');
 const categoryId = ref<number | undefined>(undefined);
-const memberId = ref<number | undefined>(undefined);
 const note = ref('');
 const newCatName = ref('');
 const newCatOpen = ref(false);
@@ -53,13 +49,7 @@ const localExpense = ref<Category[]>(props.expenseCategories);
 const localIncome = ref<Category[]>(props.incomeCategories);
 
 function defaultAccount(): number | undefined {
-  return props.accounts.find((a) => a.is_default)?.id ?? props.accounts[0]?.id;
-}
-
-function defaultMember(): number | undefined {
-  return (
-    props.members.find((m) => m.name === DEFAULT_MEMBER_NAME)?.id ?? props.members[0]?.id
-  );
+  return props.accounts.find((a) => a.isDefault ?? a.is_default)?.id ?? props.accounts[0]?.id;
 }
 
 function defaultCategory(list: Category[], fallback: string): number | undefined {
@@ -74,7 +64,6 @@ function initFields() {
     accountId.value = props.initial.accountId ?? defaultAccount();
     toAccountId.value = props.initial.toAccountId ? String(props.initial.toAccountId) : '';
     categoryId.value = props.initial.categoryId;
-    memberId.value = props.initial.memberId ?? defaultMember();
     note.value = props.initial.note ?? '';
   } else {
     type.value = 'expense';
@@ -83,7 +72,6 @@ function initFields() {
     accountId.value = defaultAccount();
     toAccountId.value = '';
     categoryId.value = defaultCategory(localExpense.value, DEFAULT_EXPENSE_CATEGORY);
-    memberId.value = defaultMember();
     note.value = '';
   }
   newCatName.value = '';
@@ -205,7 +193,6 @@ async function handleSubmit() {
     amount: amt,
     occurredOn: occurredOn.value,
     note: note.value || undefined,
-    memberId: memberId.value,
   };
 
   if (type.value === 'transfer') {
@@ -319,18 +306,12 @@ async function handleSubmit() {
       </button>
     </div>
 
-    <!-- 属性 chips：账户 / 成员 / 日期 -->
+    <!-- 属性 chips：账户 / 日期 -->
     <div class="attrs">
       <label v-if="type !== 'transfer'" class="attr">
         <span class="attr__label">账户</span>
         <select v-model="accountId" class="attr__control" aria-label="账户">
           <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.name }}</option>
-        </select>
-      </label>
-      <label class="attr">
-        <span class="attr__label">成员</span>
-        <select v-model="memberId" class="attr__control" aria-label="成员">
-          <option v-for="m in members" :key="m.id" :value="m.id">{{ m.name }}</option>
         </select>
       </label>
       <label class="attr">

@@ -90,7 +90,7 @@ afterEach(() => {
 });
 
 describe('useTransactions', () => {
-  it.each(['month', 'type', 'accountFilter', 'memberFilter'] as const)(
+  it.each(['month', 'type', 'accountFilter'] as const)(
     'blocks pagination after a failed %s change until its first page succeeds',
     async (filter) => {
       let fail = false;
@@ -126,14 +126,12 @@ describe('useTransactions', () => {
     mockedCachedGet.mockImplementation((path: string, params?: Record<string, unknown>) => {
       if (path === '/api/transactions') return Promise.resolve(response([transaction(1)]));
       if (path === '/api/accounts') return Promise.resolve(accounts);
-      if (path === '/api/members') return Promise.resolve(members);
       if (params?.kind === 'expense' && fail) return Promise.reject(new Error('分类失败'));
       return Promise.resolve(params?.kind === 'income' ? incomeCategories : expenseCategories);
     });
     mountComposable();
     await flushPromises();
     expect(state.accounts.value).toEqual(accounts);
-    expect(state.members.value).toEqual(members);
     expect(state.incomeCategories.value).toEqual(incomeCategories);
     expect(state.referenceError.value).toContain('分类失败');
     expect(state.referenceLoading.value).toBe(false);
@@ -145,7 +143,7 @@ describe('useTransactions', () => {
     expect(state.expenseCategories.value).toEqual(expenseCategories);
     expect(state.referenceError.value).toBeNull();
     expect(mockedCachedGet.mock.calls.map(([path]) => path)).toEqual([
-      '/api/accounts', '/api/members', '/api/categories', '/api/categories',
+      '/api/accounts', '/api/categories', '/api/categories',
     ]);
     expect(mockedCachedGet.mock.calls.every(([, , options]) => options.force)).toBe(true);
     expect(state.items.value.map(({ id }) => id)).toEqual([1]);
@@ -189,7 +187,6 @@ describe('useTransactions', () => {
         return transactionCalls === 1 ? Promise.resolve(response([transaction(1)])) : refresh.promise;
       }
       if (path === '/api/accounts') return Promise.resolve(accounts);
-      if (path === '/api/members') return Promise.resolve(members);
       if (path === '/api/categories') {
         return Promise.resolve(params?.kind === 'income' ? incomeCategories : expenseCategories);
       }
@@ -227,7 +224,6 @@ describe('useTransactions', () => {
     await flushPromises();
     state.type.value = 'expense';
     state.accountFilter.value = '1';
-    state.memberFilter.value = '1';
     await nextTick();
     await flushPromises();
 
@@ -241,7 +237,6 @@ describe('useTransactions', () => {
         pageSize: 20,
         type: 'expense',
         accountId: 1,
-        memberId: 1,
       },
       { force: undefined },
     ]);
@@ -388,7 +383,6 @@ describe('useTransactions', () => {
     await flushPromises();
     expect(mockedCachedGet.mock.calls.map(([path]) => path)).toEqual([
       '/api/accounts',
-      '/api/members',
       '/api/categories',
       '/api/categories',
     ]);

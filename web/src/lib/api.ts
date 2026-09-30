@@ -2,6 +2,7 @@ import { idbGet, idbSet, idbClearByPrefix } from './idbCache';
 import { publishResources, resourcesForMutation } from './resourceInvalidation';
 import type {
   LedgerSession,
+  LedgerSummary,
   MiniBindingCode,
   PlatformSession,
   SessionInfo,
@@ -18,6 +19,11 @@ const API_BASE = '/api';
  * 否则它会在缓存清空后把旧数据写回去，导致「刚删掉的东西又出现了」。
  */
 let cacheEpoch = 0;
+let activeLedgerId: number | null = null;
+
+export function setActiveLedgerId(ledgerId: number | null): void {
+  activeLedgerId = ledgerId;
+}
 
 export class ApiError extends Error {
   status: number;
@@ -61,7 +67,10 @@ async function rawFetch<T>(
   const url = buildUrl(path, params);
   const res = await fetch(url, {
     method,
-    headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
+    headers: {
+      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      ...(activeLedgerId !== null ? { 'X-Ledger-Id': String(activeLedgerId) } : {}),
+    },
     body: body !== undefined ? JSON.stringify(body) : undefined,
     credentials: 'include',
   });
@@ -176,8 +185,18 @@ export async function getSession(kind: WebAuthKind): Promise<SessionInfo> {
   return expectedSession(kind, session);
 }
 
+export async function getLedger(): Promise<LedgerSummary> {
+  const ledgers = await cachedGet<LedgerSummary[]>('/api/ledgers', undefined, { force: true });
+  const ledger = ledgers?.[0];
+  if (!ledger) throw new ApiError(403, 'SPECIAL_LEDGER_REQUIRED', '未找到可用特殊账本');
+  setActiveLedgerId(ledger.id);
+  return ledger;
+}
+
 export function logout(kind: WebAuthKind): Promise<void> {
-  return rawFetch<void>('POST', `/api/auth/logout?kind=${kind}`, undefined, undefined, kind);
+  return rawFetch<void>('POST', `/api/auth/logout?kind=${kind}`, undefined, undefined, kind).finally(() => {
+    if (kind === 'ledger') setActiveLedgerId(null);
+  });
 }
 
 export async function createMiniBindingCode(): Promise<MiniBindingCode> {

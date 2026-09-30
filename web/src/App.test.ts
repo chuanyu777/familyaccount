@@ -12,7 +12,6 @@ import chartPaletteSource from './features/analysis/charts/palette.ts?raw';
 
 const baseCss = readFileSync(resolve(process.cwd(), 'web/src/styles/base.css'), 'utf8');
 
-let family = { id: 1, name: '我们的家' };
 const summary = {
   totalAssetsCents: 1280000,
   totalLiabilitiesCents: 300000,
@@ -28,7 +27,6 @@ const categories: unknown[] = [];
 const emptyList = { items: [], page: 1, pageSize: 20, total: 0, incomeTotalCents: 0, expenseTotalCents: 0, netCents: 0 };
 
 const get = vi.fn(async (path: string) => {
-  if (path === '/api/family') return family;
   if (path === '/api/stats/summary') return summary;
   if (path === '/api/accounts') return accounts;
   if (path === '/api/members') return members;
@@ -58,16 +56,15 @@ describe('App', () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
     get.mockClear();
-    family = { id: 1, name: '我们的家' };
     document.body.innerHTML = '';
     window.history.replaceState(null, '', '#accounting');
   });
 
-  it('页头显示「家庭财务」与家庭名，不再显示净资产', async () => {
+  it('页头显示账本应用名与当前账本名，不再显示净资产', async () => {
     const wrapper = mount(App, { attachTo: document.body });
     await flush();
     expect(wrapper.text()).toContain('家庭财务');
-    expect(wrapper.text()).toContain('我们的家');
+    expect(wrapper.text()).toContain('我的账本');
     expect(wrapper.text()).not.toContain('¥9,800.00');
     expect(document.querySelector('.seal')).toBeNull();
     wrapper.unmount();
@@ -131,20 +128,16 @@ describe('App', () => {
     wrapper.unmount();
   });
 
-  it('只订阅家庭资源并在家庭名变更后更新外壳', async () => {
+  it('不再订阅旧家庭或成员资源', async () => {
     const wrapper = mount(App, { attachTo: document.body });
     await flush();
     get.mockClear();
 
     publishResources(['members']);
     await flush();
-    expect(get.mock.calls.filter(([path]) => path === '/api/family')).toHaveLength(0);
-
-    family = { id: 1, name: '新家' };
-    publishResources(['family']);
+    publishResources(['ledgers']);
     await flush();
-    expect(get.mock.calls.filter(([path]) => path === '/api/family')).toHaveLength(1);
-    expect(wrapper.text()).toContain('新家');
+    expect(get.mock.calls.some(([path]) => path === '/api/family' || path === '/api/members')).toBe(false);
     wrapper.unmount();
   });
 

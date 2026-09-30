@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted } from 'vue';
 import AppShell from './components/AppShell.vue';
 import DesktopNav from './components/DesktopNav.vue';
 import MobileNav from './components/MobileNav.vue';
@@ -10,18 +10,22 @@ import AssetsPage from './features/assets/AssetsPage.vue';
 import LiabilitiesPage from './features/liabilities/LiabilitiesPage.vue';
 import AnalysisPage from './features/analysis/AnalysisPage.vue';
 import SettingsPage from './features/settings/SettingsPage.vue';
-import { cachedGet } from './lib/api';
-import { resourceVersion } from './lib/resourceInvalidation';
 import MiniBindingPanel from './auth/MiniBindingPanel.vue';
+import type { LedgerPermissions, LedgerSession, LedgerSummary } from './auth/types';
 
 defineEmits<{
   logout: [];
 }>();
 
-interface Family {
-  id: number;
-  name: string;
-}
+const props = withDefaults(defineProps<{
+  session: LedgerSession;
+  ledger: LedgerSummary;
+  permissions: LedgerPermissions;
+}>(), {
+  session: () => ({ type: 'LEDGER_USER' as const, userId: 0 }),
+  ledger: () => ({ id: 0, name: '我的账本', role: 'OWNER', active: true, webLoginAllowed: true }),
+  permissions: () => ({ isOwner: true, canManageMembers: true, canRenameLedger: true, canArchiveResources: true }),
+});
 
 const PAGES = {
   accounting: AccountingPage,
@@ -32,7 +36,6 @@ const PAGES = {
 } as const;
 
 const { activeTab, setActiveTab } = useHashTab('accounting');
-const familyName = ref('我的家');
 const currentPage = computed(() => PAGES[activeTab.value]);
 
 function redirectToLedgerLogin(event: Event) {
@@ -40,20 +43,8 @@ function redirectToLedgerLogin(event: Event) {
   if (detail?.kind === 'ledger') window.location.replace('/ledger');
 }
 
-async function loadFamily() {
-  try {
-    const family = await cachedGet<Family>('/api/family', undefined, { force: true });
-    if (family?.name) familyName.value = family.name;
-  } catch {
-    /* 家庭名加载失败时保留默认名，不阻塞使用 */
-  }
-}
-
-onMounted(loadFamily);
 onMounted(() => window.addEventListener('web-auth-lost', redirectToLedgerLogin));
 onBeforeUnmount(() => window.removeEventListener('web-auth-lost', redirectToLedgerLogin));
-// 设置里改了家庭名，标题栏跟着变
-watch(resourceVersion(['family']), loadFamily);
 </script>
 
 <template>
@@ -62,13 +53,13 @@ watch(resourceVersion(['family']), loadFamily);
       <button type="button" class="btn btn--ghost" @click="$emit('logout')">退出登录</button>
     </template>
     <template #desktop-nav>
-      <DesktopNav :model-value="activeTab" :family-name="familyName" @update:model-value="setActiveTab" />
+      <DesktopNav :model-value="activeTab" :family-name="ledger.name" @update:model-value="setActiveTab" />
     </template>
 
     <template #default>
       <Transition name="page" mode="out-in">
         <div :key="activeTab" class="page-layout" :data-page="activeTab">
-          <component :is="currentPage" />
+          <component :is="currentPage" :session="session" :permissions="permissions" />
           <MiniBindingPanel v-if="activeTab === 'settings'" />
         </div>
       </Transition>

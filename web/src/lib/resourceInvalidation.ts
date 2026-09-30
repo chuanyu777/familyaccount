@@ -1,10 +1,10 @@
 import { computed, reactive } from 'vue';
 
-export type ResourceKey = 'family' | 'members' | 'categories' | 'accounts' |
+export type ResourceKey = 'ledgers' | 'members' | 'categories' | 'accounts' |
   'transactions' | 'assets' | 'liabilities' | 'repayments' | 'statistics';
 
 const versions = reactive<Record<ResourceKey, number>>({
-  family: 0, members: 0, categories: 0, accounts: 0, transactions: 0,
+  ledgers: 0, members: 0, categories: 0, accounts: 0, transactions: 0,
   assets: 0, liabilities: 0, repayments: 0, statistics: 0,
 });
 
@@ -27,6 +27,6 @@ export function resourcesForMutation(path: string, method: string): ResourceKey[
   if (path.startsWith('/api/liabilities')) return ['liabilities', 'repayments', 'statistics'];
   if (path.startsWith('/api/members')) return ['members', 'transactions', 'assets', 'liabilities'];
   if (path.startsWith('/api/categories')) return ['categories'];
-  if (path.startsWith('/api/family')) return ['family'];
+  if (path.startsWith('/api/ledgers')) return ['ledgers', 'members'];
   return [];
 }

@@ -14,9 +14,11 @@ export interface Transaction {
   toAccountName?: string;
   categoryId?: number;
   categoryName?: string;
+  createdByUserId?: number;
+  sourceType?: SourceType;
+  /** Legacy response compatibility; the UI never edits or filters by these fields. */
   memberId?: number;
   memberName?: string;
-  sourceType?: SourceType;
 }
 
 export interface TransactionsResponse {
@@ -32,24 +34,23 @@ export interface TransactionsResponse {
 export interface Account {
   id: number;
   name: string;
-  balance: number;
-  balance_cents: number;
-  member_id?: number;
-  is_default: boolean;
+  balance: number | string;
+  balanceCents?: number;
+  isDefault?: number | boolean;
+  /** Temporary read compatibility for old cached responses and test fixtures. */
+  balance_cents?: number;
+  is_default?: number | boolean;
+  archived?: number | boolean;
 }
 
-export interface Member {
-  id: number;
-  name: string;
-  color?: string;
-}
+export interface Member { id: number; name: string; color?: string; }
 
 export interface Category {
   id: number;
   kind: 'expense' | 'income';
   name: string;
+  archived?: number | boolean;
 }
 
 export const DEFAULT_EXPENSE_CATEGORY = '其他';
 export const DEFAULT_INCOME_CATEGORY = '其他收入';
-export const DEFAULT_MEMBER_NAME = '我';

@@ -11,6 +11,21 @@ export interface LedgerSession extends SessionInfo {
   userId: number;
 }
 
+export interface LedgerSummary {
+  id: number;
+  name: string;
+  role: 'OWNER' | 'MEMBER' | string;
+  active: boolean;
+  webLoginAllowed: boolean;
+}
+
+export interface LedgerPermissions {
+  isOwner?: boolean;
+  canManageMembers?: boolean;
+  canRenameLedger?: boolean;
+  canArchiveResources?: boolean;
+}
+
 export interface PlatformSession extends SessionInfo {
   type: 'PLATFORM_ADMIN';
   platformAdminId: number;

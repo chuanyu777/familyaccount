@@ -107,6 +107,40 @@ afterEach(() => {
 });
 
 describe('AccountingPage', () => {
+  it('does not render legacy member filters or attribution fields', async () => {
+    wrapper = mount(AccountingPage, { attachTo: document.body });
+    await flushPromises();
+
+    expect(wrapper.find('[aria-label="筛选成员"]').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('家庭共有');
+    expect(wrapper.text()).not.toContain('成员');
+    expect(mockedCachedGet).not.toHaveBeenCalledWith('/api/members', undefined, expect.anything());
+  });
+
+  it('only exposes transaction edit and delete actions for the current creator', async () => {
+    const owned = { ...items[0], createdByUserId: 7 } as Transaction;
+    const other = { ...items[1], id: 4, createdByUserId: 8 } as Transaction;
+    mockedCachedGet.mockImplementation((path: string, params?: { kind?: string }) => {
+      if (path === '/api/transactions') return Promise.resolve({ ...list, items: [owned, other] });
+      if (path === '/api/accounts') return Promise.resolve(accounts);
+      if (path === '/api/categories') return Promise.resolve(categories.filter(({ kind }) => kind === params?.kind));
+      return Promise.resolve(undefined);
+    });
+
+    wrapper = mount(AccountingPage, {
+      props: { session: { type: 'LEDGER_USER', userId: 7 }, permissions: { isOwner: false } },
+      attachTo: document.body,
+    });
+    await flushPromises();
+
+    await wrapper.get('[data-mobile-transaction="1"]').trigger('click');
+    expect(document.querySelector('.detail__actions')).not.toBeNull();
+    document.querySelector<HTMLButtonElement>('.sheet__close')?.click();
+    await flushPromises();
+    await wrapper.get('[data-mobile-transaction="4"]').trigger('click');
+    expect(document.querySelector('.detail__actions')).toBeNull();
+  });
+
   it('labels retained rows and totals after a month failure and retries the selected first page', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date(2026, 8, 15));
@@ -151,7 +185,7 @@ describe('AccountingPage', () => {
     await flushPromises();
     expect(wrapper.find('[data-reference-status]').exists()).toBe(false);
     expect(mockedCachedGet.mock.calls.map(([path]) => path)).toEqual([
-      '/api/accounts', '/api/members', '/api/categories', '/api/categories',
+      '/api/accounts', '/api/categories', '/api/categories',
     ]);
   });
 

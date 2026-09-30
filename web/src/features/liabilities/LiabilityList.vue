@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import MoneyText from '../../components/MoneyText.vue';
-import { memberName, parseYuanToCents } from './util';
-import type { Liability, Member, Repayment } from './types';
+import { parseYuanToCents } from './util';
+import type { Liability, Repayment } from './types';
 
 const props = defineProps<{
   liabilities: Liability[];
   repayments: Repayment[];
-  members: Member[];
 }>();
 
 const emit = defineEmits<{
@@ -67,8 +66,7 @@ function progressPercent(liability: Liability): number {
             <span class="liability-row__name">{{ liability.name }}</span>
             <span class="liability-row__meta">
               <span>月供 <MoneyText :cents="monthlyCents(liability)" tone="expense" /></span>
-              <span v-if="liability.payment_day">{{ liability.payment_day }} 日/月</span>
-              <span>{{ memberName(members, liability.member_id) }}</span>
+              <span v-if="liability.paymentDay ?? liability.payment_day">{{ liability.paymentDay ?? liability.payment_day }} 日/月</span>
             </span>
           </span>
 
