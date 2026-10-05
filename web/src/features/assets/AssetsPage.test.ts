@@ -275,6 +275,8 @@ async function settle() {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date(2026, 8, 15));
   document.body.innerHTML = '';
   vi.clearAllMocks();
   setupCache();
@@ -287,6 +289,7 @@ afterEach(() => {
   wrapper?.unmount();
   wrapper = null;
   document.body.innerHTML = '';
+  vi.useRealTimers();
 });
 
 describe('AC-01 顶部总览卡', () => {

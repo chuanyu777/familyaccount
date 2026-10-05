@@ -91,6 +91,83 @@ class ContractFlowTest {
   }
 
   @Test
+  void categoryRenameIsLedgerScopedAndRejectsInvalidOrArchivedNames() throws Exception {
+    Cookie owner = mvc.perform(post("/api/auth/web/login").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"username\":\"ledger-owner\",\"password\":\"ledger-owner-password\"}"))
+        .andExpect(status().isNoContent()).andReturn().getResponse().getCookie("ledger_session");
+    long ledgerId = jsonLong(mvc.perform(get("/api/ledgers").cookie(owner))
+        .andExpect(status().isOk()).andReturn(), "$[0].id");
+    long categoryId = jsonLong(mvc.perform(post("/api/categories").cookie(owner)
+            .header("X-Ledger-Id", ledgerId).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"kind\":\"expense\",\"name\":\"原分类\"}"))
+        .andExpect(status().isOk()).andReturn(), "$.id");
+    Cookie member = mvc.perform(post("/api/auth/web/login").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"username\":\"ledger-member\",\"password\":\"ledger-member-password\"}"))
+        .andExpect(status().isNoContent()).andReturn().getResponse().getCookie("ledger_session");
+    mvc.perform(patch("/api/categories/" + categoryId).cookie(member)
+            .header("X-Ledger-Id", ledgerId).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"name\":\" 新分类 \"}"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.name").value("新分类"))
+        .andExpect(jsonPath("$.kind").value("expense"));
+    mvc.perform(get("/api/categories").cookie(owner).header("X-Ledger-Id", ledgerId)
+            .param("kind", "expense"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$[?(@.id == " + categoryId + ")].name").value("新分类"));
+    mvc.perform(patch("/api/categories/" + categoryId)
+            .header("X-Ledger-Id", ledgerId).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"name\":\"未登录改名\"}"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.error.code").value("AUTH_REQUIRED"));
+    mvc.perform(patch("/api/categories/" + categoryId).cookie(owner)
+            .header("X-Ledger-Id", ledgerId).contentType(MediaType.APPLICATION_JSON)
+            .content("{}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+    mvc.perform(patch("/api/categories/" + categoryId).cookie(owner)
+            .header("X-Ledger-Id", ledgerId).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"name\":\"   \"}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+    mvc.perform(patch("/api/categories/" + categoryId).cookie(owner)
+            .header("X-Ledger-Id", ledgerId).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"name\":\"其他\"}"))
+        .andExpect(status().isConflict());
+    mvc.perform(post("/api/categories/" + categoryId + "/archive").cookie(owner)
+            .header("X-Ledger-Id", ledgerId)).andExpect(status().isOk());
+    mvc.perform(patch("/api/categories/" + categoryId).cookie(owner)
+            .header("X-Ledger-Id", ledgerId).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"name\":\"归档后改名\"}"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error.code").value("CATEGORY_ARCHIVED"));
+    mvc.perform(patch("/api/categories/" + categoryId).cookie(owner)
+            .header("X-Ledger-Id", ledgerId + 1).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"name\":\"越界改名\"}"))
+        .andExpect(status().isForbidden())
+        .andExpect(jsonPath("$.error.code").value("SPECIAL_LEDGER_REQUIRED"));
+  }
+
+  @Test
+  void categoryRenameDoesNotFindCategoryInAnotherLedger() throws Exception {
+    when(wechat.exchangeLoginCode("category-owner"))
+        .thenReturn(new WeChatClient.WeChatIdentity("category-owner-openid"));
+    Cookie owner = wechatLogin("category-owner");
+    long firstLedgerId = jsonLong(mvc.perform(post("/api/ledgers").cookie(owner)
+            .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"第一账本\"}"))
+        .andExpect(status().isCreated()).andReturn(), "$.id");
+    long secondLedgerId = jsonLong(mvc.perform(post("/api/ledgers").cookie(owner)
+            .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"第二账本\"}"))
+        .andExpect(status().isCreated()).andReturn(), "$.id");
+    long categoryId = jsonLong(mvc.perform(post("/api/categories").cookie(owner)
+            .header("X-Ledger-Id", firstLedgerId).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"kind\":\"expense\",\"name\":\"仅属于第一账本\"}"))
+        .andExpect(status().isOk()).andReturn(), "$.id");
+    mvc.perform(patch("/api/categories/" + categoryId).cookie(owner)
+            .header("X-Ledger-Id", secondLedgerId).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"name\":\"越界改名\"}"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.error.code").value("CATEGORY_NOT_FOUND"));
+  }
+
+  @Test
   void specialWebBindingAndPlatformReadOnlyContractWorks() throws Exception {
     when(wechat.exchangeLoginCode("binding-code"))
         .thenReturn(new WeChatClient.WeChatIdentity("bound-owner"));

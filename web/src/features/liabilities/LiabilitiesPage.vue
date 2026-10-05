@@ -59,7 +59,6 @@ const confirmDeleteRepayId = ref<number | null>(null);
 const liabilityDeletePending = ref(false);
 const repaymentDeletePending = ref(false);
 const mutationError = ref<string | null>(null);
-const activeAccounts = computed(() => accounts.value.filter((account) => !account.archived));
 
 function remainingCents(liability: Liability): number {
   return parseYuanToCents(liability.remaining) ?? 0;
@@ -258,7 +257,7 @@ function canMutateRepayment(repayment: { created_by_user_id?: number }): boolean
     <RepaymentForm
       v-if="repayLiability"
       :liability="repayLiability"
-      :accounts="activeAccounts"
+      :accounts="accounts"
       :mode="repayInitial ? 'edit' : 'create'"
       :initial="repayInitial"
       @close="repayLiability = null"

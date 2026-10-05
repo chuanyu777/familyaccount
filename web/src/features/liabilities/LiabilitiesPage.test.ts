@@ -530,6 +530,41 @@ describe('AC-03 还一笔', () => {
 });
 
 describe('AC-04 还款记录', () => {
+  it('requires an active account when editing a repayment from an archived account', async () => {
+    const archivedAccount = { ...accounts[0]!, archived: 1 };
+    mockedCachedGet.mockImplementation((path: string) => {
+      if (path === '/api/stats/summary') return Promise.resolve(summary);
+      if (path === '/api/liabilities') return Promise.resolve(liabilities);
+      if (path === '/api/accounts') return Promise.resolve([archivedAccount, accounts[1]]);
+      if (path === '/api/repayments') return Promise.resolve(repayments);
+      return Promise.resolve(undefined);
+    });
+    wrapper = mount(LiabilitiesPage, { attachTo: document.body });
+    await settle();
+    openRow('房贷');
+    await settle();
+    clickBtnIn(rowByText('2026-09-10', 'repay-row')!, '编辑');
+    await settle();
+
+    const accountSelect = fieldInput('还款账户') as unknown as HTMLSelectElement;
+    const historicalOption = Array.from(accountSelect.options).find((option) => option.value === '1');
+    expect(historicalOption?.textContent).toContain('现金');
+    expect(historicalOption?.disabled).toBe(true);
+    expect(accountSelect.value).toBe('1');
+    clickBtn('保存');
+    await settle();
+    expect(mockedApiPut).not.toHaveBeenCalled();
+    const repaymentSheet = Array.from(document.querySelectorAll('.sheet')).find((sheet) =>
+      sheet.querySelector('.sheet__title')?.textContent === '编辑还款');
+    expect(repaymentSheet?.textContent).toContain('请选择可用还款账户');
+    expect(accountSelect.value).toBe('1');
+
+    setInput(accountSelect, '2');
+    clickBtn('保存');
+    await settle();
+    expect(mockedApiPut).toHaveBeenCalledWith('/api/repayments/1', expect.objectContaining({ accountId: 2 }));
+  });
+
   it('allows the repayment creator to edit through the repayment endpoint', async () => {
     const ownedRepayment = { ...repayments[0], created_by_user_id: 7 };
     mockedCachedGet.mockImplementation((path: string) => {

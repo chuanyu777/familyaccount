@@ -51,6 +51,20 @@ public class CategoryService {
     return upsert(context, kind, "expense".equals(kind) ? "其他" : "其他收入");
   }
 
+  public Map<String, Object> rename(LedgerContext context, long id, String name) {
+    Map<String, Object> row = getLedgerRow(context, id);
+    if (Row.intOrNull(row, "archived") != null && Row.intOrNull(row, "archived") == 1) {
+      throw ApiException.conflict("CATEGORY_ARCHIVED", "分类已归档");
+    }
+    String normalized = requiredName(name);
+    if (!db.queryForList("SELECT id FROM category WHERE ledger_id = ? AND kind = ? AND name = ? AND id <> ?",
+        context.ledgerId(), Row.str(row, "kind"), normalized, id).isEmpty()) {
+      throw ApiException.conflict("CATEGORY_NAME_EXISTS", "分类名称已存在");
+    }
+    db.update("UPDATE category SET name = ? WHERE id = ? AND ledger_id = ?", normalized, id, context.ledgerId());
+    return toLedgerRow(getLedgerRow(context, id));
+  }
+
   public Map<String, Object> getForEntry(LedgerContext context, long id) {
     List<Map<String, Object>> rows = db.queryForList("SELECT id, kind, name, archived, created_at "
         + "FROM category WHERE id = ? AND ledger_id = ?", id, context.ledgerId());

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import AppSheet from '../../components/AppSheet.vue';
 import { apiPost, apiPut } from '../../lib/api';
 import { parseYuanToCents, centsToInput } from './util';
@@ -17,7 +17,11 @@ const emit = defineEmits<{ close: []; saved: [] }>();
 const monthlyCents = parseYuanToCents(props.liability.monthlyPayment) ?? 0;
 const amount = ref(props.initial ? centsToInput(props.initial.amount_cents) : monthlyCents === 0 ? '' : centsToInput(monthlyCents));
 const date = ref(props.initial?.occurred_on ?? todayISO());
-const defaultAccount = props.accounts.find((a) => a.isDefault ?? a.is_default);
+const activeAccounts = computed(() => props.accounts.filter((account) => !account.archived));
+const historicalAccount = computed(() => props.mode === 'edit'
+  ? props.accounts.find((account) => account.id === props.initial?.account_id && account.archived)
+  : undefined);
+const defaultAccount = activeAccounts.value.find((a) => a.isDefault ?? a.is_default);
 const accountId = ref<number | ''>(props.initial?.account_id ?? (defaultAccount ? defaultAccount.id : ''));
 const error = ref<string | null>(null);
 const saving = ref(false);
@@ -48,6 +52,10 @@ async function save() {
   }
   if (accountId.value === '') {
     error.value = '请选择还款账户';
+    return;
+  }
+  if (!activeAccounts.value.some((account) => account.id === accountId.value)) {
+    error.value = '请选择可用还款账户';
     return;
   }
   saving.value = true;
@@ -86,7 +94,8 @@ async function save() {
       <span class="field__label">还款账户</span>
       <select v-model="accountId" class="field__control" aria-label="还款账户">
         <option value="">请选择</option>
-        <option v-for="a in accounts" :key="a.id" :value="a.id">{{ a.name }}</option>
+        <option v-if="historicalAccount" :value="historicalAccount.id" disabled>{{ historicalAccount.name }}（已归档）</option>
+        <option v-for="a in activeAccounts" :key="a.id" :value="a.id">{{ a.name }}</option>
       </select>
     </label>
 

@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -33,6 +34,13 @@ public class CategoryController {
     LedgerContext context = LedgerRequest.context(request, body, guard, authorization);
     String name = body.get("name") == null ? null : String.valueOf(body.get("name"));
     return service.upsert(context, Params.parseEnum(body.get("kind"), "kind", "expense", "income"), name);
+  }
+  @PatchMapping("/{id}")
+  public Map<String, Object> update(@PathVariable Object id, HttpServletRequest request,
+      @RequestBody(required = false) Map<String, Object> body) {
+    LedgerContext context = LedgerRequest.context(request, body, guard, authorization);
+    String name = body == null || body.get("name") == null ? null : String.valueOf(body.get("name"));
+    return service.rename(context, Params.parseId(id), name);
   }
   @PostMapping("/{id}/archive")
   public void archive(@PathVariable Object id, HttpServletRequest request) {

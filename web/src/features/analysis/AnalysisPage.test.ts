@@ -78,6 +78,8 @@ async function settle() {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date(2026, 8, 15));
   document.body.innerHTML = '';
   vi.clearAllMocks();
   wrapper = null;

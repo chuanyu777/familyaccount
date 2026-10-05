@@ -97,3 +97,44 @@ exit 0
 ```
 
 Remaining concern: the current backend `CategoryController` exposes category create/upsert and archive/restore, but no `PATCH /api/categories/{id}` rename endpoint. The web edit control targets that ledger-scoped endpoint; implementing the backend route is intentionally outside this Task 2 web-only fix and should be handled with the backend contract work.
+
+## Fix round 2
+
+Completed the two findings left open by review:
+
+- Added ledger-scoped `PATCH /api/categories/{id}` for active-category rename. It uses the existing ledger membership guard, trims and validates the name, rejects duplicate names within the category kind and ledger, and returns the updated category row. Contract tests cover member access, persistence, missing/blank names, duplicates, archived categories, unauthenticated access, Web-session ledger pinning, and cross-ledger lookup.
+- The repayment form now receives the account list for history, shows the archived account tied to an existing repayment as a disabled selected option, and rejects saving with it. A user can choose an active account and save. New repayment controls still list only active accounts.
+- Pinned the assets and analysis test clocks to their September 2026 fixtures so the full Web feature suite remains deterministic after the calendar moved to October. No production behavior changed for those pages.
+
+Verification from this worktree (backend command run in `backend/`; other commands from the repository root):
+
+```text
+$ mvn -q -Dtest=ContractFlowTest#categoryRenameIsLedgerScopedAndRejectsInvalidOrArchivedNames+categoryRenameDoesNotFindCategoryInAnotherLedger test
+Tests run: 2, Failures: 0, Errors: 0, Skipped: 0
+exit 0
+
+$ npm test -- web/src/features/liabilities/LiabilitiesPage.test.ts web/src/features/settings/SettingsPage.test.ts
+Test Files  2 passed (2)
+Tests       36 passed (36)
+exit 0
+
+$ npm test -- web/src/features
+Test Files  9 passed (9)
+Tests       135 passed (135)
+exit 0
+
+$ npm run typecheck
+> vue-tsc --noEmit
+exit 0
+
+$ npm run build
+vite v6.4.3 building for production...
+✓ 1840 modules transformed.
+✓ built in 3.66s
+exit 0
+
+$ git diff --check
+exit 0
+```
+
+Concern: this round ran focused backend category contract tests, not the full backend suite; the repayment interaction was verified by Web component tests, not a live browser session.
