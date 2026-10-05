@@ -1,0 +1,6 @@
+<view class="empty-page">
+  <text class="empty-title">还没有账本</text>
+  <text class="empty-hint">创建一个家庭账本，或接受家人发来的邀请</text>
+  <button class="primary-button" bindtap="handleCreateLedger">创建账本</button>
+  <button wx:if="{{hasInvitation}}" class="secondary-button" bindtap="handleAcceptInvitation">接受邀请</button>
+</view>

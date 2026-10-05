@@ -30,6 +30,7 @@ export interface MiniProgramApi {
   setStorageSync(key: string, value: unknown): void;
   removeStorageSync(key: string): void;
   redirectTo(options: { url: string }): unknown;
+  navigateTo(options: { url: string }): unknown;
 }
 
 declare global {

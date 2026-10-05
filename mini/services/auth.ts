@@ -1,0 +1,80 @@
+import { request } from '../lib/http';
+import { currentLedgerStore } from '../lib/currentLedger';
+import { sessionStore } from '../lib/session';
+import type { LedgerSummary } from '../types/domain';
+
+const INVITATION_TOKEN_KEY = 'family-ledger.invitation-token';
+
+export interface AuthResult {
+  userId: number;
+  type: 'LEDGER_USER';
+  webSession: boolean;
+  ledgers: LedgerSummary[];
+}
+
+interface AuthResponse {
+  userId: number;
+  type: 'LEDGER_USER';
+  webSession: boolean;
+}
+
+export const invitationTokenStore = {
+  get(): string | null {
+    return (wx.getStorageSync(INVITATION_TOKEN_KEY) as string | undefined) ?? null;
+  },
+  set(token: string): void {
+    wx.setStorageSync(INVITATION_TOKEN_KEY, token);
+  },
+  clear(): void {
+    wx.removeStorageSync(INVITATION_TOKEN_KEY);
+  },
+};
+
+export function captureInvitationToken(query: Record<string, unknown> | undefined): void {
+  const token = query?.token;
+  if (typeof token === 'string' && token.length > 0) invitationTokenStore.set(token);
+}
+
+function getWeChatCode(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    wx.login({ success: ({ code }) => resolve(code), fail: reject });
+  });
+}
+
+async function finishAuthentication(response: AuthResponse): Promise<AuthResult> {
+  const session = sessionStore.get();
+  if (session) sessionStore.set({ ...session, userId: response.userId });
+  const ledgers = await request<LedgerSummary[]>('/api/ledgers');
+  const currentLedger = ledgers.at(-1);
+  if (currentLedger) currentLedgerStore.set(currentLedger);
+  else currentLedgerStore.clear();
+  return { ...response, ledgers };
+}
+
+export async function loginWithWeChat(): Promise<AuthResult> {
+  const code = await getWeChatCode();
+  const response = await request<AuthResponse>('/api/auth/wechat/login', {
+    method: 'POST',
+    data: { code },
+  });
+  return finishAuthentication(response);
+}
+
+export async function bindExistingWebAccount(bindingCode: string): Promise<AuthResult> {
+  const code = await getWeChatCode();
+  const response = await request<AuthResponse>('/api/auth/wechat/bind', {
+    method: 'POST',
+    data: { bindingCode, code },
+  });
+  return finishAuthentication(response);
+}
+
+export async function logout(): Promise<void> {
+  await request<void>('/api/auth/logout', { method: 'POST' });
+  sessionStore.clear();
+  currentLedgerStore.clear();
+}
+
+export function getPostAuthRoute(ledgers: LedgerSummary[]): string {
+  return ledgers.length === 0 ? '/pages/ledger/empty' : '/pages/ledger/list';
+}

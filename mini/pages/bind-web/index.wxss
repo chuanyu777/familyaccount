@@ -1,0 +1,7 @@
+.bind-page { padding: 64rpx 48rpx; }
+.bind-panel { display: flex; flex-direction: column; }
+.bind-title { font-size: 40rpx; font-weight: 600; }
+.bind-hint { margin: 20rpx 0 40rpx; color: #6b7280; }
+.bind-input { padding: 24rpx; border: 1rpx solid #d1d5db; border-radius: 8rpx; background: #fff; }
+.bind-button { margin: 32rpx 0 0; background: #2563eb; color: #fff; border-radius: 8rpx; }
+.error-message { margin-top: 24rpx; color: #dc2626; }

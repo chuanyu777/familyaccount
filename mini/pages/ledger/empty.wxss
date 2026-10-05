@@ -1,0 +1,6 @@
+.empty-page { min-height: 100vh; padding: 160rpx 48rpx; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; }
+.empty-title { font-size: 44rpx; font-weight: 600; }
+.empty-hint { margin: 24rpx 0 64rpx; color: #6b7280; text-align: center; }
+.primary-button, .secondary-button { width: 100%; border-radius: 8rpx; }
+.primary-button { background: #2563eb; color: #fff; }
+.secondary-button { margin-top: 24rpx; color: #2563eb; background: #fff; border: 1rpx solid #2563eb; }

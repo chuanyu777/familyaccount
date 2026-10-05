@@ -1,0 +1,6 @@
+.auth-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 48rpx; box-sizing: border-box; }
+.auth-panel { width: 100%; display: flex; flex-direction: column; align-items: center; }
+.auth-title { font-size: 52rpx; font-weight: 600; }
+.auth-subtitle { margin: 24rpx 0 72rpx; color: #6b7280; }
+.wechat-button { width: 100%; background: #2f9e44; color: #fff; border-radius: 8rpx; }
+.error-message { margin-top: 24rpx; color: #dc2626; text-align: center; }
