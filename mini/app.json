@@ -1,7 +1,17 @@
 {
   "pages": [
     "pages/auth/index",
-    "pages/ledger/list"
+    "pages/bind-web/index",
+    "pages/ledger/empty",
+    "pages/ledger/list",
+    "pages/ledger/create",
+    "pages/ledger/home",
+    "pages/invitation/detail",
+    "pages/settings/index",
+    "pages/accounting/index",
+    "pages/assets/index",
+    "pages/liabilities/index",
+    "pages/analysis/index"
   ],
   "window": {
     "navigationBarTitleText": "家庭账本"
