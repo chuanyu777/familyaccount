@@ -43,12 +43,24 @@ class PlatformAdminControllerTest {
 
     mvc.perform(get("/api/platform/ledgers").param("query", "第二").cookie(platform))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$[0].name").value("第二账本"));
+        .andExpect(jsonPath("$[0].name").value("第二账本"))
+        .andExpect(jsonPath("$[0].id").isNumber())
+        .andExpect(jsonPath("$[0].createdAt").isString())
+        .andExpect(jsonPath("$[0].ownerUserId").isNumber())
+        .andExpect(jsonPath("$[0].ownerDisplayName").value("第二用户"))
+        .andExpect(jsonPath("$[0].memberCount").value(1));
 
     long ledgerId = db.queryForObject("SELECT id FROM ledger WHERE name = '第二账本'", Long.class);
+    mvc.perform(get("/api/platform/ledgers").param("query", "  " + ledgerId + "  ").cookie(platform))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].id").value((int) ledgerId))
+        .andExpect(jsonPath("$[0].name").value("第二账本"));
     mvc.perform(get("/api/platform/ledgers/{id}", ledgerId).cookie(platform))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.ledger.id").value((int) ledgerId))
+        .andExpect(jsonPath("$.ledger.createdAt").isString())
+        .andExpect(jsonPath("$.ledger.createdByUserId").isNumber())
+        .andExpect(jsonPath("$.ledger.isWebEnabled").value(0))
         .andExpect(jsonPath("$.members[0].userId").isNumber())
         .andExpect(jsonPath("$.transactions[0].amountCents").value(1234))
         .andExpect(jsonPath("$.accounts[0].name").value("第二账户"))
@@ -56,6 +68,42 @@ class PlatformAdminControllerTest {
         .andExpect(jsonPath("$.liabilities").isArray())
         .andExpect(jsonPath("$.repayments").isArray())
         .andExpect(jsonPath("$.analysis.netCents").value(1234));
+  }
+
+  @Test
+  void platformListCountsOnlyActiveMembersAndKeepsEmptyLedgers() throws Exception {
+    long ledgerId = db.queryForObject("SELECT id FROM ledger WHERE name = '第二账本'", Long.class);
+    long inactiveUser = Db.insert(db, "INSERT INTO app_user (display_name, created_at) VALUES (?, ?)",
+        "停用成员", Time.now());
+    db.update("INSERT INTO ledger_membership (ledger_id, user_id, role, web_login_allowed, active, joined_at) "
+        + "VALUES (?, ?, 'MEMBER', 0, 0, ?)", ledgerId, inactiveUser, Time.now());
+    long emptyLedger = Db.insert(db,
+        "INSERT INTO ledger (name, is_web_enabled, created_by_user_id, created_at) VALUES (?, 0, ?, ?)",
+        "无成员账本", inactiveUser, Time.now());
+    Cookie platform = platformLogin();
+
+    mvc.perform(get("/api/platform/ledgers").param("query", "第二").cookie(platform))
+        .andExpect(jsonPath("$[0].memberCount").value(1));
+    mvc.perform(get("/api/platform/ledgers").param("query", String.valueOf(emptyLedger)).cookie(platform))
+        .andExpect(jsonPath("$[0].memberCount").value(0));
+  }
+
+  @Test
+  void anonymousAndLedgerSessionsCannotReadPlatformListOrDetail() throws Exception {
+    long ledgerId = db.queryForObject("SELECT id FROM ledger WHERE name = '第二账本'", Long.class);
+    mvc.perform(get("/api/platform/ledgers"))
+        .andExpect(status().isUnauthorized());
+    mvc.perform(get("/api/platform/ledgers/{id}", ledgerId))
+        .andExpect(status().isUnauthorized());
+
+    Cookie ledger = mvc.perform(post("/api/auth/web/login")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"username\":\"ledger-owner\",\"password\":\"ledger-owner-password\"}"))
+        .andExpect(status().isNoContent()).andReturn().getResponse().getCookie("ledger_session");
+    mvc.perform(get("/api/platform/ledgers").cookie(ledger))
+        .andExpect(status().isForbidden());
+    mvc.perform(get("/api/platform/ledgers/{id}", ledgerId).cookie(ledger))
+        .andExpect(status().isForbidden());
   }
 
   @Test

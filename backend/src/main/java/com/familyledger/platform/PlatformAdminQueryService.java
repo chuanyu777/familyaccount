@@ -1,7 +1,6 @@
 package com.familyledger.platform;
 
 import com.familyledger.common.ApiException;
-import com.familyledger.ledger.LedgerSummary;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,20 +16,44 @@ public class PlatformAdminQueryService {
     this.db = db;
   }
 
-  public List<LedgerSummary> listLedgers(String query) {
+  public List<PlatformLedgerSummary> listLedgers(String query) {
     String normalized = query == null ? "" : query.trim();
-    String sql = normalized.isEmpty()
-        ? "SELECT id, name, is_web_enabled FROM ledger ORDER BY id"
-        : "SELECT id, name, is_web_enabled FROM ledger WHERE name LIKE ? ORDER BY id";
-    Object[] args = normalized.isEmpty() ? new Object[0] : new Object[] {"%" + normalized + "%"};
-    return db.query(sql, (rs, rowNum) -> new LedgerSummary(rs.getLong("id"),
-        rs.getString("name"), null, rs.getInt("is_web_enabled") == 1), args);
+    String sql = "SELECT l.id, l.name, l.created_at, l.created_by_user_id AS owner_user_id, "
+        + "u.display_name AS owner_display_name, l.is_web_enabled, "
+        + "COALESCE(m.member_count, 0) AS member_count "
+        + "FROM ledger l JOIN app_user u ON u.id = l.created_by_user_id "
+        + "LEFT JOIN (SELECT ledger_id, COUNT(*) AS member_count FROM ledger_membership "
+        + "WHERE active = 1 GROUP BY ledger_id) m ON m.ledger_id = l.id";
+    Object[] args = new Object[0];
+    if (!normalized.isEmpty()) {
+      long id = -1;
+      try {
+        id = Long.parseLong(normalized);
+      } catch (NumberFormatException ignored) {
+        // Non-numeric or out-of-range queries still search ledger names.
+      }
+      sql += " WHERE (l.name LIKE ? OR l.id = ?)";
+      args = new Object[] {"%" + normalized + "%", id > 0 ? id : -1};
+    }
+    sql += " ORDER BY l.id";
+    return db.query(sql, (rs, rowNum) -> new PlatformLedgerSummary(
+        rs.getLong("id"), rs.getString("name"), rs.getString("created_at"),
+        rs.getLong("owner_user_id"), rs.getString("owner_display_name"),
+        rs.getLong("member_count"), rs.getInt("is_web_enabled") == 1), args);
   }
 
   public PlatformLedgerView readLedger(long ledgerId) {
-    List<Map<String, Object>> ledgerRows = rows(
+    List<Map<String, Object>> ledgerRows = db.query(
         "SELECT id, name, is_web_enabled, created_by_user_id, created_at FROM ledger WHERE id = ?",
-        ledgerId);
+        (rs, rowNum) -> {
+          Map<String, Object> row = new LinkedHashMap<>();
+          row.put("id", rs.getLong("id"));
+          row.put("name", rs.getString("name"));
+          row.put("isWebEnabled", rs.getInt("is_web_enabled"));
+          row.put("createdByUserId", rs.getLong("created_by_user_id"));
+          row.put("createdAt", rs.getString("created_at"));
+          return row;
+        }, ledgerId);
     if (ledgerRows.isEmpty()) throw ApiException.notFound("LEDGER_NOT_FOUND", "账本不存在");
 
     List<Map<String, Object>> members = rows(
@@ -74,7 +97,7 @@ public class PlatformAdminQueryService {
     analysis.put("assetValueCents", scalar("SELECT COALESCE(SUM(value_cents), 0) FROM asset WHERE ledger_id = ?", ledgerId));
     analysis.put("liabilityRemainingCents", scalar("SELECT COALESCE(SUM(remaining_cents), 0) FROM liability WHERE ledger_id = ?", ledgerId));
 
-    return new PlatformLedgerView(camelize(ledgerRows.get(0)), members, accounts, categories,
+    return new PlatformLedgerView(ledgerRows.get(0), members, accounts, categories,
         transactions, assets, liabilities, repayments, snapshots, analysis);
   }
 

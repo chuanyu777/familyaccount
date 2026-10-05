@@ -2,7 +2,6 @@ package com.familyledger.platform;
 
 import com.familyledger.auth.AuthGuard;
 import com.familyledger.common.Params;
-import com.familyledger.ledger.LedgerSummary;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,7 +22,7 @@ public class PlatformAdminController {
   }
 
   @GetMapping
-  public List<LedgerSummary> list(HttpServletRequest request,
+  public List<PlatformLedgerSummary> list(HttpServletRequest request,
       @RequestParam(value = "query", required = false) String query) {
     guard.requirePlatformAdmin(request);
     return queries.listLedgers(query);
