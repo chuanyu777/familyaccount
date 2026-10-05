@@ -4,6 +4,8 @@ export interface SessionInfo {
   type: 'LEDGER_USER' | 'PLATFORM_ADMIN';
   userId?: number;
   platformAdminId?: number;
+  /** Signed authentication method marker returned by the server. */
+  webSession?: boolean;
 }
 
 export interface LedgerSession extends SessionInfo {
@@ -37,7 +39,7 @@ export interface MiniBindingCode {
 }
 
 export function isLedgerSession(value: SessionInfo): value is LedgerSession {
-  return value.type === 'LEDGER_USER' && typeof value.userId === 'number';
+  return value.type === 'LEDGER_USER' && typeof value.userId === 'number' && value.webSession === true;
 }
 
 export function isPlatformSession(value: SessionInfo): value is PlatformSession {

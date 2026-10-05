@@ -1,6 +1,7 @@
 package com.familyledger.auth;
 
 import com.familyledger.common.ApiException;
+import com.familyledger.ledger.WebLedgerAuthorization;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.LinkedHashMap;
@@ -20,19 +21,21 @@ public class AuthController {
   private final AuthGuard guard;
   private final AuthConfig config;
   private final AuthAttemptLimiter limiter;
+  private final WebLedgerAuthorization webAuthorization;
 
   public AuthController(AuthService service, AuthGuard guard, AuthConfig config,
-      AuthAttemptLimiter limiter) {
+      AuthAttemptLimiter limiter, WebLedgerAuthorization webAuthorization) {
     this.service = service;
     this.guard = guard;
     this.config = config;
     this.limiter = limiter;
+    this.webAuthorization = webAuthorization;
   }
 
   @PostMapping("/web/login")
   public ResponseEntity<Void> webLogin(@RequestBody(required = false) Map<String, Object> body,
       HttpServletRequest request, HttpServletResponse response) {
-    String username = text(body, "username");
+    String username = AuthService.canonicalUsername(text(body, "username"));
     String key = "web|" + request.getRemoteAddr() + "|" + username;
     long now = System.currentTimeMillis();
     if (limiter.isLimited(key, now)) throw ApiException.tooManyRequests("AUTH_RATE_LIMITED", "尝试次数过多，请稍后再试");
@@ -51,7 +54,7 @@ public class AuthController {
   @PostMapping("/platform/login")
   public ResponseEntity<Void> platformLogin(@RequestBody(required = false) Map<String, Object> body,
       HttpServletRequest request, HttpServletResponse response) {
-    String username = text(body, "username");
+    String username = AuthService.canonicalUsername(text(body, "username"));
     String key = "platform|" + request.getRemoteAddr() + "|" + username;
     long now = System.currentTimeMillis();
     if (limiter.isLimited(key, now)) throw ApiException.tooManyRequests("AUTH_RATE_LIMITED", "尝试次数过多，请稍后再试");
@@ -116,12 +119,19 @@ public class AuthController {
 
   @GetMapping("/session")
   public Map<String, Object> session(HttpServletRequest request) {
-    return principalBody(guard.currentPrincipal(request));
+    AuthPrincipal principal = guard.currentPrincipal(request);
+    if ("ledger".equals(request.getParameter("kind"))) {
+      webAuthorization.requireSpecialLedger(principal);
+    } else if ("platform".equals(request.getParameter("kind"))) {
+      guard.requirePlatformAdmin(request);
+    }
+    return principalBody(principal);
   }
 
   private static Map<String, Object> principalBody(AuthPrincipal principal) {
     Map<String, Object> result = new LinkedHashMap<>();
     result.put("type", principal.type().name());
+    result.put("webSession", principal.webSession());
     if (principal.userId() != null) result.put("userId", principal.userId());
     if (principal.platformAdminId() != null) result.put("platformAdminId", principal.platformAdminId());
     return result;

@@ -6,6 +6,7 @@ import {
   logout as logoutApi,
 } from '../lib/api';
 import type { LedgerSession, PlatformSession, SessionInfo, WebAuthKind } from './types';
+import { isLedgerSession, isPlatformSession } from './types';
 
 type AuthSession = LedgerSession | PlatformSession;
 
@@ -14,7 +15,7 @@ function routeFor(kind: WebAuthKind): string {
 }
 
 function isExpectedSession(kind: WebAuthKind, value: SessionInfo): value is AuthSession {
-  return kind === 'ledger' ? value.type === 'LEDGER_USER' : value.type === 'PLATFORM_ADMIN';
+  return kind === 'ledger' ? isLedgerSession(value) : isPlatformSession(value);
 }
 
 export function useWebAuth(kind: WebAuthKind) {
@@ -53,8 +54,8 @@ export function useWebAuth(kind: WebAuthKind) {
   }
 
   async function logout(): Promise<void> {
-    await logoutApi(kind);
     session.value = null;
+    await logoutApi(kind);
   }
 
   return { session, login, logout, refresh };

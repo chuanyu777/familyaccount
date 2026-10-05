@@ -25,7 +25,7 @@ function setup() {
     return Promise.resolve(categories.map((category) => ({ ...category })));
   });
   mockedApiPatch.mockResolvedValue({ ...ledger, name: '新账本' } as never);
-  mockedApiPost.mockResolvedValue({ token: 'invite-token' } as never);
+  mockedApiPost.mockResolvedValue({ id: 42, ledgerId: 9, token: 'invite-token', expiresAt: '2026-10-12 12:00:00' } as never);
   mockedApiDelete.mockResolvedValue(undefined as never);
 }
 
@@ -35,6 +35,36 @@ beforeEach(() => { document.body.innerHTML = ''; vi.clearAllMocks(); setup(); })
 afterEach(() => { document.body.innerHTML = ''; });
 
 describe('SettingsPage ledger context', () => {
+  it('retains invitation metadata and lets only the owner revoke it', async () => {
+    const wrapper = mount(SettingsPage, { props: { permissions: { isOwner: true, canManageMembers: true } } });
+    await settle();
+    await wrapper.findAll('button').find((button) => button.text() === '生成邀请')!.trigger('click');
+    await settle();
+    expect(wrapper.text()).toContain('invite-token');
+    expect(wrapper.text()).toContain('2026-10-12 12:00:00');
+    await wrapper.findAll('button').find((button) => button.text() === '撤销邀请')!.trigger('click');
+    await settle();
+    expect(mockedApiPost).toHaveBeenCalledWith('/api/invitations/42/revoke', {});
+    expect(wrapper.text()).not.toContain('invite-token');
+    expect(wrapper.text()).not.toContain('撤销邀请');
+    wrapper.unmount();
+  });
+
+  it('keeps a failed revocation retryable and hides it when owner permissions are lost', async () => {
+    const wrapper = mount(SettingsPage, { props: { permissions: { isOwner: true, canManageMembers: true } } });
+    await settle();
+    await wrapper.findAll('button').find((button) => button.text() === '生成邀请')!.trigger('click');
+    await settle();
+    mockedApiPost.mockRejectedValueOnce(new Error('撤销失败'));
+    await wrapper.findAll('button').find((button) => button.text() === '撤销邀请')!.trigger('click');
+    await settle();
+    expect(wrapper.get('[role="alert"]').text()).toBe('撤销失败');
+    expect(wrapper.text()).toContain('invite-token');
+    await wrapper.setProps({ permissions: { isOwner: false, canManageMembers: false } });
+    expect(wrapper.text()).not.toContain('撤销邀请');
+    wrapper.unmount();
+  });
+
   it('loads the fixed ledger and membership endpoints without legacy family reads', async () => {
     const wrapper = mount(SettingsPage, { props: { session: { type: 'LEDGER_USER', userId: 7 }, permissions: { isOwner: true } }, attachTo: document.body });
     await settle();

@@ -85,12 +85,14 @@ public class LedgerService {
     Long toAccountId = patch.containsKey("toAccountId")
         ? (patch.get("toAccountId") == null ? null : longValue(patch.get("toAccountId")))
         : numberOrNull(existing.get("to_account_id"));
-    accounts.getForEntry(context, accountId);
+    long oldAccountId = ((Number) existing.get("account_id")).longValue();
+    Long oldToAccountId = numberOrNull(existing.get("to_account_id"));
+    if (accountId != oldAccountId) accounts.getForEntry(context, accountId);
     if ("transfer".equals(type)) {
       if (toAccountId == null || toAccountId == accountId) {
         throw ApiException.badRequest("VALIDATION_FAILED", "转账账户非法");
       }
-      accounts.getForEntry(context, toAccountId);
+      if (!toAccountId.equals(oldToAccountId)) accounts.getForEntry(context, toAccountId);
     } else {
       toAccountId = null;
     }
@@ -109,7 +111,12 @@ public class LedgerService {
     applyLedger(context, String.valueOf(existing.get("type")),
         ((Number) existing.get("amount_cents")).longValue(),
         ((Number) existing.get("account_id")).longValue(), numberOrNull(existing.get("to_account_id")), true);
-    applyLedger(context, type, amount, accountId, toAccountId);
+    // Retained references may be archived; replacement references were validated above.
+    applyCorrectionDelta(context, accountId, "income".equals(type) ? amount : -amount,
+        accountId == oldAccountId);
+    if ("transfer".equals(type)) {
+      applyCorrectionDelta(context, toAccountId, amount, toAccountId.equals(oldToAccountId));
+    }
     db.update("UPDATE txn SET type = ?, amount_cents = ?, occurred_on = ?, note = ?, account_id = ?, "
         + "to_account_id = ?, category_id = ? WHERE id = ? AND ledger_id = ?", type, amount,
         textOrDefault(patch.get("occurredOn"), String.valueOf(existing.get("occurred_on"))),
@@ -160,12 +167,17 @@ public class LedgerService {
   private void applyLedger(LedgerContext context, String type, long amount, long accountId,
       Long toAccountId, boolean reverse) {
     long sign = reverse ? -1 : 1;
-    if ("expense".equals(type)) accounts.applyBalanceDelta(context, accountId, -amount * sign);
-    else if ("income".equals(type)) accounts.applyBalanceDelta(context, accountId, amount * sign);
+    if ("expense".equals(type)) applyCorrectionDelta(context, accountId, -amount * sign, reverse);
+    else if ("income".equals(type)) applyCorrectionDelta(context, accountId, amount * sign, reverse);
     else {
-      accounts.applyBalanceDelta(context, accountId, -amount * sign);
-      accounts.applyBalanceDelta(context, toAccountId, amount * sign);
+      applyCorrectionDelta(context, accountId, -amount * sign, reverse);
+      applyCorrectionDelta(context, toAccountId, amount * sign, reverse);
     }
+  }
+
+  private void applyCorrectionDelta(LedgerContext context, long accountId, long amount, boolean historical) {
+    if (historical) accounts.applyHistoricalBalanceDelta(context, accountId, amount);
+    else accounts.applyBalanceDelta(context, accountId, amount);
   }
 
   private Map<String, Object> transactionResult(Map<String, Object> row) {

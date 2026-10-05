@@ -18,6 +18,8 @@ import {
   getSession,
   logout,
   createMiniBindingCode,
+  setActiveLedgerId,
+  getLedger,
 } from './api';
 import { resourceVersion } from './resourceInvalidation';
 import { idbGet, idbSet, idbClearByPrefix } from './idbCache';
@@ -39,7 +41,11 @@ function mockFetch(json: unknown, init: { status?: number; ok?: boolean } = {}) 
   return fetchSpy;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  mockFetch({ type: 'LEDGER_USER', userId: 7, webSession: true });
+  await getSession('ledger');
+  setActiveLedgerId(9);
+  await invalidate();
   vi.clearAllMocks();
   mockedIdbGet.mockResolvedValue(undefined);
   mockedIdbSet.mockResolvedValue(undefined);
@@ -94,7 +100,7 @@ describe('写操作触发 invalidate', () => {
 
     await apiPost('transactions', { type: 'expense' });
 
-    expect(mockedClear).toHaveBeenCalledWith('/api/transactions');
+    expect(mockedClear).toHaveBeenCalledWith('v2:ledger:7:9:/api/transactions');
     expect(version.value).not.toBe(before);
   });
 
@@ -104,16 +110,16 @@ describe('写操作触发 invalidate', () => {
     await apiPost('/api/transactions', { type: 'expense' });
 
     expect(mockedClear.mock.calls).toEqual([
-      ['/api/transactions'],
-      ['/api/accounts'],
-      ['/api/stats'],
+      ['v2:ledger:7:9:/api/transactions'],
+      ['v2:ledger:7:9:/api/accounts'],
+      ['v2:ledger:7:9:/api/stats'],
     ]);
     expect(mockedClear).not.toHaveBeenCalledWith('');
   });
 
   it('invalidate 清空指定前缀', async () => {
     await invalidate('/api/transactions');
-    expect(mockedClear).toHaveBeenCalledWith('/api/transactions');
+    expect(mockedClear).toHaveBeenCalledWith('v2:ledger:7:9:/api/transactions');
   });
 });
 
@@ -140,7 +146,7 @@ describe('apiGet 错误包装', () => {
 
 describe('Web authentication API', () => {
   it('sends ledger login with cookies and returns its session', async () => {
-    mockFetch({ type: 'LEDGER_USER', userId: 7 }, { status: 200 });
+    mockFetch({ type: 'LEDGER_USER', userId: 7, webSession: true }, { status: 200 });
 
     await loginLedger('ledger-user', 'secret');
 
@@ -186,6 +192,162 @@ describe('Web authentication API', () => {
       method: 'POST',
       credentials: 'include',
     }));
+  });
+});
+
+describe('authenticated cache isolation', () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((done) => { resolve = done; });
+    return { promise, resolve };
+  }
+  const response = (value: unknown, status = 200) => ({
+    ok: status === 200, status, text: async () => JSON.stringify(value),
+  }) as Response;
+
+  it('namespaces the same URL by user and active ledger and clears previous scopes', async () => {
+    mockFetch({ balance: 1 });
+    await cachedGet('/api/accounts');
+    expect(mockedIdbSet).toHaveBeenLastCalledWith('v2:ledger:7:9:/api/accounts', expect.anything());
+    setActiveLedgerId(10);
+    await cachedGet('/api/accounts');
+    expect(mockedClear).toHaveBeenCalledWith('v2:ledger:7:9:');
+    expect(mockedIdbGet).toHaveBeenLastCalledWith('v2:ledger:7:10:/api/accounts');
+    mockFetch({ type: 'LEDGER_USER', userId: 8, webSession: true });
+    await getSession('ledger');
+    setActiveLedgerId(10);
+    mockFetch({ balance: 2 });
+    await cachedGet('/api/accounts');
+    expect(mockedClear).toHaveBeenCalledWith('v2:ledger:7:10:');
+    expect(mockedIdbGet).toHaveBeenLastCalledWith('v2:ledger:8:10:/api/accounts');
+  });
+
+  it('separates platform principals from ledger users and only clears the logged-out surface', async () => {
+    mockFetch({ type: 'PLATFORM_ADMIN', platformAdminId: 7 });
+    await getSession('platform');
+    mockFetch([]);
+    await cachedGet('/api/platform/ledgers');
+    expect(mockedIdbGet).toHaveBeenLastCalledWith('v2:platform:7:none:/api/platform/ledgers');
+    expect(fetch).toHaveBeenLastCalledWith('/api/platform/ledgers', expect.objectContaining({ headers: {} }));
+    mockedClear.mockClear();
+    await logout('platform');
+    expect(mockedClear).toHaveBeenCalledWith('v2:platform:7:none:');
+    expect(mockedClear).not.toHaveBeenCalledWith('v2:ledger:7:9:');
+    await cachedGet('/api/accounts');
+    expect(mockedIdbGet).toHaveBeenLastCalledWith('v2:ledger:7:9:/api/accounts');
+  });
+
+  it.each([false, true])('discards an old network result after scope change (background=%s)', async (background) => {
+    const pending = deferred<Response>();
+    if (background) mockedIdbGet.mockResolvedValueOnce({ value: ['old'], ts: 0 });
+    vi.stubGlobal('fetch', vi.fn(() => pending.promise));
+    const read = cachedGet('/api/accounts');
+    // Wait until the actual old-scope request is in flight, not just the cache lookup.
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    const outcome = background ? read : expect(read).rejects.toMatchObject({ code: 'CACHE_SCOPE_CHANGED' });
+    setActiveLedgerId(10);
+    pending.resolve(response(['late old data']));
+    await outcome;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mockedIdbSet).not.toHaveBeenCalled();
+  });
+
+  it('does not return an old cache lookup after the identity changes', async () => {
+    const pending = deferred<{ value: string[]; ts: number }>();
+    mockedIdbGet.mockReturnValueOnce(pending.promise);
+    const read = cachedGet('/api/accounts');
+    const outcome = expect(read).rejects.toMatchObject({ code: 'CACHE_SCOPE_CHANGED' });
+    await vi.waitFor(() => expect(mockedIdbGet).toHaveBeenCalled());
+    setActiveLedgerId(10);
+    pending.resolve({ value: ['old'], ts: Date.now() });
+    await outcome;
+  });
+
+  it('clears cache immediately on logout and blocks late responses even if logout fails', async () => {
+    const pending = deferred<Response>();
+    vi.stubGlobal('fetch', vi.fn(() => pending.promise));
+    const read = cachedGet('/api/accounts', undefined, { force: true });
+    const outcome = expect(read).rejects.toMatchObject({ code: 'CACHE_SCOPE_CHANGED' });
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+    mockFetch({ error: { code: 'UNAVAILABLE' } }, { status: 503 });
+    await expect(logout('ledger')).rejects.toMatchObject({ status: 503 });
+    expect(mockedClear).toHaveBeenCalledWith('v2:ledger:7:9:');
+    pending.resolve(response(['old']));
+    await outcome;
+    expect(mockedIdbSet).not.toHaveBeenCalled();
+  });
+
+  it('ignores a late 401 from a previous ledger scope', async () => {
+    const pending = deferred<Response>();
+    const onLost = vi.fn();
+    window.addEventListener('web-auth-lost', onLost);
+    vi.stubGlobal('fetch', vi.fn(() => pending.promise));
+    const read = apiGet('/api/accounts');
+    const outcome = expect(read).rejects.toMatchObject({ status: 401 });
+    setActiveLedgerId(10);
+    pending.resolve(response({ error: { code: 'AUTH_REQUIRED' } }, 401));
+    await outcome;
+    expect(onLost).not.toHaveBeenCalled();
+    window.removeEventListener('web-auth-lost', onLost);
+  });
+
+  it('clears the current cache on a current-session 401', async () => {
+    mockFetch({ error: { code: 'AUTH_REQUIRED' } }, { status: 401 });
+    await expect(apiGet('/api/accounts')).rejects.toMatchObject({ status: 401 });
+    await logout('ledger').catch(() => {});
+    expect(mockedClear).toHaveBeenCalledWith('v2:ledger:7:9:');
+    mockedIdbGet.mockClear();
+    mockFetch([]);
+    await cachedGet('/api/accounts');
+    expect(mockedIdbGet).not.toHaveBeenCalled();
+  });
+
+  it('does not restore a session when a pending discovery finishes after logout', async () => {
+    const pending = deferred<Response>();
+    vi.stubGlobal('fetch', vi.fn(() => pending.promise));
+    const discovery = getSession('ledger');
+    const outcome = expect(discovery).rejects.toMatchObject({ code: 'CACHE_SCOPE_CHANGED' });
+    mockFetch(null, { status: 204 });
+    await logout('ledger');
+    pending.resolve(response({ type: 'LEDGER_USER', userId: 7, webSession: true }));
+    await outcome;
+    mockFetch([]);
+    await cachedGet('/api/accounts');
+    expect(mockedIdbSet).not.toHaveBeenCalled();
+  });
+
+  it('orders logout cleanup after an already-started disk write', async () => {
+    const pending = deferred<void>();
+    mockedIdbSet.mockReturnValueOnce(pending.promise);
+    mockFetch([]);
+    const read = cachedGet('/api/accounts');
+    const outcome = expect(read).rejects.toMatchObject({ code: 'CACHE_SCOPE_CHANGED' });
+    await vi.waitFor(() => expect(mockedIdbSet).toHaveBeenCalled());
+    const loggedOut = logout('ledger');
+    expect(mockedClear).not.toHaveBeenCalledWith('v2:ledger:7:9:');
+    pending.resolve();
+    await Promise.all([outcome, loggedOut]);
+    expect(mockedClear).toHaveBeenCalledWith('v2:ledger:7:9:');
+  });
+
+  it('does not persist a forced read that completes after a mutation invalidates it', async () => {
+    const pending = deferred<Response>();
+    vi.stubGlobal('fetch', vi.fn(() => pending.promise));
+    const read = cachedGet('/api/accounts', undefined, { force: true });
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+    mockFetch({ ok: true });
+    await apiPost('/api/transactions', {});
+    pending.resolve(response(['old']));
+    await read;
+    expect(mockedIdbSet).not.toHaveBeenCalled();
+  });
+
+  it('rejects ordinary Mini Program sessions and requests server-verified Web context', async () => {
+    mockFetch({ type: 'LEDGER_USER', userId: 7, webSession: false });
+    await expect(getSession('ledger')).rejects.toMatchObject({ code: 'SESSION_KIND_MISMATCH' });
+    mockFetch([{ id: 9, name: 'Special', role: 'OWNER', active: true, webLoginAllowed: true }]);
+    await getLedger();
+    expect(fetch).toHaveBeenCalledWith('/api/ledgers?surface=web', expect.anything());
   });
 });
 

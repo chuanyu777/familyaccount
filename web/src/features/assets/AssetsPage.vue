@@ -87,6 +87,8 @@ const snapshotFormAsset = ref<Asset | null>(null);
 
 const confirmDeleteAccountId = ref<number | null>(null);
 const confirmDeleteAssetId = ref<number | null>(null);
+const restoringAccount = computed(() => Boolean(accounts.value.find((item) => item.id === confirmDeleteAccountId.value)?.archived));
+const restoringAsset = computed(() => Boolean(assets.value.find((item) => item.id === confirmDeleteAssetId.value)?.archived));
 
 const groups = computed<Group[]>(() => {
   if (assetView.value === 'detail') return [];
@@ -164,8 +166,7 @@ async function doDeleteAccount() {
   deletePending.value = true;
   deleteError.value = null;
   try {
-    const account = accounts.value.find((item) => item.id === id);
-    await apiPost(`/api/accounts/${id}/${account?.archived ? 'restore' : 'archive'}`, {});
+    await apiPost(`/api/accounts/${id}/${restoringAccount.value ? 'restore' : 'archive'}`, {});
     confirmDeleteAccountId.value = null;
   } catch (e) {
     if (e instanceof ApiError && e.code === 'ACCOUNT_IN_USE') {
@@ -190,8 +191,7 @@ async function doDeleteAsset() {
   deletePending.value = true;
   deleteError.value = null;
   try {
-    const asset = assets.value.find((item) => item.id === id);
-    await apiPost(`/api/assets/${id}/${asset?.archived ? 'restore' : 'archive'}`, {});
+    await apiPost(`/api/assets/${id}/${restoringAsset.value ? 'restore' : 'archive'}`, {});
     confirmDeleteAssetId.value = null;
   } catch (cause) {
     deleteError.value = cause instanceof Error ? cause.message : '删除失败，请重试';
@@ -382,9 +382,9 @@ function updatedLabel(a: Asset): string {
 
     <ConfirmDialog
       v-if="confirmDeleteAccountId !== null"
-      title="归档账户"
-      description="归档后不会出现在新账目中，历史记录仍会保留。"
-      confirm-text="归档"
+      :title="restoringAccount ? '恢复账户' : '归档账户'"
+      :description="restoringAccount ? '恢复后可在新账目中选择此账户。' : '归档后不会出现在新账目中，历史记录仍会保留。'"
+      :confirm-text="restoringAccount ? '恢复' : '归档'"
       :pending="deletePending"
       :error="deleteError ?? ''"
       @confirm="doDeleteAccount"
@@ -393,9 +393,9 @@ function updatedLabel(a: Asset): string {
 
     <ConfirmDialog
       v-if="confirmDeleteAssetId !== null"
-      title="归档资产"
-      description="归档后不会出现在新的资产操作中，历史记录仍会保留。"
-      confirm-text="归档"
+      :title="restoringAsset ? '恢复资产' : '归档资产'"
+      :description="restoringAsset ? '恢复后可继续更新此资产的市值。' : '归档后不会出现在新的资产操作中，历史记录仍会保留。'"
+      :confirm-text="restoringAsset ? '恢复' : '归档'"
       :pending="deletePending"
       :error="deleteError ?? ''"
       @confirm="doDeleteAsset"

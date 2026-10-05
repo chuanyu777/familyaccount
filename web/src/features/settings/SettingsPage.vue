@@ -7,6 +7,7 @@ import type { LedgerPermissions, LedgerSession, LedgerSummary } from '../../auth
 
 interface Membership { id: number; ledgerId: number; userId: number; role: string; active: boolean; displayName: string; }
 interface Category { id: number; kind: 'expense' | 'income'; name: string; archived?: number | boolean; }
+interface Invitation { id: number; ledgerId: number; token: string; expiresAt: string; }
 
 const props = withDefaults(defineProps<{ session?: LedgerSession; permissions?: LedgerPermissions }>(), {
   session: () => ({ type: 'LEDGER_USER', userId: 0 }),
@@ -16,7 +17,8 @@ const ledger = ref<LedgerSummary | null>(null);
 const ledgerName = ref('');
 const members = ref<Membership[]>([]);
 const categories = ref<Category[]>([]);
-const inviteToken = ref('');
+const invitations = ref<Invitation[]>([]);
+const invitationPending = ref(false);
 const newCategory = ref('');
 const newCategoryKind = ref<Category['kind']>('expense');
 const editingCategoryId = ref<number | null>(null);
@@ -56,10 +58,23 @@ async function saveLedger() {
 }
 
 async function createInvitation() {
-  if (!ledger.value || !props.permissions.canManageMembers) return;
+  if (!ledger.value || !props.permissions.isOwner || !props.permissions.canManageMembers || invitationPending.value) return;
+  invitationPending.value = true;
   mutationError.value = null;
-  try { inviteToken.value = (await apiPost<{ token: string }>(`/api/ledgers/${ledger.value.id}/invitations`, {})).token; }
+  try { invitations.value.push(await apiPost<Invitation>(`/api/ledgers/${ledger.value.id}/invitations`, {})); }
   catch (cause) { mutationError.value = messageOf(cause, '邀请创建失败'); }
+  finally { invitationPending.value = false; }
+}
+
+async function revokeInvitation(invitation: Invitation) {
+  if (!props.permissions.isOwner || !props.permissions.canManageMembers || invitationPending.value) return;
+  invitationPending.value = true;
+  mutationError.value = null;
+  try {
+    await apiPost(`/api/invitations/${invitation.id}/revoke`, {});
+    invitations.value = invitations.value.filter((item) => item.id !== invitation.id);
+  } catch (cause) { mutationError.value = messageOf(cause, '邀请撤销失败'); }
+  finally { invitationPending.value = false; }
 }
 
 async function removeMember(member: Membership) {
@@ -127,8 +142,14 @@ onMounted(() => void load());
       </form>
     </section>
     <section class="settings-group" aria-labelledby="members-heading">
-      <div class="settings-group__head"><h2 id="members-heading">账本成员</h2><button v-if="props.permissions.canManageMembers" type="button" class="btn btn--sm" @click="createInvitation">生成邀请</button></div>
-      <p v-if="inviteToken" class="settings-note" role="status">邀请令牌：{{ inviteToken }}</p>
+      <div class="settings-group__head"><h2 id="members-heading">账本成员</h2><button v-if="props.permissions.isOwner && props.permissions.canManageMembers" type="button" class="btn btn--sm" :disabled="invitationPending" @click="createInvitation">生成邀请</button></div>
+      <div v-if="props.permissions.isOwner && props.permissions.canManageMembers">
+        <div v-for="invitation in invitations" :key="invitation.id" class="settings-note" role="status">
+          <p>邀请令牌：{{ invitation.token }}</p>
+          <p>到期时间：{{ invitation.expiresAt }}</p>
+          <button type="button" class="btn btn--ghost btn--sm" :disabled="invitationPending" @click="revokeInvitation(invitation)">撤销邀请</button>
+        </div>
+      </div>
       <ul class="settings-list"><li v-for="member in members" :key="member.id" class="settings-row" :data-member-row="member.id"><span class="settings-row__name">{{ member.displayName }}</span><span class="settings-row__meta">{{ member.role === 'OWNER' ? '所有者' : '成员' }}</span><button v-if="props.permissions.canManageMembers && member.role !== 'OWNER'" type="button" class="btn btn--ghost btn--sm" @click="removeMember(member)">移除</button></li></ul>
     </section>
     <section class="settings-group" aria-labelledby="categories-heading">

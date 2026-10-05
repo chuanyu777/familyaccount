@@ -110,7 +110,10 @@ class StatsIsolationTest {
     liabilityInput.put("name", "负债-" + context.ledgerId());
     liabilityInput.put("remaining", liability);
     liabilityInput.put("monthlyPayment", "10.00");
-    liabilities.create(context, liabilityInput);
+    long liabilityId = ((Number) liabilities.create(context, liabilityInput).get("id")).longValue();
+    // The fixture belongs to the snapshot month, regardless of the day this test runs.
+    db.update("UPDATE liability SET created_at = ? WHERE id = ? AND ledger_id = ?",
+        "2026-09-01 00:00:00", liabilityId, context.ledgerId());
   }
 
   private long insertUser(String name) {

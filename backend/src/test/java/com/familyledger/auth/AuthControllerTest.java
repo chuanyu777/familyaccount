@@ -41,6 +41,64 @@ class AuthControllerTest {
   }
 
   @Test
+  void whitespaceEquivalentUsernamesShareTheFailureLimitOnBothSurfaces() throws Exception {
+    for (String surface : new String[] {"web", "platform"}) {
+      for (int i = 0; i < AuthAttemptLimiter.MAX_FAILURES; i++) {
+        mvc.perform(post("/api/auth/" + surface + "/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"username\":\"" + " ".repeat(i) + "spaced-user \",\"password\":\"wrong\"}"))
+            .andExpect(status().isUnauthorized());
+      }
+      mvc.perform(post("/api/auth/" + surface + "/login")
+              .contentType(MediaType.APPLICATION_JSON)
+              .content("{\"username\":\"spaced-user\",\"password\":\"wrong\"}"))
+          .andExpect(status().isTooManyRequests())
+          .andExpect(jsonPath("$.error.code").value("AUTH_RATE_LIMITED"));
+    }
+  }
+
+  @Test
+  void whitespaceEquivalentValidCredentialsAuthenticateOnBothSurfaces() throws Exception {
+    mvc.perform(post("/api/auth/web/login").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"username\":\" ledger-owner \",\"password\":\"ledger-owner-password\"}"))
+        .andExpect(status().isNoContent()).andExpect(cookie().exists("ledger_session"));
+    mvc.perform(post("/api/auth/platform/login").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"username\":\" platform-admin \",\"password\":\"platform-admin-password\"}"))
+        .andExpect(status().isNoContent()).andExpect(cookie().exists("platform_session"));
+  }
+
+  @Test
+  void miniProgramSessionCannotDiscoverWebSessionOrContextButKeepsMiniProgramAccess() throws Exception {
+    when(weChatClient.exchangeLoginCode("ordinary-code")).thenReturn(new WeChatIdentity("ordinary-openid"));
+    Cookie mini = mvc.perform(post("/api/auth/wechat/login").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"code\":\"ordinary-code\"}"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.webSession").value(false))
+        .andReturn().getResponse().getCookie("ledger_session");
+    mvc.perform(get("/api/auth/session").param("kind", "ledger").cookie(mini))
+        .andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("WEB_SESSION_REQUIRED"));
+    mvc.perform(get("/api/ledgers").param("surface", "web").cookie(mini))
+        .andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("WEB_SESSION_REQUIRED"));
+    mvc.perform(get("/api/auth/session").cookie(mini))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.webSession").value(false));
+    mvc.perform(get("/api/ledgers").cookie(mini)).andExpect(status().isOk());
+    mvc.perform(post("/api/ledgers").cookie(mini).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"name\":\"Mini ledger\"}"))
+        .andExpect(status().isCreated());
+  }
+
+  @Test
+  void webDiscoveryRechecksMembershipAndExposesSignedWebMarker() throws Exception {
+    Cookie web = loginWeb();
+    mvc.perform(get("/api/auth/session").param("kind", "ledger").cookie(web))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.webSession").value(true));
+    mvc.perform(get("/api/ledgers").param("surface", "web").cookie(web)).andExpect(status().isOk());
+    db.update("UPDATE ledger_membership SET web_login_allowed = 0");
+    mvc.perform(get("/api/auth/session").param("kind", "ledger").cookie(web))
+        .andExpect(status().isForbidden()).andExpect(jsonPath("$.error.code").value("SPECIAL_LEDGER_REQUIRED"));
+    mvc.perform(get("/api/ledgers").param("surface", "web").cookie(web)).andExpect(status().isForbidden());
+  }
+
+  @Test
   void webLoginIssuesLedgerSessionAndRejectsWrongPasswordGenerically() throws Exception {
     mvc.perform(post("/api/auth/web/login")
             .contentType(MediaType.APPLICATION_JSON)

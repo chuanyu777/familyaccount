@@ -55,6 +55,7 @@ const formInitial = ref<Liability | undefined>(undefined);
 const repayLiability = ref<Liability | null>(null);
 const repayInitial = ref<Repayment | undefined>(undefined);
 const confirmDeleteId = ref<number | null>(null);
+const restoringLiability = computed(() => Boolean(liabilities.value.find((item) => item.id === confirmDeleteId.value)?.archived));
 const confirmDeleteRepayId = ref<number | null>(null);
 const liabilityDeletePending = ref(false);
 const repaymentDeletePending = ref(false);
@@ -116,8 +117,7 @@ async function doDeleteLiability() {
   mutationError.value = null;
   liabilityDeletePending.value = true;
   try {
-    const liability = liabilities.value.find((item) => item.id === id);
-    await apiPost(`/api/liabilities/${id}/${liability?.archived ? 'restore' : 'archive'}`, {});
+    await apiPost(`/api/liabilities/${id}/${restoringLiability.value ? 'restore' : 'archive'}`, {});
     confirmDeleteId.value = null;
   } catch (cause) {
     mutationError.value = cause instanceof Error ? cause.message : '删除负债失败';
@@ -266,9 +266,9 @@ function canMutateRepayment(repayment: { created_by_user_id?: number }): boolean
 
     <ConfirmDialog
       v-if="confirmDeleteId !== null"
-      title="归档负债"
-      description="归档后不会出现在新的还款操作中，历史记录仍会保留。"
-      confirm-text="归档"
+      :title="restoringLiability ? '恢复负债' : '归档负债'"
+      :description="restoringLiability ? '恢复后可继续为此负债还款。' : '归档后不会出现在新的还款操作中，历史记录仍会保留。'"
+      :confirm-text="restoringLiability ? '恢复' : '归档'"
       :pending="liabilityDeletePending"
       :error="mutationError ?? ''"
       @confirm="doDeleteLiability"

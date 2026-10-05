@@ -33,7 +33,7 @@ public class LedgerController {
   @GetMapping
   public List<LedgerSummary> list(HttpServletRequest request) {
     AuthPrincipal principal = guard.requireLedgerUser(request);
-    if (principal.webSession()) {
+    if (principal.webSession() || "web".equals(request.getParameter("surface"))) {
       return List.of(service.getForUser(principal, webAuthorization.requireSpecialLedger(principal).ledgerId()));
     }
     return service.listForUser(principal.userId());

@@ -31,6 +31,10 @@ public class AuthService {
     this.wechat = wechat;
   }
 
+  static String canonicalUsername(String username) {
+    return username == null ? null : username.trim();
+  }
+
   public AuthPrincipal authenticateWeb(String username, String password) {
     if (username == null || password == null) throw authFailed();
     List<Map<String, Object>> rows = db.queryForList(
@@ -38,7 +42,7 @@ public class AuthService {
             + "JOIN ledger_membership lm ON lm.user_id = wc.user_id "
             + "JOIN ledger l ON l.id = lm.ledger_id "
             + "WHERE wc.username = ? AND wc.enabled = 1 AND lm.active = 1 "
-            + "AND lm.web_login_allowed = 1 AND l.is_web_enabled = 1 LIMIT 1", username.trim());
+            + "AND lm.web_login_allowed = 1 AND l.is_web_enabled = 1 LIMIT 1", canonicalUsername(username));
     if (rows.isEmpty() || !passwords.matches(password, String.valueOf(rows.get(0).get("password_hash")))) {
       throw authFailed();
     }
@@ -49,7 +53,7 @@ public class AuthService {
     if (username == null || password == null) throw authFailed();
     List<Map<String, Object>> rows = db.queryForList(
         "SELECT id, password_hash FROM platform_admin WHERE username = ? AND enabled = 1 LIMIT 1",
-        username.trim());
+        canonicalUsername(username));
     if (rows.isEmpty() || !passwords.matches(password, String.valueOf(rows.get(0).get("password_hash")))) {
       throw authFailed();
     }

@@ -74,6 +74,13 @@ public class AccountService {
     if (updated != 1) throw ApiException.notFound("ACCOUNT_NOT_FOUND", "账户不存在");
   }
 
+  /** Only for authorized corrections of an existing record's historical account reference. */
+  void applyHistoricalBalanceDelta(LedgerContext context, long id, long cents) {
+    int updated = db.update("UPDATE account SET balance_cents = balance_cents + ? "
+        + "WHERE id = ? AND ledger_id = ?", cents, id, context.ledgerId());
+    if (updated != 1) throw ApiException.notFound("ACCOUNT_NOT_FOUND", "账户不存在");
+  }
+
   public void archive(LedgerContext context, long id) {
     authorization.requireOwner(AuthPrincipal.ledgerUser(context.userId()), context.ledgerId());
     fetchLedger(context, id);

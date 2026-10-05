@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import LedgerLogin from './LedgerLogin.vue';
 import PlatformLogin from './PlatformLogin.vue';
 import { useWebAuth } from './useWebAuth';
-import { loginLedger, loginPlatform, getSession, logout } from '../lib/api';
+import { loginLedger, loginPlatform, getSession, getLedger, logout } from '../lib/api';
 import { surfaceForPathname } from './entryPoint';
 
 vi.mock('../App.vue', () => ({
@@ -21,6 +21,7 @@ vi.mock('../lib/api', () => ({
   loginLedger: vi.fn(),
   loginPlatform: vi.fn(),
   getSession: vi.fn(),
+  getLedger: vi.fn(),
   logout: vi.fn(),
   createMiniBindingCode: vi.fn(),
 }));
@@ -30,7 +31,7 @@ const mockedLoginPlatform = vi.mocked(loginPlatform);
 const mockedGetSession = vi.mocked(getSession);
 const mockedLogout = vi.mocked(logout);
 
-const ledgerSession = { type: 'LEDGER_USER' as const, userId: 7 };
+const ledgerSession = { type: 'LEDGER_USER' as const, userId: 7, webSession: true as const };
 const platformSession = { type: 'PLATFORM_ADMIN' as const, platformAdminId: 9 };
 
 async function settle() {
@@ -44,6 +45,7 @@ beforeEach(() => {
   mockedLoginLedger.mockResolvedValue(ledgerSession);
   mockedLoginPlatform.mockResolvedValue(platformSession);
   mockedLogout.mockResolvedValue(undefined);
+  vi.mocked(getLedger).mockResolvedValue({ id: 1, name: 'Special', role: 'OWNER', active: true, webLoginAllowed: true });
   document.body.innerHTML = '';
 });
 
@@ -71,7 +73,8 @@ describe('web authentication entry points', () => {
 
     expect(mockedLoginLedger).toHaveBeenCalledWith('ledger-user', 'secret');
     expect(mockedLoginPlatform).not.toHaveBeenCalled();
-    expect(wrapper.text()).toContain('家庭财务');
+    expect(wrapper.find('[data-surface="ledger"]').exists()).toBe(true);
+    expect(wrapper.find('form').exists()).toBe(false);
     wrapper.unmount();
   });
 
@@ -87,6 +90,7 @@ describe('web authentication entry points', () => {
     expect(mockedLoginPlatform).toHaveBeenCalledWith('operator', 'secret');
     expect(mockedLoginLedger).not.toHaveBeenCalled();
     expect(wrapper.text()).toContain('平台控制台');
+    expect(wrapper.find('input[name="password"]').exists()).toBe(false);
     expect(wrapper.text()).not.toContain('绑定小程序');
     expect(wrapper.find('button[data-mutation-control]').exists()).toBe(false);
     wrapper.unmount();
@@ -102,12 +106,39 @@ describe('web authentication entry points', () => {
     wrapper.unmount();
   });
 
+  it.each([
+    { type: 'LEDGER_USER' as const, userId: 7, webSession: false },
+    { type: 'LEDGER_USER' as const, userId: 7 },
+    platformSession,
+  ])('does not mount the ledger app with a non-Web ledger session: %j', async (session) => {
+    mockedGetSession.mockResolvedValue(session);
+    const wrapper = mount(LedgerLogin);
+    await settle();
+    expect(wrapper.find('[data-surface="ledger"]').exists()).toBe(false);
+    expect(wrapper.find('input[name="password"]').exists()).toBe(true);
+    expect(getLedger).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
+  it('requires successful fixed-ledger discovery before mounting authenticated content', async () => {
+    mockedGetSession.mockResolvedValue(ledgerSession);
+    vi.mocked(getLedger).mockRejectedValue(new Error('Forbidden'));
+    const wrapper = mount(LedgerLogin);
+    await settle();
+    expect(wrapper.find('[data-surface="ledger"]').exists()).toBe(false);
+    expect(wrapper.find('input[name="password"]').exists()).toBe(true);
+    wrapper.unmount();
+  });
+
   it('clears only the matching session when its API returns 401', async () => {
     window.history.replaceState(null, '', '/ledger');
     mockedGetSession.mockImplementation(async (kind) => kind === 'ledger' ? ledgerSession : platformSession);
     const ledger = mount(LedgerLogin, { attachTo: document.body });
     const platform = mount(PlatformLogin, { attachTo: document.body });
     await settle();
+
+    expect(ledger.find('[data-surface="ledger"]').exists()).toBe(true);
+    expect(platform.find('input[name="password"]').exists()).toBe(false);
 
     window.dispatchEvent(new CustomEvent('web-auth-lost', { detail: { kind: 'ledger' } }));
     await settle();

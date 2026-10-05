@@ -91,7 +91,7 @@ public class RepaymentService {
     }
     long accountId = patch.containsKey("accountId")
         ? longValue(patch.get("accountId")) : oldAccountId;
-    accounts.getForEntry(context, accountId);
+    if (accountId != oldAccountId) accounts.getForEntry(context, accountId);
     long amount = patch.containsKey("amount")
         ? amount(patch.get("amount"), liabilityForValidation) : oldAmount;
     String occurred = patch.containsKey("occurredOn")
@@ -104,8 +104,9 @@ public class RepaymentService {
 
     incrementLiability(context, oldLiabilityId, oldAmount);
     decrementLiability(context, liabilityId, amount);
-    accounts.applyBalanceDelta(context, oldAccountId, oldAmount);
-    accounts.applyBalanceDelta(context, accountId, -amount);
+    accounts.applyHistoricalBalanceDelta(context, oldAccountId, oldAmount);
+    if (accountId == oldAccountId) accounts.applyHistoricalBalanceDelta(context, accountId, -amount);
+    else accounts.applyBalanceDelta(context, accountId, -amount);
     db.update("UPDATE repayment SET liability_id = ?, amount_cents = ?, occurred_on = ?, account_id = ? "
         + "WHERE id = ? AND ledger_id = ?", liabilityId, amount, occurred, accountId, id, context.ledgerId());
     db.update("UPDATE txn SET amount_cents = ?, occurred_on = ?, note = ?, account_id = ?, category_id = ? "
@@ -121,10 +122,11 @@ public class RepaymentService {
         Row.lng(repayment, "created_by_user_id"));
     long amount = Row.lng(repayment, "amount_cents");
     incrementLiability(context, Row.lng(repayment, "liability_id"), amount);
-    accounts.applyBalanceDelta(context, Row.lng(repayment, "account_id"), amount);
-    db.update("DELETE FROM txn WHERE id = ? AND ledger_id = ? AND source_type = 'repayment'",
-        Row.lng(repayment, "transaction_id"), context.ledgerId());
+    accounts.applyHistoricalBalanceDelta(context, Row.lng(repayment, "account_id"), amount);
+    long transactionId = Row.lng(repayment, "transaction_id");
     db.update("DELETE FROM repayment WHERE id = ? AND ledger_id = ?", id, context.ledgerId());
+    db.update("DELETE FROM txn WHERE id = ? AND ledger_id = ? AND source_type = 'repayment'",
+        transactionId, context.ledgerId());
   }
 
   private long categoryId(LedgerContext context) {

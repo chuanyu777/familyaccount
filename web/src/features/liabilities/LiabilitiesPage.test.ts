@@ -422,6 +422,27 @@ describe('AC-02 负债列表', () => {
   });
 });
 
+describe('restore confirmation', () => {
+  it('confirms restoring a liability with restore wording and endpoint', async () => {
+    mockedCachedGet.mockImplementation((path: string) => {
+      if (path === '/api/stats/summary') return Promise.resolve(summary);
+      if (path === '/api/liabilities') return Promise.resolve([{ ...liabilities[0], archived: 1 }]);
+      return Promise.resolve([]);
+    });
+    wrapper = mount(LiabilitiesPage, { attachTo: document.body });
+    await settle();
+    openRow('房贷');
+    await settle();
+    clickBtnInSheet('恢复');
+    await settle();
+    expect(document.querySelector('.dialog')?.textContent).toContain('恢复负债');
+    expect(document.querySelector('.dialog')?.textContent).not.toContain('归档后');
+    clickBtnInDialog('恢复');
+    await settle();
+    expect(mockedApiPost).toHaveBeenCalledWith('/api/liabilities/1/restore', {});
+  });
+});
+
 describe('AC-03 还一笔', () => {
   it('还款金额默认带出月供，账户默认默认账户，日期默认今天', async () => {
     wrapper = mount(LiabilitiesPage, { attachTo: document.body });

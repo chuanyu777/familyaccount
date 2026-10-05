@@ -245,6 +245,28 @@ describe('financial writes retain their pending and failed surfaces', () => {
 });
 
 describe('shared ledger ownership', () => {
+  it.each([
+    ['账户', '/api/accounts', 'data-account-row'],
+    ['资产', '/api/assets', 'data-asset-row'],
+  ])('confirms restoring an archived %s with restore wording and endpoint', async (label, path, attribute) => {
+    mockedCachedGet.mockImplementation((url: string) => {
+      if (url === '/api/stats/summary') return Promise.resolve(summary);
+      if (url === path) return Promise.resolve([{ ...(path === '/api/accounts' ? accounts[0] : assets[0]), archived: 1 }]);
+      return Promise.resolve([]);
+    });
+    wrapper = mount(AssetsPage, { attachTo: document.body });
+    await settle();
+    document.querySelector<HTMLElement>(`[${attribute}="1"]`)!.click();
+    await settle();
+    clickBtnInSheet('恢复');
+    await settle();
+    expect(document.querySelector('.dialog')?.textContent).toContain(`恢复${label}`);
+    expect(document.querySelector('.dialog')?.textContent).not.toContain('归档后');
+    clickBtnInDialog('恢复');
+    await settle();
+    expect(mockedApiPost).toHaveBeenCalledWith(`${path}/1/restore`, {});
+  });
+
   it('hides snapshot creation for archived assets', async () => {
     mockedCachedGet.mockImplementation((path: string) => {
       if (path === '/api/stats/summary') return Promise.resolve(summary);
