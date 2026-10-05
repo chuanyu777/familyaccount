@@ -19,7 +19,7 @@ const state = (value: number) => value === 1 ? '是' : '否';
 const money = (value: number) => formatMoney(value);
 const columns = {
   members: [{ key: 'name', label: '成员' }, { key: 'role', label: '角色' }, { key: 'active', label: '活跃' }, { key: 'web', label: '网页登录' }, { key: 'joined', label: '加入时间' }],
-  transactions: [{ key: 'date', label: '日期' }, { key: 'type', label: '类型' }, { key: 'amount', label: '金额' }, { key: 'account', label: '账户 ID' }, { key: 'category', label: '分类 ID' }, { key: 'note', label: '备注' }],
+  transactions: [{ key: 'date', label: '日期' }, { key: 'type', label: '类型' }, { key: 'amount', label: '金额' }, { key: 'account', label: '转出账户 ID' }, { key: 'toAccount', label: '转入账户 ID' }, { key: 'category', label: '分类 ID' }, { key: 'note', label: '备注' }],
   accounts: [{ key: 'name', label: '账户' }, { key: 'balance', label: '当前余额' }, { key: 'default', label: '默认' }, { key: 'archived', label: '归档' }],
   categories: [{ key: 'name', label: '分类' }, { key: 'kind', label: '类型' }, { key: 'archived', label: '归档' }],
   assets: [{ key: 'name', label: '资产' }, { key: 'kind', label: '类型' }, { key: 'value', label: '当前估值' }, { key: 'archived', label: '归档' }],
@@ -33,7 +33,7 @@ const sections = computed(() => {
   if (!data) return [];
   return [
     { title: '成员', columns: columns.members, rows: data.members.map(row => ({ name: `${row.displayName} #${row.userId}`, role: row.role, active: state(row.active), web: state(row.webLoginAllowed), joined: text(row.joinedAt) })) },
-    { title: '交易', columns: columns.transactions, rows: data.transactions.map(row => ({ date: text(row.occurredOn), type: row.type, amount: money(row.amountCents), account: text(row.accountId), category: text(row.categoryId), note: text(row.note) })) },
+    { title: '交易', columns: columns.transactions, rows: data.transactions.map(row => ({ date: text(row.occurredOn), type: row.type, amount: money(row.amountCents), account: text(row.accountId), toAccount: text(row.toAccountId), category: text(row.categoryId), note: text(row.note) })) },
     { title: '账户', columns: columns.accounts, rows: data.accounts.map(row => ({ name: `${row.name} #${row.id}`, balance: money(row.balanceCents), default: state(row.isDefault), archived: state(row.archived) })) },
     { title: '分类', columns: columns.categories, rows: data.categories.map(row => ({ name: `${row.name} #${row.id}`, kind: row.kind, archived: state(row.archived) })) },
     { title: '资产', columns: columns.assets, rows: data.assets.map(row => ({ name: `${row.name} #${row.id}`, kind: row.kind, value: money(row.valueCents), archived: state(row.archived) })) },

@@ -25,7 +25,7 @@ const detail = {
   members: [{ id: 1, userId: 7, displayName: '张三', role: 'OWNER', webLoginAllowed: 0, active: 1, joinedAt: '2026-09-30' }],
   accounts: [{ id: 3, name: '现金账户', balanceCents: 12000, isDefault: 1, archived: 0, createdAt: '2026-09-30' }],
   categories: [{ id: 4, kind: 'income', name: '工资', archived: 0, createdAt: '2026-09-30' }],
-  transactions: [{ id: 5, type: 'income', amountCents: 1234, occurredOn: '2026-09-30', note: '薪资', accountId: 3, toAccountId: null, categoryId: 4, createdByUserId: 7, sourceType: 'manual', createdAt: '2026-09-30' }],
+  transactions: [{ id: 5, type: 'transfer', amountCents: 1234, occurredOn: '2026-09-30', note: '账户调拨', accountId: 3, toAccountId: 10, categoryId: null, createdByUserId: 7, sourceType: 'manual', createdAt: '2026-09-30' }],
   assets: [{ id: 6, name: '房产', valueCents: 100000, kind: 'property', archived: 0, updatedAt: '2026-09-30' }],
   snapshots: [{ id: 7, assetId: 6, snapMonth: '2026-09', valueCents: 99000, note: '评估', recordedAt: '2026-09-30' }],
   liabilities: [{ id: 8, name: '房贷', remainingCents: 80000, monthlyPaymentCents: 2000, paymentDay: 10, archived: 0, createdAt: '2026-09-30' }],
@@ -81,6 +81,25 @@ describe('platform read-only console', () => {
     for (const section of ['成员', '交易', '账户', '分类', '资产', '资产快照', '负债', '还款', '分析汇总']) {
       expect(wrapper.find(`section[aria-label="${section}"]`).exists()).toBe(true);
     }
+    const transactionSection = wrapper.get('section[aria-label="交易"]');
+    expect(transactionSection.text()).toContain('转入账户 ID');
+    expect(transactionSection.findAll('tbody tr')).toHaveLength(1);
+    expect(transactionSection.findAll('tbody tr')[0]?.text()).toContain('账户调拨');
+    expect(transactionSection.findAll('tbody tr')[0]?.text()).toContain('10');
+
+    const snapshotSection = wrapper.get('section[aria-label="资产快照"]');
+    expect(snapshotSection.findAll('tbody tr')).toHaveLength(1);
+    expect(snapshotSection.findAll('tbody tr')[0]?.text()).toContain('2026-09');
+    expect(snapshotSection.findAll('tbody tr')[0]?.text()).toContain('6');
+    expect(snapshotSection.findAll('tbody tr')[0]?.text()).toContain('¥990.00');
+    expect(snapshotSection.findAll('tbody tr')[0]?.text()).toContain('评估');
+
+    const repaymentSection = wrapper.get('section[aria-label="还款"]');
+    expect(repaymentSection.findAll('tbody tr')).toHaveLength(1);
+    expect(repaymentSection.findAll('tbody tr')[0]?.text()).toContain('2026-09-29');
+    expect(repaymentSection.findAll('tbody tr')[0]?.text()).toContain('8');
+    expect(repaymentSection.findAll('tbody tr')[0]?.text()).toContain('¥20.00');
+    expect(repaymentSection.findAll('tbody tr')[0]?.text()).toContain('3');
     expect(wrapper.text()).toContain('全期收入');
     expect(wrapper.text()).toContain('当前账户余额合计');
     expect(wrapper.text()).toContain('¥12.34');
