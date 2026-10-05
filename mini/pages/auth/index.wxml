@@ -1,1 +1,10 @@
-<view />
+<view class="auth-page">
+  <view class="auth-panel">
+    <text class="auth-title">家庭记账</text>
+    <text class="auth-subtitle">登录后开始管理家庭账本</text>
+    <button class="wechat-button" type="primary" loading="{{loading}}" disabled="{{loading}}" bindtap="handleLogin">
+      微信登录
+    </button>
+    <text wx:if="{{errorMessage}}" class="error-message">{{errorMessage}}</text>
+  </view>
+</view>

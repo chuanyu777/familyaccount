@@ -20,3 +20,17 @@
 ## 未覆盖
 
 - 未在微信开发者工具中进行真实微信授权、Cookie 和页面跳转联调；需要接入可访问的后端环境后手工验证。
+
+## Fix Round 1
+
+- 修复认证页空模板：默认登录路径现在显示可操作的微信登录按钮、加载态和错误提示；没有新增 Web 绑定入口。
+- 修复认证成功后的账本恢复：优先恢复 `currentLedgerStore` 中仍属于当前用户的账本；无可恢复账本时使用稳定的首个账本，不再使用返回列表最后一项。
+- 补充回归测试，覆盖已保存账本仍可用和已保存账本不可用两种情况。
+- 跨任务约束：绑定入口不放入 auth/empty 页面；按当前主控 ruling，绑定入口由 Task 4 settings 页承担，并且必须保持 settings-only secondary entry。
+
+### 命令与结果
+
+- `npm test -- mini/services/auth.test.ts`：7 tests passed。
+- `npm test`：25 test files、267 tests passed。
+- `npm run typecheck`：通过。
+- `git diff --check`：通过。

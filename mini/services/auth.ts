@@ -45,7 +45,9 @@ async function finishAuthentication(response: AuthResponse): Promise<AuthResult>
   const session = sessionStore.get();
   if (session) sessionStore.set({ ...session, userId: response.userId });
   const ledgers = await request<LedgerSummary[]>('/api/ledgers');
-  const currentLedger = ledgers.at(-1);
+  const storedLedger = currentLedgerStore.get();
+  const currentLedger =
+    (storedLedger && ledgers.find((ledger) => ledger.id === storedLedger.id)) ?? ledgers[0];
   if (currentLedger) currentLedgerStore.set(currentLedger);
   else currentLedgerStore.clear();
   return { ...response, ledgers };

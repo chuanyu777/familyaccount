@@ -56,6 +56,34 @@ describe('auth service', () => {
     expect(getPostAuthRoute([{ id: 9, name: '我家', role: 'OWNER' }])).toBe('/pages/ledger/list');
   });
 
+  it('restores the stored ledger when it is still available to the user', async () => {
+    currentLedgerStore.set({ id: 3, name: '工作账本', role: 'MEMBER' });
+    requestMock
+      .mockResolvedValueOnce({ userId: 7, type: 'LEDGER_USER', webSession: false })
+      .mockResolvedValueOnce([
+        { id: 3, name: '工作账本', role: 'MEMBER' },
+        { id: 9, name: '我家', role: 'OWNER' },
+      ]);
+
+    await loginWithWeChat();
+
+    expect(currentLedgerStore.get()).toEqual({ id: 3, name: '工作账本', role: 'MEMBER' });
+  });
+
+  it('uses the stable first ledger when the stored ledger is unavailable', async () => {
+    currentLedgerStore.set({ id: 99, name: '已离开账本', role: 'MEMBER' });
+    requestMock
+      .mockResolvedValueOnce({ userId: 7, type: 'LEDGER_USER', webSession: false })
+      .mockResolvedValueOnce([
+        { id: 3, name: '工作账本', role: 'MEMBER' },
+        { id: 9, name: '我家', role: 'OWNER' },
+      ]);
+
+    await loginWithWeChat();
+
+    expect(currentLedgerStore.get()).toEqual({ id: 3, name: '工作账本', role: 'MEMBER' });
+  });
+
   it('sends the binding code and a fresh WeChat code without clearing the session on failure', async () => {
     sessionStore.set({ cookie: 'ledger_session=valid-session', userId: 7 });
     requestMock.mockRejectedValueOnce(new Error('绑定码已过期'));
