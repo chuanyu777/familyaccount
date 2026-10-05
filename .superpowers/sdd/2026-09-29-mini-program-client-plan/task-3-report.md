@@ -25,6 +25,13 @@ Implemented ledger list, creation, local switching, invitation creation, invitat
 - Existing full-suite Vue tests emit pre-existing missing-prop warnings; they do not fail.
 - `prototype/` was pre-existing untracked work and was not modified or staged.
 
+## Fix round 2
+
+- Removed the ledger-list page's local `ledger.role === 'OWNER'` leave guard. `handleLeave` now delegates every selected ledger ID to `leaveLedger(id)`.
+- Added `mini/pages/ledger/list.test.ts` covering an Owner ledger that is not the current ledger; the page now issues the leave API request through the service.
+- Red-green evidence: the new test failed with zero `leaveLedger` calls before the page change and passed after the change.
+- `prototype/` and `mini/app.json` were not modified.
+
 ## Fix round 1
 
 - `leaveLedger` now trusts only `currentLedgerStore` for the current ledger owner pre-check; the optional caller-supplied ledger role was removed. Non-current ledgers are authorized by the backend.

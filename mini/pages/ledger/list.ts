@@ -33,8 +33,6 @@ Page({
   async handleLeave(event: { currentTarget: { dataset: { id: number } } }): Promise<void> {
     const page = this as unknown as LedgerListPageContext;
     const id = Number(event.currentTarget.dataset.id);
-    const ledger = page.data.ledgers.find((item) => item.id === id);
-    if (!ledger || ledger.role === 'OWNER') { page.setData({ errorMessage: '账本所有者不能离开账本' }); return; }
     try {
       await leaveLedger(id);
       page.setData({ ledgers: await listLedgers(), currentId: currentLedgerStore.get()?.id ?? null });
