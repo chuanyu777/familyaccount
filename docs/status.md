@@ -1,6 +1,6 @@
 # 家庭记账簿 · 代码现状总览
 
-> **历史文档提示（2026-09-30）：** 本文记录的是旧单家庭/共享访问口令版本，已被当前多租户后端取代。当前实现请以 `backend/README.md` 和 `deploy/README.md` 为准；本文中的 `FAMILY_ACCESS_CODE`、`AccessGuard`、`/api/access/*` 和 `/api/family` 不可用于当前部署。
+> **历史文档，已被取代：** 本文及下方“代码事实基线”等状态描述只适用于旧单家庭/共享访问口令版本。`FAMILY_ACCESS_CODE`、`family_access`、`/unlock.html`、`AccessGuard`、`/api/access/*` 和 `/api/family` 不可用于当前部署。当前浏览器入口、认证和部署以 [生产部署说明](../deploy/README.md) 为准；本文保留原始状态供追溯。
 
 > **本文档是「代码事实基线」**：只记录当前工作区真实存在的行为。写新计划前先读这里，不要拿旧设计稿当现状。
 > 与本文档冲突的其他文档，以本文档为准。

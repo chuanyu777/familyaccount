@@ -1,6 +1,6 @@
 # 生产部署
 
-本分支交付的是多租户后端 foundation，由 Spring Boot 后端和 MySQL 8 组成。旧 Vue SPA 使用已废弃的单家庭 API，已放到 `legacy-web` profile，默认不会启动；Web/平台客户端和小程序完成后再替换该容器。生产访问必须在云负载均衡、网关或 Nginx 前配置 HTTPS/TLS；当前 Compose 的 80 端口作为 TLS 终止后的内部 HTTP 上游。
+Docker Compose 启动 MySQL 8、Spring Boot 后端和 Nginx Web 服务。浏览器直接访问 `https://<域名>/platform`（预置平台管理员，只读）或 `https://<域名>/ledger`（预置的两位特殊账本 Web 用户）。普通用户没有 Web 登录入口，使用微信小程序。`/platform`、`/ledger` 及其子路径由同一 SPA 入口处理，直接打开和刷新均应正常加载。旧 `/unlock.html` 只保留为跳转到 `/ledger` 的兼容链接，不再是登录或解锁入口。
 
 ## 配置环境变量
 
@@ -23,9 +23,11 @@ SPECIAL_LEDGER_OWNER_DISPLAY_NAME=本人
 SPECIAL_LEDGER_MEMBER_DISPLAY_NAME=配偶
 ```
 
-其中平台管理员和两个 Web 用户由后端首次启动时预置。平台管理员只能查看账本业务数据，不能调用账本写接口；普通用户通过微信小程序登录。Web 用户只能访问唯一的特殊账本。
+平台管理员和两位特殊账本用户由后端首次启动时预置。平台管理员只能查询平台账本数据，不能写账本；特殊账本 Web 用户只能访问配置的单一账本。生产环境必须设置非空 `SESSION_SECRET` 和 `SESSION_COOKIE_SECURE=true`，否则后端拒绝启动。更换 `SESSION_SECRET` 会使已签发的会话失效。
 
 ## 启动与更新
+
+从仓库根目录运行：
 
 ```bash
 docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml up -d --build
@@ -33,23 +35,29 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml ps
 docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml logs -f app
 ```
 
-默认命令只启动后端和数据库。不要使用 `--profile legacy-web`，该 profile 中的旧 SPA 尚未适配当前认证和账本 API。
+默认启动三个服务，包括 Web Nginx。先在公网网关或负载均衡器上终止 TLS，并将公网 HTTP 重定向到 HTTPS。容器内 `deploy/nginx.conf` 仅监听 80 端口，不提供 TLS，也不执行 HTTP 到 HTTPS 跳转；按实际网络拓扑保护网关到容器的上游链路。Compose 映射主机 `80:80`，部署时应限制该端口只允许可信网关访问，避免绕过公网 HTTPS 入口。
 
 健康检查：
 
 ```bash
-curl -i https://你的域名/healthz
+curl -i https://your-domain.example/healthz
 ```
 
-数据库数据保存在 `mysql-data` 卷中。更新前先备份，更新时不要使用 `docker compose down -v`，否则会删除数据库卷。备份和恢复脚本分别是 `deploy/backup.sh`、`deploy/restore.sh`。
+数据库数据保存在 `mysql-data` 卷中。更新前先备份；不要执行 `docker compose down -v`，否则会删除数据库卷。备份和恢复脚本分别是 `deploy/backup.sh`、`deploy/restore.sh`。
 
-## 当前 API 入口
+## 同源 API 与会话
 
-- 小程序使用 `/api/auth/wechat/login`，登录后创建账本或接受邀请。
-- 特殊 Web 端的后端接口是 `/api/auth/web/login`，绑定微信使用 `/api/auth/binding-code` 和 `/api/auth/wechat/bind`；当前分支尚未交付适配这些接口的 Web 页面。
-- 运营后台使用 `/api/auth/platform/login`，账本查询使用 `/api/platform/ledgers` 和 `/api/platform/ledgers/{id}`。
+Web 使用相对路径 `/api/*` 并在请求中携带 cookie；浏览器页面和 API 必须处于相同协议、域名和端口，由 Nginx 把 `/api/` 代理到 `app:3001`。当前配置不会改写后端的 `Set-Cookie`。拆分前端/API 域名需要单独设计跨源凭据与 CORS，不能靠放宽 `SameSite` 实现。
 
-所有业务接口都需要对应的签名 session cookie。平台 session 和账本 session 相互隔离，不能交叉调用。`SESSION_COOKIE_SECURE=true` 只允许浏览器在 HTTPS 地址下发送登录 cookie；不要直接通过公网 HTTP 使用登录入口。
+- 平台登录：`POST /api/auth/platform/login`，使用 `platform_session`；只读查询 `/api/platform/ledgers` 和 `/api/platform/ledgers/{id}`。
+- 特殊账本登录：`POST /api/auth/web/login`，使用 `ledger_session`；无需先绑定小程序。已登录账本用户可 `POST /api/auth/binding-code` 取得短期绑定码，再在小程序通过 `POST /api/auth/wechat/bind` 绑定。
+- 会话检查：`GET /api/auth/session?kind=platform|ledger`；退出：`POST /api/auth/logout?kind=platform|ledger`，仅清除指定入口的 cookie。小程序使用 `POST /api/auth/wechat/login`。
+
+两个 cookie 都使用 `Path=/; HttpOnly; SameSite=Strict`，生产登录 cookie 另带 `Secure`。因此同源请求可能同时携带两个 cookie；服务端根据接口和主体类型鉴权，平台 cookie 不授予账本权限，账本 cookie 不授予平台权限。浏览器只会通过 HTTPS 发送 Secure cookie，不要通过公网 HTTP 登录。
+
+外部网关终止 TLS 时，容器 Nginx 收到 HTTP，当前传给后端的 `X-Forwarded-Proto` 是容器的 `$scheme`（`http`），并不证明浏览器使用了 HTTPS。当前认证签发由 `SESSION_COOKIE_SECURE` 决定，不依赖这个转发头。如未来后端需要识别外部协议，须先配置可信代理链，不能直接信任客户端提供的头。
+
+上线验收按 [Web 手工检查清单](../web/docs/manual-test-checklist.md) 执行。
 
 ## 国内网络环境
 

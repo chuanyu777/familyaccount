@@ -1,5 +1,7 @@
 # Access Control and Category Management Design
 
+> **Historical / superseded:** This September 22 shared family access-code design and its implementation-status notes describe an earlier architecture. Do not use its unlock endpoints, `family_access` cookie, or deployment instructions for the current multi-tenant Web clients. See [production deployment](../../../deploy/README.md) and [current multi-tenant design](2026-09-29-multi-tenant-ledger-and-mini-program-design.md).
+
 ## Implementation Status (updated at commit `468b1e2`)
 
 **Access control — landed, now on Spring Boot.** The Node implementation was deleted together

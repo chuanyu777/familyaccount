@@ -10,9 +10,9 @@ const MAX = '2026-09';
 let wrapper: VueWrapper | null = null;
 let componentStyle: HTMLStyleElement | null = null;
 
-function mountPicker(modelValue = MAX): VueWrapper {
+function mountPicker(modelValue = MAX, max = MAX): VueWrapper {
   wrapper = mount(MonthPicker, {
-    props: { modelValue, max: MAX },
+    props: { modelValue, max },
     attachTo: document.body,
   });
   return wrapper;
@@ -114,7 +114,7 @@ describe('MonthPicker', () => {
   });
 
   it('快捷「本月」跳到当前月', async () => {
-    const w = mountPicker('2026-01');
+    const w = mountPicker('2026-01', currentMonth());
     await w.get('[aria-label="选择月份"]').trigger('click');
     const quick = [...document.body.querySelectorAll('.picker__quick button')];
     const thisMonthBtn = quick.find((b) => b.textContent?.trim() === '本月');

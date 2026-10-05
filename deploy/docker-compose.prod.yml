@@ -57,9 +57,6 @@ services:
     # 不对外暴露 3001，仅由 web 容器反代访问，更安全
 
   web:
-    # 当前分支只交付后端 foundation；旧 Vue SPA 仍使用已废弃的单家庭 API。
-    # Web/平台客户端完成后再移除该 profile，接入新客户端镜像。
-    profiles: ["legacy-web"]
     build:
       context: ..
       dockerfile: deploy/Dockerfile.web

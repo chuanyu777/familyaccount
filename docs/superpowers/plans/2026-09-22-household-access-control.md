@@ -1,5 +1,7 @@
 # Household Access Control Implementation Plan
 
+> **Historical / superseded:** This September 22 shared-code plan is retained for history only. Its unlock flow and status notes are not current deployment guidance. See [production deployment](../../../deploy/README.md).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Require a shared household access code before a deployed device can read ledger pages or APIs, while trusting the device for 30 days.
