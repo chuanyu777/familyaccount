@@ -1,0 +1,1 @@
+.switcher { background: #fff; }.switcher-item { display: flex; justify-content: space-between; padding: 24rpx; border-bottom: 1rpx solid #e5e7eb; }.mark { color: #2563eb; }

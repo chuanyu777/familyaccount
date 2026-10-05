@@ -31,12 +31,14 @@ export interface MiniProgramApi {
   removeStorageSync(key: string): void;
   redirectTo(options: { url: string }): unknown;
   navigateTo(options: { url: string }): unknown;
+  reLaunch(options: { url: string }): unknown;
 }
 
 declare global {
   const wx: MiniProgramApi;
   function App(options: Record<string, unknown>): void;
   function Page(options: Record<string, unknown>): void;
+  function Component(options: Record<string, unknown>): void;
 }
 
 export type { MiniSession };

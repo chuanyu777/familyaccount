@@ -1,0 +1,1 @@
+<view class="create-page"><text class="page-title">创建账本</text><input class="name-input" value="{{name}}" maxlength="80" placeholder="账本名称" bindinput="handleInput" /><button class="submit-button" loading="{{loading}}" disabled="{{loading}}" bindtap="handleSubmit">创建</button><text wx:if="{{errorMessage}}" class="error-message">{{errorMessage}}</text></view>
