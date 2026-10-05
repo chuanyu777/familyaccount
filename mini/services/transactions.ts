@@ -37,6 +37,16 @@ export interface TransactionRecord {
   source_type?: string;
 }
 
+export interface TransactionPage {
+  items: TransactionRecord[];
+  page: number;
+  pageSize: number;
+  total: number;
+  incomeTotalCents: number;
+  expenseTotalCents: number;
+  netCents: number;
+}
+
 function amount(value: string | number): number {
   const cents = parseYuanToCents(value);
   if (cents === null || cents <= 0) throw new Error('金额必须是大于 0 的有效金额');
@@ -62,13 +72,13 @@ export async function listTransactions(options: {
   accountId?: number;
   page?: number;
   pageSize?: number;
-} = {}): Promise<unknown> {
+} = {}): Promise<TransactionPage> {
   requireCurrentLedger();
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(options)) {
-    if (value !== undefined && value !== '') query.set(key, String(value));
-  }
-  return request(`/api/transactions${query.toString() ? `?${query}` : ''}`);
+  const query = Object.entries(options)
+    .filter(([, value]) => value !== undefined && value !== '')
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+    .join('&');
+  return request<TransactionPage>(`/api/transactions${query ? `?${query}` : ''}`);
 }
 
 export async function createTransaction(input: TransactionInput): Promise<unknown> {

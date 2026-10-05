@@ -1,1 +1,2 @@
 .invitation-page { min-height: 100vh; padding: 64rpx 48rpx; box-sizing: border-box; }.page-title { display: block; font-size: 44rpx; font-weight: 600; }.hint { display: block; margin: 20rpx 0 40rpx; color: #6b7280; }.token-input { padding: 24rpx; border: 1rpx solid #d1d5db; border-radius: 8rpx; background: #fff; }.accept-button { margin-top: 32rpx; background: #2563eb; color: #fff; border-radius: 8rpx; }.error-message { display: block; margin-top: 24rpx; color: #dc2626; }
+.decline-button { margin-top: 24rpx; background: #fff; color: #374151; border-radius: 8rpx; }

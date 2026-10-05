@@ -21,11 +21,6 @@ vi.mock('../../services/accounts', () => ({
     return active.find((account) => account.isDefault)?.id ?? active[0]?.id ?? null;
   },
 }));
-vi.mock('../../services/business-state', () => ({
-  activeEntries: (entries: Array<{ archived?: boolean | number }>) => entries.filter((entry) => !entry.archived),
-  currentMonth: () => '2026-10',
-  parseYuanToCents: vi.fn(() => 100),
-}));
 vi.mock('../../services/categories', () => ({
   createCategory: vi.fn(),
   listCategories: vi.fn(),
@@ -76,7 +71,7 @@ beforeEach(() => {
   currentLedgerStoreMock.get.mockReturnValue({ id: 9, name: '我家', role: 'MEMBER' });
   listAccountsMock.mockResolvedValue([{ id: 41, name: '现金' }]);
   listCategoriesMock.mockImplementation(async (kind) => [{ id: kind === 'expense' ? 5 : 6, kind, name: kind === 'expense' ? '餐饮' : '工资', archived: false }]);
-  listTransactionsMock.mockResolvedValue({ items: [] });
+  listTransactionsMock.mockResolvedValue({ items: [], page: 1, pageSize: 20, total: 0, incomeTotalCents: 0, expenseTotalCents: 0, netCents: 0 });
   page.data = {
     ...page.data,
     accounts: [{ id: 41, name: '现金' }, { id: 99, name: '银行卡', isDefault: true }],

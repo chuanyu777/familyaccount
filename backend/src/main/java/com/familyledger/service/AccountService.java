@@ -67,6 +67,14 @@ public class AccountService {
     return rows.isEmpty() ? null : Row.lng(rows.get(0), "id");
   }
 
+  public Map<String, Object> calibrate(LedgerContext context, long id, long cents) {
+    getForEntry(context, id);
+    int updated = db.update("UPDATE account SET balance_cents = ? WHERE id = ? AND ledger_id = ? AND archived = 0",
+        cents, id, context.ledgerId());
+    if (updated != 1) throw ApiException.conflict("ACCOUNT_ARCHIVED", "账户已归档");
+    return get(context, id);
+  }
+
   public void applyBalanceDelta(LedgerContext context, long id, long cents) {
     getForEntry(context, id);
     int updated = db.update("UPDATE account SET balance_cents = balance_cents + ? "

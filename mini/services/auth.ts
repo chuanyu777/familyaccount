@@ -78,5 +78,7 @@ export async function logout(): Promise<void> {
 }
 
 export function getPostAuthRoute(ledgers: LedgerSummary[]): string {
+  const token = invitationTokenStore.get();
+  if (token) return `/pages/invitation/detail?token=${encodeURIComponent(token)}`;
   return ledgers.length === 0 ? '/pages/ledger/empty' : '/pages/ledger/list';
 }

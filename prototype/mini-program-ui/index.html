@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f4f6f9" />
+    <title>家庭账本小程序界面原型</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app" v-cloak>
+      <div class="review-shell">
+        <aside class="review-panel review-panel--left" aria-label="原型页面选择">
+          <div class="review-brand">
+            <span class="review-brand__mark"><notebook-tabs-icon :size="20" :stroke-width="2"></notebook-tabs-icon></span>
+            <div>
+              <strong>家庭账本</strong>
+              <span>小程序界面原型</span>
+            </div>
+          </div>
+
+          <nav class="review-nav">
+            <p class="review-nav__label">进入账本</p>
+            <button
+              v-for="item in entryScreens"
+              :key="item.key"
+              type="button"
+              :class="['review-nav__item', { 'is-active': screen === item.key }]"
+              @click="openScreen(item.key)"
+            >
+              <component :is="item.icon" :size="18" :stroke-width="1.9"></component>
+              <span>{{ item.label }}</span>
+            </button>
+
+            <p class="review-nav__label">账本功能</p>
+            <button
+              v-for="item in tabScreens"
+              :key="item.key"
+              type="button"
+              :class="['review-nav__item', { 'is-active': screen === item.key }]"
+              @click="openScreen(item.key)"
+            >
+              <component :is="item.icon" :size="18" :stroke-width="1.9"></component>
+              <span>{{ item.label }}</span>
+            </button>
+          </nav>
+
+          <div class="review-panel__foot">
+            <span class="status-dot"></span>
+            静态原型 · 使用假数据
+          </div>
+        </aside>
+
+        <main class="prototype-stage">
+          <div class="device" aria-label="微信小程序手机预览">
+            <div class="device__screen">
+              <header class="system-bar" aria-hidden="true">
+                <span>9:41</span>
+                <div class="system-bar__signals"><span></span><span></span><span></span><i></i></div>
+              </header>
+
+              <header class="mini-header">
+                <button
+                  v-if="canGoBack"
+                  type="button"
+                  class="icon-button mini-header__back"
+                  aria-label="返回"
+                  @click="goBack"
+                >
+                  <chevron-left-icon :size="21"></chevron-left-icon>
+                </button>
+                <span v-else class="mini-header__back-spacer"></span>
+                <strong>{{ pageTitle }}</strong>
+                <div class="wechat-capsule" aria-label="微信菜单">
+                  <ellipsis-icon :size="18" :stroke-width="2.4"></ellipsis-icon>
+                  <span></span>
+                  <circle-icon :size="15" fill="currentColor"></circle-icon>
+                </div>
+              </header>
+
+              <div class="app-viewport" :class="{ 'has-tabbar': showTabbar }">
+                <section v-if="screen === 'login'" class="screen auth-screen">
+                  <div class="auth-screen__visual" aria-hidden="true">
+                    <div class="ledger-mark"><notebook-tabs-icon :size="35" :stroke-width="1.8"></notebook-tabs-icon></div>
+                    <div class="coin coin--one">+</div>
+                    <div class="coin coin--two">¥</div>
+                  </div>
+                  <div class="auth-screen__copy">
+                    <h1>一起记账</h1>
+                    <p>家庭收支、资产和负债，一本账看清楚。</p>
+                  </div>
+                  <button type="button" class="button button--wechat" @click="login">
+                    <message-circle-icon :size="20" fill="currentColor"></message-circle-icon>
+                    微信一键登录
+                  </button>
+                  <p class="auth-screen__terms">登录即表示你同意服务条款和隐私政策</p>
+                </section>
+
+                <section v-else-if="screen === 'empty'" class="screen onboarding-screen">
+                  <div class="empty-visual" aria-hidden="true">
+                    <div class="empty-visual__book"><notebook-tabs-icon :size="40" :stroke-width="1.7"></notebook-tabs-icon></div>
+                    <span class="empty-visual__person empty-visual__person--one"></span>
+                    <span class="empty-visual__person empty-visual__person--two"></span>
+                  </div>
+                  <div class="onboarding-screen__copy">
+                    <h1>开始你的第一个账本</h1>
+                    <p>创建自己的家庭账本，或接受家人发来的邀请。</p>
+                  </div>
+                  <div class="button-stack">
+                    <button type="button" class="button button--primary" @click="openScreen('create')">
+                      <plus-icon :size="19"></plus-icon>创建家庭账本
+                    </button>
+                    <button type="button" class="button button--secondary" @click="openScreen('invite')">
+                      <link-2-icon :size="19"></link-2-icon>接受邀请
+                    </button>
+                  </div>
+                </section>
+
+                <section v-else-if="screen === 'create'" class="screen form-screen">
+                  <div class="form-screen__intro">
+                    <h1>给账本起个名字</h1>
+                    <p>家人加入后会看到这个名称，之后可以修改。</p>
+                  </div>
+                  <label class="field">
+                    <span>账本名称</span>
+                    <input v-model="draftLedgerName" maxlength="20" placeholder="例如：周末小家" />
+                    <small>{{ draftLedgerName.length }}/20</small>
+                  </label>
+                  <div class="setup-note">
+                    <circle-check-icon :size="18"></circle-check-icon>
+                    <div><strong>创建后自动准备好</strong><span>默认账户和常用收支分类</span></div>
+                  </div>
+                  <button type="button" class="button button--primary form-screen__submit" @click="createLedger">创建账本</button>
+                </section>
+
+                <section v-else-if="screen === 'invite'" class="screen invite-screen">
+                  <div class="invite-card">
+                    <div class="invite-card__avatars" aria-hidden="true">
+                      <span class="avatar avatar--blue">陈</span>
+                      <span class="invite-card__link"><link-2-icon :size="18"></link-2-icon></span>
+                      <span class="avatar avatar--green"><user-round-icon :size="23"></user-round-icon></span>
+                    </div>
+                    <h1>邀请你加入“周末小家”</h1>
+                    <p><strong>陈越</strong> 邀请你成为家庭账本成员</p>
+                    <dl class="invite-meta">
+                      <div><dt>你的角色</dt><dd>家庭成员</dd></div>
+                      <div><dt>邀请有效期</dt><dd>剩余 6 天</dd></div>
+                    </dl>
+                    <button type="button" class="button button--primary" @click="acceptInvite">接受并加入</button>
+                    <button type="button" class="text-button" @click="openScreen('empty')">暂不加入</button>
+                  </div>
+                  <p class="invite-screen__hint"><shield-check-icon :size="15"></shield-check-icon>加入后可查看该账本的全部业务数据</p>
+                </section>
+
+                <section v-else-if="screen === 'accounting'" class="screen ledger-screen">
+                  <div class="ledger-head">
+                    <button type="button" class="ledger-selector" @click="overlay = 'ledgers'">
+                      <span>{{ currentLedger }}</span><chevron-down-icon :size="17"></chevron-down-icon>
+                    </button>
+                    <button type="button" class="icon-button" aria-label="消息"><bell-icon :size="20"></bell-icon><span class="notice-dot"></span></button>
+                  </div>
+
+                  <div class="month-row">
+                    <button type="button" class="month-button"><calendar-days-icon :size="16"></calendar-days-icon>2026年10月<chevron-down-icon :size="14"></chevron-down-icon></button>
+                  </div>
+
+                  <section class="summary-band">
+                    <span>本月结余</span>
+                    <strong>¥ 6,821.50</strong>
+                    <div class="summary-band__pair">
+                      <span>收入 <b class="income">¥ 18,500.00</b></span>
+                      <span>支出 <b class="expense">¥ 11,678.50</b></span>
+                    </div>
+                  </section>
+
+                  <div class="filter-row" role="group" aria-label="流水类型">
+                    <button v-for="item in ['全部','支出','收入','转账']" :key="item" type="button" :class="{ 'is-active': transactionFilter === item }" @click="transactionFilter = item">{{ item }}</button>
+                  </div>
+
+                  <div class="transaction-groups">
+                    <section v-for="group in visibleTransactions" :key="group.date" class="transaction-group">
+                      <header><span>{{ group.date }}</span><span>{{ group.total }}</span></header>
+                      <button v-for="item in group.items" :key="item.title" type="button" class="transaction-row">
+                        <span :class="['transaction-row__icon', 'tone-' + item.tone]"><component :is="item.icon" :size="19"></component></span>
+                        <span class="transaction-row__body"><strong>{{ item.title }}</strong><small>{{ item.meta }}</small></span>
+                        <span :class="['transaction-row__amount', item.tone]">{{ item.amount }}</span>
+                      </button>
+                    </section>
+                  </div>
+
+                  <button type="button" class="fab" aria-label="记一笔" @click="overlay = 'transaction'">
+                    <plus-icon :size="24" :stroke-width="2.4"></plus-icon><span>记一笔</span>
+                  </button>
+                </section>
+
+                <section v-else-if="screen === 'assets'" class="screen ledger-screen">
+                  <div class="ledger-head">
+                    <button type="button" class="ledger-selector" @click="overlay = 'ledgers'">{{ currentLedger }}<chevron-down-icon :size="17"></chevron-down-icon></button>
+                    <button type="button" class="icon-button" aria-label="添加资产"><plus-icon :size="21"></plus-icon></button>
+                  </div>
+                  <section class="total-block">
+                    <span>净资产</span><strong>¥ 286,420.80</strong><small>较上月 <b class="income">+2.8%</b></small>
+                  </section>
+                  <section class="content-section">
+                    <header class="section-title"><h2>资金账户</h2><button type="button">管理</button></header>
+                    <div class="account-strip">
+                      <div><span class="account-icon account-icon--blue"><credit-card-icon :size="20"></credit-card-icon></span><strong>日常银行卡</strong><small>默认账户</small><b>¥ 32,860.50</b></div>
+                      <div><span class="account-icon account-icon--green"><wallet-cards-icon :size="20"></wallet-cards-icon></span><strong>微信钱包</strong><small>日常消费</small><b>¥ 4,230.30</b></div>
+                    </div>
+                  </section>
+                  <section class="content-section">
+                    <header class="section-title"><h2>家庭资产</h2><span>共 3 项</span></header>
+                    <div class="plain-list">
+                      <button type="button" class="asset-row"><span class="asset-row__icon"><building-2-icon :size="20"></building-2-icon></span><span><strong>自住房</strong><small>10月估值</small></span><b>¥ 230,000</b><chevron-right-icon :size="17"></chevron-right-icon></button>
+                      <button type="button" class="asset-row"><span class="asset-row__icon asset-row__icon--gold"><chart-no-axes-combined-icon :size="20"></chart-no-axes-combined-icon></span><span><strong>稳健理财</strong><small>10月估值</small></span><b>¥ 19,330</b><chevron-right-icon :size="17"></chevron-right-icon></button>
+                    </div>
+                  </section>
+                </section>
+
+                <section v-else-if="screen === 'liabilities'" class="screen ledger-screen">
+                  <div class="ledger-head">
+                    <button type="button" class="ledger-selector" @click="overlay = 'ledgers'">{{ currentLedger }}<chevron-down-icon :size="17"></chevron-down-icon></button>
+                    <button type="button" class="icon-button" aria-label="添加负债"><plus-icon :size="21"></plus-icon></button>
+                  </div>
+                  <section class="debt-overview">
+                    <div><span>待还总额</span><strong>¥ 42,860.00</strong></div>
+                    <div><span>本月已还</span><b>¥ 3,240.00</b></div>
+                  </section>
+                  <section class="content-section">
+                    <header class="section-title"><h2>我的负债</h2><span>2 项</span></header>
+                    <div class="debt-list">
+                      <button type="button" class="debt-item">
+                        <span class="debt-item__icon"><home-icon :size="20"></home-icon></span>
+                        <span class="debt-item__body"><strong>装修分期</strong><small>剩余 8 期 · 每月 2,800</small><i><em style="width: 62%"></em></i></span>
+                        <span class="debt-item__amount"><b>¥ 36,400</b><small>剩余</small></span>
+                      </button>
+                      <button type="button" class="debt-item">
+                        <span class="debt-item__icon debt-item__icon--red"><credit-card-icon :size="20"></credit-card-icon></span>
+                        <span class="debt-item__body"><strong>信用卡账单</strong><small>10月25日到期</small><i><em style="width: 28%"></em></i></span>
+                        <span class="debt-item__amount"><b>¥ 6,460</b><small>剩余</small></span>
+                      </button>
+                    </div>
+                  </section>
+                  <section class="content-section">
+                    <header class="section-title"><h2>最近还款</h2><button type="button">全部记录</button></header>
+                    <div class="repayment-row"><span class="repayment-row__icon"><hand-coins-icon :size="19"></hand-coins-icon></span><span><strong>装修分期</strong><small>10月05日 · 陈越</small></span><b>-¥ 2,800.00</b></div>
+                  </section>
+                  <button type="button" class="fab fab--icon" aria-label="登记还款"><hand-coins-icon :size="23"></hand-coins-icon><span>还款</span></button>
+                </section>
+
+                <section v-else-if="screen === 'analysis'" class="screen ledger-screen">
+                  <div class="ledger-head">
+                    <button type="button" class="ledger-selector" @click="overlay = 'ledgers'">{{ currentLedger }}<chevron-down-icon :size="17"></chevron-down-icon></button>
+                    <button type="button" class="month-button month-button--compact">10月<chevron-down-icon :size="14"></chevron-down-icon></button>
+                  </div>
+                  <section class="analysis-summary">
+                    <span>本月支出</span><strong>¥ 11,678.50</strong><small>比上月少 <b class="income">¥ 1,240.00</b></small>
+                  </section>
+                  <section class="chart-section">
+                    <header class="section-title"><h2>近 6 个月收支</h2></header>
+                    <div class="bar-chart" aria-label="近六个月收支柱状图">
+                      <div v-for="bar in chartBars" :key="bar.month" class="bar-chart__group">
+                        <div class="bar-chart__bars"><i class="bar-chart__income" :style="{ height: bar.income + '%' }"></i><i class="bar-chart__expense" :style="{ height: bar.expense + '%' }"></i></div>
+                        <span>{{ bar.month }}</span>
+                      </div>
+                    </div>
+                    <div class="chart-legend"><span><i class="legend-income"></i>收入</span><span><i class="legend-expense"></i>支出</span></div>
+                  </section>
+                  <section class="content-section category-section">
+                    <header class="section-title"><h2>支出分类</h2><span>共 11,678.50</span></header>
+                    <div class="category-layout">
+                      <div class="donut" aria-hidden="true"><span>支出<br><b>100%</b></span></div>
+                      <ol class="category-rank">
+                        <li><i class="dot dot--red"></i><span>餐饮</span><b>¥ 3,280</b><small>28%</small></li>
+                        <li><i class="dot dot--blue"></i><span>居家</span><b>¥ 2,940</b><small>25%</small></li>
+                        <li><i class="dot dot--gold"></i><span>交通</span><b>¥ 1,560</b><small>13%</small></li>
+                      </ol>
+                    </div>
+                  </section>
+                </section>
+
+                <section v-else-if="screen === 'settings'" class="screen ledger-screen settings-screen">
+                  <div class="ledger-head">
+                    <button type="button" class="ledger-selector" @click="overlay = 'ledgers'">{{ currentLedger }}<chevron-down-icon :size="17"></chevron-down-icon></button>
+                    <span class="role-label"><crown-icon :size="14"></crown-icon>Owner</span>
+                  </div>
+                  <section class="members-section">
+                    <header class="section-title"><h2>家庭成员</h2><button type="button" @click="overlay = 'share'"><user-plus-icon :size="16"></user-plus-icon>邀请</button></header>
+                    <div class="member-list">
+                      <div><span class="avatar avatar--blue">陈</span><span><strong>陈越 <em>我</em></strong><small>账本创建者</small></span><span class="member-role">Owner</span></div>
+                      <div><span class="avatar avatar--rose">林</span><span><strong>林夏</strong><small>2026年9月加入</small></span><span class="member-role member-role--plain">Member</span></div>
+                    </div>
+                  </section>
+                  <section class="settings-group">
+                    <h2>账本管理</h2>
+                    <button type="button"><span><notebook-tabs-icon :size="19"></notebook-tabs-icon>账本名称</span><b>{{ currentLedger }}</b><chevron-right-icon :size="17"></chevron-right-icon></button>
+                    <button type="button"><span><tags-icon :size="19"></tags-icon>收支分类</span><chevron-right-icon :size="17"></chevron-right-icon></button>
+                    <button type="button"><span><archive-icon :size="19"></archive-icon>已归档项目</span><chevron-right-icon :size="17"></chevron-right-icon></button>
+                  </section>
+                  <section class="settings-group">
+                    <h2>我的账号</h2>
+                    <button type="button" @click="openScreen('binding')"><span><link-2-icon :size="19"></link-2-icon>绑定已有 Web 账号</span><small>特殊账本用户可用</small><chevron-right-icon :size="17"></chevron-right-icon></button>
+                    <button type="button" class="danger-row"><span><log-out-icon :size="19"></log-out-icon>退出登录</span><chevron-right-icon :size="17"></chevron-right-icon></button>
+                  </section>
+                </section>
+
+                <section v-else-if="screen === 'binding'" class="screen form-screen">
+                  <div class="binding-icon"><lock-keyhole-icon :size="27"></lock-keyhole-icon></div>
+                  <div class="form-screen__intro">
+                    <h1>绑定已有 Web 账号</h1>
+                    <p>仅用于平台预置的特殊账本账号。普通用户无需绑定。</p>
+                  </div>
+                  <label class="field">
+                    <span>一次性绑定码</span>
+                    <input class="binding-input" inputmode="numeric" maxlength="6" placeholder="请输入 6 位绑定码" />
+                  </label>
+                  <button type="button" class="button button--primary form-screen__submit" @click="showToast('绑定成功，已进入周末小家')">确认绑定</button>
+                </section>
+              </div>
+
+              <nav v-if="showTabbar" class="tabbar" aria-label="账本主导航">
+                <button v-for="tab in tabScreens" :key="tab.key" type="button" :class="{ 'is-active': screen === tab.key }" @click="openScreen(tab.key)">
+                  <component :is="tab.icon" :size="20" :stroke-width="screen === tab.key ? 2.2 : 1.8"></component>
+                  <span>{{ tab.shortLabel }}</span>
+                </button>
+              </nav>
+
+              <transition name="fade">
+                <div v-if="overlay" class="overlay" @click.self="overlay = null">
+                  <transition name="sheet" appear>
+                    <section v-if="overlay === 'transaction'" class="bottom-sheet transaction-sheet">
+                      <header class="sheet-header"><button type="button" class="icon-button" aria-label="关闭" @click="overlay = null"><x-icon :size="21"></x-icon></button><strong>记一笔</strong><span class="sheet-header__spacer"></span></header>
+                      <div class="segmented">
+                        <button v-for="kind in ['支出','收入','转账']" :key="kind" type="button" :class="{ 'is-active': transactionKind === kind }" @click="transactionKind = kind">{{ kind }}</button>
+                      </div>
+                      <div class="amount-input"><span>¥</span><strong>{{ transactionKind === '收入' ? '5,000.00' : '58.00' }}</strong></div>
+                      <div class="category-picker">
+                        <button v-for="category in categories" :key="category.label" type="button" :class="{ 'is-active': selectedCategory === category.label }" @click="selectedCategory = category.label"><span><component :is="category.icon" :size="20"></component></span>{{ category.label }}</button>
+                      </div>
+                      <div class="form-rows">
+                        <button type="button"><span>账户</span><b>日常银行卡</b><chevron-right-icon :size="17"></chevron-right-icon></button>
+                        <button type="button"><span>日期</span><b>今天</b><chevron-right-icon :size="17"></chevron-right-icon></button>
+                        <button type="button"><span>备注</span><b class="muted">添加备注</b><chevron-right-icon :size="17"></chevron-right-icon></button>
+                      </div>
+                      <button type="button" class="button button--primary" @click="saveTransaction">保存</button>
+                    </section>
+
+                    <section v-else-if="overlay === 'ledgers'" class="bottom-sheet ledger-sheet">
+                      <header class="sheet-header"><span class="sheet-header__spacer"></span><strong>切换家庭账本</strong><button type="button" class="icon-button" aria-label="关闭" @click="overlay = null"><x-icon :size="21"></x-icon></button></header>
+                      <button v-for="ledger in ledgers" :key="ledger.name" type="button" class="ledger-choice" @click="switchLedger(ledger.name)">
+                        <span :class="['ledger-choice__mark', ledger.color]"><notebook-tabs-icon :size="21"></notebook-tabs-icon></span>
+                        <span><strong>{{ ledger.name }}</strong><small>{{ ledger.role }} · {{ ledger.members }} 位成员</small></span>
+                        <check-icon v-if="currentLedger === ledger.name" :size="20"></check-icon>
+                      </button>
+                      <button type="button" class="ledger-sheet__create" @click="overlay = null; openScreen('create')"><plus-icon :size="18"></plus-icon>创建新的家庭账本</button>
+                    </section>
+
+                    <section v-else class="bottom-sheet share-sheet">
+                      <header class="sheet-header"><span class="sheet-header__spacer"></span><strong>邀请家人加入</strong><button type="button" class="icon-button" aria-label="关闭" @click="overlay = null"><x-icon :size="21"></x-icon></button></header>
+                      <div class="share-visual"><span><share-2-icon :size="29"></share-2-icon></span></div>
+                      <h2>分享“{{ currentLedger }}”</h2>
+                      <p>邀请链接 7 天内有效，仅可由一人接受。</p>
+                      <button type="button" class="button button--wechat" @click="showToast('已打开微信分享面板')"><share-2-icon :size="19"></share-2-icon>发送给微信好友</button>
+                      <button type="button" class="button button--secondary" @click="showToast('邀请链接已复制')"><copy-icon :size="19"></copy-icon>复制邀请链接</button>
+                    </section>
+                  </transition>
+                </div>
+              </transition>
+
+              <transition name="toast">
+                <div v-if="toast" class="toast"><circle-check-icon :size="18"></circle-check-icon>{{ toast }}</div>
+              </transition>
+            </div>
+          </div>
+        </main>
+
+        <aside class="review-panel review-panel--right">
+          <div>
+            <p class="review-kicker">当前界面</p>
+            <h2>{{ pageTitle }}</h2>
+            <p class="review-description">{{ currentDescription }}</p>
+          </div>
+          <div class="review-notes">
+            <h3>视觉基准</h3>
+            <dl>
+              <div><dt>主色</dt><dd><i class="swatch swatch--primary"></i>#3159D7</dd></div>
+              <div><dt>收入</dt><dd><i class="swatch swatch--income"></i>#19765D</dd></div>
+              <div><dt>支出</dt><dd><i class="swatch swatch--expense"></i>#B84543</dd></div>
+              <div><dt>圆角</dt><dd>6–8 px</dd></div>
+            </dl>
+          </div>
+          <div class="review-hint">
+            <scan-line-icon :size="20"></scan-line-icon>
+            <p>可直接点击手机内按钮体验主要流程。</p>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <script src="../../node_modules/vue/dist/vue.global.prod.js"></script>
+    <script>window.vue = window.Vue;</script>
+    <script src="../../node_modules/lucide-vue-next/dist/umd/lucide-vue-next.min.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>

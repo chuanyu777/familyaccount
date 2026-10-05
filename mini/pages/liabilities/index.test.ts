@@ -19,10 +19,6 @@ vi.mock('../../services/accounts', () => ({
     return active.find((account) => account.isDefault)?.id ?? active[0]?.id ?? null;
   },
 }));
-vi.mock('../../services/business-state', () => ({
-  activeEntries: (entries: Array<{ archived?: boolean | number }>) => entries.filter((entry) => !entry.archived),
-  parseYuanToCents: vi.fn(() => 100),
-}));
 vi.mock('../../services/liabilities', () => ({
   archiveSharedResource: vi.fn(),
   canEditRepayment: vi.fn(() => false),

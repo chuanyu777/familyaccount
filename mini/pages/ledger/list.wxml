@@ -5,7 +5,7 @@
   <view wx:for="{{ledgers}}" wx:key="id" class="ledger-item">
     <view class="ledger-info"><text class="ledger-name">{{item.name}}</text><text class="ledger-role">{{item.role === 'OWNER' ? '所有者' : '成员'}}</text></view>
     <view class="ledger-actions">
-      <text wx:if="{{item.id === currentId}}" class="current-label">当前</text>
+      <button wx:if="{{item.id === currentId}}" class="switch-button" data-ledger="{{item}}" bindtap="handleSwitch">进入账本</button>
       <button wx:else class="switch-button" data-ledger="{{item}}" bindtap="handleSwitch">切换</button>
       <button wx:if="{{item.role !== 'OWNER'}}" class="leave-button" data-id="{{item.id}}" bindtap="handleLeave">离开</button>
       <button wx:if="{{item.role === 'OWNER' && item.id === currentId}}" class="invite-button" bindtap="handleInvite">邀请家人</button>

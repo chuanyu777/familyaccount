@@ -2,6 +2,8 @@ package com.familyledger.controller;
 
 import com.familyledger.auth.AuthGuard;
 import com.familyledger.common.Params;
+import com.familyledger.common.ApiException;
+import com.familyledger.common.Money;
 import com.familyledger.ledger.LedgerAuthorization;
 import com.familyledger.ledger.LedgerContext;
 import com.familyledger.ledger.LedgerRequest;
@@ -51,6 +53,19 @@ public class AccountController {
   @PostMapping("/{id}/archive")
   public void archive(@PathVariable Object id, HttpServletRequest request) {
     service.archive(LedgerRequest.context(request, null, guard, authorization), Params.parseId(id));
+  }
+
+  @PatchMapping("/{id}/calibrate")
+  public Map<String, Object> calibrate(@PathVariable Object id, HttpServletRequest request,
+      @RequestBody(required = false) Map<String, Object> body) {
+    LedgerContext context = LedgerRequest.context(request, body, guard, authorization);
+    long cents;
+    try {
+      cents = Money.toCents(body == null ? null : body.get("balance"));
+    } catch (IllegalArgumentException e) {
+      throw ApiException.badRequest("VALIDATION_FAILED", "金额格式非法");
+    }
+    return service.calibrate(context, Params.parseId(id), cents);
   }
 
   @PostMapping("/{id}/restore")

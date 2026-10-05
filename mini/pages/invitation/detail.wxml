@@ -1,1 +1,8 @@
-<view class="invitation-page"><text class="page-title">加入账本</text><text class="hint">请确认邀请口令来自你信任的家人</text><input class="token-input" value="{{token}}" maxlength="256" placeholder="粘贴邀请口令" bindinput="handleInput" /><button class="accept-button" loading="{{loading}}" disabled="{{loading}}" bindtap="handleAccept">确认加入</button><text wx:if="{{errorMessage}}" class="error-message">{{errorMessage}}</text></view>
+<view class="invitation-page">
+  <text class="page-title">加入账本</text>
+  <text class="hint">请确认邀请口令来自你信任的家人</text>
+  <input class="token-input" value="{{token}}" maxlength="256" placeholder="粘贴邀请口令" bindinput="handleInput" />
+  <button class="accept-button" loading="{{loading}}" disabled="{{loading}}" bindtap="handleAccept">确认加入</button>
+  <button class="decline-button" disabled="{{loading}}" bindtap="handleDecline">暂不加入 / 返回我的账本</button>
+  <text wx:if="{{errorMessage}}" class="error-message">{{errorMessage}}</text>
+</view>

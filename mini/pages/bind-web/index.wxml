@@ -1,7 +1,7 @@
 <view class="bind-page">
   <view class="bind-panel">
     <text class="bind-title">绑定 Web 账号</text>
-    <text class="bind-hint">输入 Web 端生成的一次性绑定码</text>
+    <text class="bind-hint">输入 Web 端生成的一次性绑定码。请在首次微信登录前绑定；已登录的微信身份不能改绑到另一个账号。</text>
     <input class="bind-input" value="{{bindingCode}}" maxlength="128" placeholder="绑定码" bindinput="handleInput" />
     <button class="bind-button" loading="{{loading}}" disabled="{{loading}}" bindtap="handleBind">绑定</button>
     <text wx:if="{{errorMessage}}" class="error-message">{{errorMessage}}</text>

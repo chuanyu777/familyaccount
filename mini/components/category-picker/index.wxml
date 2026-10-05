@@ -1,1 +1,1 @@
-<view class="category-picker"><text class="field-label">{{label}}</text><picker mode="selector" range="{{categories}}" range-key="name" value="{{value}}" bindchange="handleChange"><view class="picker-value">{{value ? '已选择分类' : '请选择分类'}}<text class="chevron">›</text></view></picker></view>
+<view class="category-picker"><text class="field-label">{{label}}</text><picker mode="selector" range="{{categories}}" range-key="name" value="{{selectedIndex}}" bindchange="handleChange"><view class="picker-value">{{selectedLabel}}<text class="chevron">›</text></view></picker></view>

@@ -4,3 +4,4 @@
 .auth-subtitle { margin: 24rpx 0 72rpx; color: #6b7280; }
 .wechat-button { width: 100%; background: #2f9e44; color: #fff; border-radius: 8rpx; }
 .error-message { margin-top: 24rpx; color: #dc2626; text-align: center; }
+.support-button { margin-top: 32rpx; background: transparent; color: #6b7280; font-size: 24rpx; }

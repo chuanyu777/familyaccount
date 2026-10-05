@@ -10,8 +10,12 @@ export function requireCurrentLedger(): number {
   return ledger.id;
 }
 
-export function activeEntries<T extends { archived?: boolean | number }>(entries: T[]): T[] {
-  return entries.filter((entry) => !entry.archived);
+export function booleanLike(value: unknown): boolean {
+  return value === true || value === 1 || value === 'true' || value === '1';
+}
+
+export function activeEntries<T extends { archived?: boolean | number | string }>(entries: T[]): T[] {
+  return entries.filter((entry) => !booleanLike(entry.archived));
 }
 
 function requireOwner(): void {

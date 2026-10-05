@@ -3,7 +3,7 @@ import { createInvitation } from '../../services/ledgers';
 import { canRemoveMember, leaveMemberLedger, listMembers, loadLedgerContext, removeMember, updateLedgerName, type LedgerContext, type LedgerMember } from '../../services/members';
 import type { InvitationView } from '../../types/domain';
 
-interface SettingsPageContext { data: { ledger: LedgerContext | null; members: LedgerMember[]; loading: boolean; nameDraft: string }; setData(data: Record<string, unknown>): void; }
+interface SettingsPageContext { data: { ledger: LedgerContext | null; members: LedgerMember[]; loading: boolean; nameDraft: string; invitation: InvitationView | null }; setData(data: Record<string, unknown>): void; }
 function errorMessage(error: unknown, fallback: string): string { return error instanceof Error ? error.message : fallback; }
 
 Page({
@@ -35,5 +35,11 @@ Page({
   },
   async handleLeave(): Promise<void> { const page = this as unknown as SettingsPageContext; const ledger = page.data.ledger; if (!ledger || ledger.role === 'OWNER') return; try { await leaveMemberLedger(ledger.id); wx.reLaunch({ url: '/pages/ledger/list' }); } catch (error) { page.setData({ errorMessage: errorMessage(error, '离开账本失败') }); } },
   handleBindWeb(): void { wx.navigateTo({ url: '/pages/bind-web/index' }); },
+  onShareAppMessage(): { title: string; path: string } {
+    const invitation = (this as unknown as SettingsPageContext).data.invitation;
+    return invitation
+      ? { title: '邀请你加入家庭账本', path: `/pages/invitation/detail?token=${encodeURIComponent(invitation.token)}` }
+      : { title: '家庭记账', path: '/pages/auth/index' };
+  },
   handleSharedEdit(event: { currentTarget: { dataset: { tab: string } } }): void { const routes: Record<string, string> = { accounting: '/pages/accounting/index', assets: '/pages/assets/index', liabilities: '/pages/liabilities/index' }; const url = routes[event.currentTarget.dataset.tab]; if (url) wx.navigateTo({ url }); },
 });

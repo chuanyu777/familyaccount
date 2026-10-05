@@ -1,11 +1,37 @@
 {
-  "appid": "REPLACE_WITH_WECHAT_APP_ID",
+  "appid": "wx29eb27ce3ac94f23",
   "compileType": "miniprogram",
   "miniprogramRoot": "./",
   "projectname": "family-ledger-mini",
   "setting": {
+    "useCompilerPlugins": [
+      "typescript"
+    ],
     "es6": true,
     "minified": false,
-    "urlCheck": false
-  }
+    "urlCheck": false,
+    "postcss": false,
+    "compileWorklet": false,
+    "uglifyFileName": false,
+    "uploadWithSourceMap": true,
+    "enhance": false,
+    "packNpmManually": false,
+    "packNpmRelationList": [],
+    "minifyWXSS": true,
+    "minifyWXML": true,
+    "localPlugins": false,
+    "disableUseStrict": false,
+    "condition": false,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    }
+  },
+  "simulatorPluginLibVersion": {},
+  "packOptions": {
+    "ignore": [],
+    "include": []
+  },
+  "editorSetting": {}
 }

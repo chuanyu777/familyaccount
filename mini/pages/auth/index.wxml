@@ -5,6 +5,7 @@
     <button class="wechat-button" type="primary" loading="{{loading}}" disabled="{{loading}}" bindtap="handleLogin">
       微信登录
     </button>
+    <button class="support-button" size="mini" bindtap="handleBindWeb">已有 Web 绑定码</button>
     <text wx:if="{{errorMessage}}" class="error-message">{{errorMessage}}</text>
   </view>
 </view>

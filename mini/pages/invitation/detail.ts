@@ -1,7 +1,18 @@
-import { invitationTokenStore } from '../../services/auth';
-import { acceptInvitation } from '../../services/ledgers';
+import { captureInvitationToken, getPostAuthRoute, invitationTokenStore } from '../../services/auth';
+import { sessionStore } from '../../lib/session';
+import { acceptInvitation, listLedgers } from '../../services/ledgers';
 import { ApiError } from '../../lib/errors';
-interface InvitationPageContext { data: { token: string; loading: boolean }; setData(data: Record<string, unknown>): void; }
+
+interface InvitationPageData {
+  token: string;
+  loading: boolean;
+  errorMessage: string;
+}
+
+interface InvitationPageContext {
+  data: InvitationPageData;
+  setData(data: Partial<InvitationPageData>): void;
+}
 export function invitationError(error: unknown, missingToken = false): string {
   if (missingToken) return '请输入邀请口令';
   if (error instanceof ApiError && error.status >= 500) return '服务暂时不可用，请稍后重试';
@@ -12,12 +23,35 @@ export function invitationError(error: unknown, missingToken = false): string {
 }
 Page({
   data: { token: '', loading: false, errorMessage: '' },
-  onLoad(options: Record<string, unknown>): void { (this as unknown as InvitationPageContext).setData({ token: typeof options.token === 'string' ? options.token : invitationTokenStore.get() ?? '' }); },
+  onLoad(options: Record<string, unknown>): void {
+    captureInvitationToken(options);
+    (this as unknown as InvitationPageContext).setData({ token: invitationTokenStore.get() ?? '' });
+    if (!sessionStore.get()) wx.redirectTo({ url: '/pages/auth/index' });
+  },
   handleInput(event: { detail: { value: string } }): void { (this as unknown as InvitationPageContext).setData({ token: event.detail.value }); },
+  async handleDecline(): Promise<void> {
+    const page = this as unknown as InvitationPageContext;
+    if (page.data.loading) return;
+    invitationTokenStore.clear();
+    page.setData({ token: '', loading: true, errorMessage: '' });
+    try {
+      if (!sessionStore.get()) {
+        wx.reLaunch({ url: '/pages/auth/index' });
+        return;
+      }
+      const ledgers = await listLedgers();
+      wx.reLaunch({ url: getPostAuthRoute(ledgers) });
+    } catch (error) {
+      page.setData({ errorMessage: error instanceof Error ? error.message : '账本加载失败，请重试' });
+    } finally {
+      page.setData({ loading: false });
+    }
+  },
   async handleAccept(): Promise<void> {
     const page = this as unknown as InvitationPageContext; const token = page.data.token.trim();
     if (page.data.loading) return;
     if (!token) { page.setData({ errorMessage: invitationError(undefined, true) }); return; }
+    invitationTokenStore.set(token);
     page.setData({ loading: true, errorMessage: '' });
     try { await acceptInvitation(token); invitationTokenStore.clear(); wx.reLaunch({ url: '/pages/ledger/home' }); }
     catch (error) { page.setData({ errorMessage: invitationError(error) }); }
