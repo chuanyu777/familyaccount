@@ -1,0 +1,1 @@
+<view class="money-input"><text class="field-label">{{label}}</text><view class="money-line"><text class="currency">¥</text><input class="money-control" type="digit" value="{{value}}" placeholder="{{placeholder}}" disabled="{{disabled}}" bindinput="handleInput" /></view></view>

@@ -1,0 +1,2 @@
+interface CategoryComponentContext { data: { categories: Array<{ id: number }> }; triggerEvent(name: string, detail: Record<string, unknown>): void; }
+Component({ properties: { categories: { type: Array, value: [] }, value: { type: Number, value: 0 }, label: { type: String, value: '分类' } }, methods: { handleChange(this: CategoryComponentContext, event: { detail: { value: string } }): void { const category = this.data.categories[Number(event.detail.value)]; if (category) this.triggerEvent('change', { id: category.id }); } } });

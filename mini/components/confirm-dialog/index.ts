@@ -1,0 +1,2 @@
+interface ConfirmComponentContext { data: { loading: boolean }; triggerEvent(name: string): void; }
+Component({ properties: { visible: { type: Boolean, value: false }, title: { type: String, value: '请确认' }, message: { type: String, value: '' }, loading: { type: Boolean, value: false } }, methods: { confirm(this: ConfirmComponentContext): void { if (!this.data.loading) this.triggerEvent('confirm'); }, cancel(this: ConfirmComponentContext): void { if (!this.data.loading) this.triggerEvent('cancel'); } } });
