@@ -1,6 +1,6 @@
 export interface MiniSession {
-  token: string;
-  userId: number;
+  cookie: string;
+  userId?: number;
 }
 
 export interface LedgerSummary {

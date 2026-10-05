@@ -1,5 +1,5 @@
 {
-  "appid": "touristappid",
+  "appid": "REPLACE_WITH_WECHAT_APP_ID",
   "compileType": "miniprogram",
   "miniprogramRoot": "./",
   "projectname": "family-ledger-mini",

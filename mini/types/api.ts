@@ -11,6 +11,7 @@ export interface RequestOptions {
 export interface MiniRequestSuccessResult<T = unknown> {
   statusCode: number;
   data: T;
+  header?: Record<string, string | string[]>;
 }
 
 export interface MiniRequestOptions<T = unknown> {
