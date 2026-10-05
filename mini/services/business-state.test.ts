@@ -11,6 +11,7 @@ import {
 import { createRepayment, deleteRepayment, updateRepayment } from './liabilities';
 import { activeEntries, archiveSharedResource } from './business-state';
 import { createSnapshot } from './assets';
+import { accountIdAtPickerIndex, preferredAccountId } from './accounts';
 
 vi.mock('../lib/http', () => ({ request: vi.fn() }));
 vi.mock('../lib/currentLedger', () => ({
@@ -67,6 +68,19 @@ describe('mini business state contracts', () => {
     const entries = [{ id: 1, archived: false }, { id: 2, archived: 1 }, { id: 3, archived: 0 }];
 
     expect(activeEntries(entries)).toEqual([{ id: 1, archived: false }, { id: 3, archived: 0 }]);
+  });
+
+  it('maps account picker indexes to real active account IDs and prefers the default', () => {
+    const accounts = [
+      { id: 41, name: '现金', archived: 0 },
+      { id: 99, name: '银行卡', isDefault: true, archived: false },
+      { id: 7, name: '旧账户', archived: 1 },
+    ];
+
+    expect(accountIdAtPickerIndex(accounts.filter((account) => !account.archived), '0')).toBe(41);
+    expect(preferredAccountId(accounts)).toBe(99);
+    expect(preferredAccountId([{ id: 41, name: '现金' }, { id: 99, name: '银行卡' }])).toBe(41);
+    expect(preferredAccountId([{ id: 7, name: '旧账户', archived: true }])).toBeNull();
   });
 
   it('rejects future asset snapshot months before sending a request', async () => {

@@ -10,6 +10,15 @@ export async function listAccounts(): Promise<Account[]> {
 
 export function activeAccounts(accounts: Account[]): Account[] { return activeEntries(accounts); }
 
+export function accountIdAtPickerIndex(accounts: Account[], value: string | number): number | null {
+  return accounts[Number(value)]?.id ?? null;
+}
+
+export function preferredAccountId(accounts: Account[]): number | null {
+  const active = activeAccounts(accounts);
+  return active.find(({ isDefault }) => Boolean(isDefault))?.id ?? active[0]?.id ?? null;
+}
+
 export async function createAccount(name: string): Promise<Account> {
   requireCurrentLedger();
   return request<Account>('/api/accounts', { method: 'POST', data: { name: name.trim() } });
