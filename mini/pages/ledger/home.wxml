@@ -1,0 +1,14 @@
+<view class="ledger-shell">
+  <view wx:if="{{loading}}" class="state-message">正在加载账本...</view>
+  <view wx:elif="{{errorMessage}}" class="state-message error-message">{{errorMessage}}</view>
+  <view wx:elif="{{!ledger}}" class="state-message">还没有当前账本</view>
+  <block wx:else>
+    <view class="ledger-header">
+      <view><text class="eyebrow">当前账本</text><text class="ledger-title">{{ledger.name}}</text></view>
+      <button class="switcher-button" bindtap="handleSwitcher">切换账本</button>
+    </view>
+    <view class="tab-grid">
+      <button wx:for="{{tabs}}" wx:key="key" class="tab-button" data-tab="{{item.key}}" bindtap="handleTab">{{item.label}}</button>
+    </view>
+  </block>
+</view>

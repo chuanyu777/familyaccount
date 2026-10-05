@@ -1,0 +1,6 @@
+.ledger-shell { min-height: 100vh; padding: 48rpx; box-sizing: border-box; background: #f7f8fa; color: #1f2937; }
+.ledger-header { display: flex; align-items: flex-end; justify-content: space-between; padding-bottom: 48rpx; border-bottom: 1rpx solid #e5e7eb; }
+.eyebrow { display: block; color: #6b7280; font-size: 24rpx; }.ledger-title { display: block; margin-top: 12rpx; font-size: 48rpx; font-weight: 600; }
+.switcher-button, .tab-button { margin: 0; border-radius: 8rpx; font-size: 26rpx; }.switcher-button { color: #2563eb; background: #eff6ff; }
+.tab-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20rpx; padding-top: 40rpx; }.tab-button { min-height: 112rpx; color: #1f2937; background: #fff; border: 1rpx solid #e5e7eb; }
+.state-message { display: block; padding: 160rpx 20rpx; text-align: center; color: #6b7280; }.error-message { color: #dc2626; }
