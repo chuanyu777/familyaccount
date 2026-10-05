@@ -82,11 +82,18 @@ describe('ledger service', () => {
     expect(requestMock).toHaveBeenCalledWith('/api/ledgers/9/invitations', { method: 'POST' });
   });
 
-  it('rejects member invitation creation and owner leave before making a request', async () => {
+  it('rejects owner leave for the current ledger without allowing a caller role override', async () => {
+    currentLedgerStoreMock.get.mockReturnValue({ id: 9, name: '我家', role: 'OWNER' });
+    await expect(leaveLedger(9)).rejects.toMatchObject({ code: 'OWNER_CANNOT_LEAVE' });
+    expect(requestMock).not.toHaveBeenCalled();
+  });
+
+  it('does not use a caller-supplied owner role to bypass the current ledger guard', async () => {
     currentLedgerStoreMock.get.mockReturnValue({ id: 9, name: '我家', role: 'MEMBER' });
     await expect(createInvitation()).rejects.toMatchObject({ code: 'LEDGER_OWNER_REQUIRED' });
-    await expect(leaveLedger(9, { id: 9, name: '我家', role: 'OWNER' })).rejects.toMatchObject({ code: 'OWNER_CANNOT_LEAVE' });
-    expect(requestMock).not.toHaveBeenCalled();
+    requestMock.mockResolvedValueOnce(undefined);
+    await expect(leaveLedger(9)).resolves.toBeUndefined();
+    expect(requestMock).toHaveBeenCalledWith('/api/ledgers/9/leave', { method: 'POST' });
   });
 
   it('leaves a member ledger and clears it when it is current', async () => {

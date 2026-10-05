@@ -38,8 +38,8 @@ export async function createInvitation(): Promise<InvitationView> {
   return request<InvitationView>(`/api/ledgers/${ledger.id}/invitations`, { method: 'POST' });
 }
 
-export async function leaveLedger(ledgerId: number, ledger?: LedgerSummary): Promise<void> {
-  const current = ledger ?? currentLedgerStore.get();
+export async function leaveLedger(ledgerId: number): Promise<void> {
+  const current = currentLedgerStore.get();
   if (current?.id === ledgerId && current.role === 'OWNER') {
     throw new ApiError(409, 'OWNER_CANNOT_LEAVE', '账本所有者不能离开账本');
   }

@@ -36,7 +36,7 @@ Page({
     const ledger = page.data.ledgers.find((item) => item.id === id);
     if (!ledger || ledger.role === 'OWNER') { page.setData({ errorMessage: '账本所有者不能离开账本' }); return; }
     try {
-      await leaveLedger(id, ledger);
+      await leaveLedger(id);
       page.setData({ ledgers: await listLedgers(), currentId: currentLedgerStore.get()?.id ?? null });
     } catch (error) { page.setData({ errorMessage: error instanceof Error ? error.message : '离开账本失败' }); }
   },

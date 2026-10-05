@@ -24,3 +24,9 @@ Implemented ledger list, creation, local switching, invitation creation, invitat
 - Page registration and the ledger shell route remain the main agent's responsibility, as requested.
 - Existing full-suite Vue tests emit pre-existing missing-prop warnings; they do not fail.
 - `prototype/` was pre-existing untracked work and was not modified or staged.
+
+## Fix round 1
+
+- `leaveLedger` now trusts only `currentLedgerStore` for the current ledger owner pre-check; the optional caller-supplied ledger role was removed. Non-current ledgers are authorized by the backend.
+- Invitation handling now recognizes only the backend-provided `INVITATION_INVALID` code and separately handles missing tokens, network failures, and server errors.
+- Backend limitation: `INVITATION_INVALID` intentionally does not distinguish expired, revoked, already-used, already-accepted, or otherwise invalid invitations, because the current backend contract does not provide separate error codes for those causes.
