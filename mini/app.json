@@ -1,0 +1,9 @@
+{
+  "pages": [
+    "pages/auth/index",
+    "pages/ledger/list"
+  ],
+  "window": {
+    "navigationBarTitleText": "家庭账本"
+  }
+}

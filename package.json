@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "vite --config web/vite.config.ts",
     "test": "vitest run",
+    "test:mini": "vitest run mini/lib/http.test.ts mini/lib/currentLedger.test.ts",
     "test:watch": "vitest",
     "typecheck": "vue-tsc --noEmit",
     "build": "vite build --config web/vite.config.ts"

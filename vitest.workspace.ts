@@ -16,4 +16,12 @@ export default defineWorkspace([
       setupFiles: ['web/src/test-setup.ts'],
     },
   },
+  {
+    test: {
+      name: 'mini',
+      environment: 'node',
+      globals: true,
+      include: ['mini/**/*.test.ts'],
+    },
+  },
 ]);

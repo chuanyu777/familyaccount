@@ -18,6 +18,7 @@
   "include": [
     "web/src/**/*.ts",
     "web/src/**/*.vue",
+    "mini/**/*.ts",
     "vitest.workspace.ts",
     "web/vite.config.ts"
   ]
