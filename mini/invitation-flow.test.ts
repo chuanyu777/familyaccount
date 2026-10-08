@@ -16,6 +16,7 @@ let definitions: Map<string, PageInstance>;
 const ledger: LedgerSummary = { id: 9, name: '我家', role: 'OWNER' };
 const invitedLedger: LedgerSummary = { id: 17, name: '爸妈家', role: 'MEMBER' };
 const membership = { id: 23, ledgerId: 17, userId: 7, role: 'MEMBER', active: true, displayName: '小明' };
+const preview = { ledgerId: 17, ledgerName: '爸妈家', inviterName: '妈妈', expiresAt: '2099-01-01 00:00:00' };
 const imports: Record<string, () => Promise<unknown>> = {
   'auth/index': () => import('./pages/auth/index'),
   'bind-web/index': () => import('./pages/bind-web/index'),
@@ -86,6 +87,7 @@ async function coldShare(ledgers: LedgerSummary[], token: string): Promise<PageI
   await ordinaryLogin(ledgers);
   expect(stack).toEqual([`/pages/invitation/detail?token=${encodeURIComponent(token)}`]);
   const confirmation = await page('invitation/detail');
+  respond(preview);
   confirmation.onLoad({ token });
   expect(confirmation.data.token).toBe(token);
   return confirmation;
@@ -154,8 +156,8 @@ describe('R1 invitation exit and retry flows', () => {
     await exitInvitation(confirmation);
     expect(invitationTokenStore.get()).toBeNull();
     expect(confirmation.data.token).toBe('');
-    expect(paths()).toEqual(['/api/auth/wechat/login', '/api/ledgers', '/api/invitations/accept', '/api/ledgers']);
-    expect(JSON.parse(requests[2]!.data as string)).toEqual({ token: 'expired/token' });
+    expect(paths()).toEqual(['/api/auth/wechat/login', '/api/ledgers', '/api/invitations/preview', '/api/invitations/accept', '/api/ledgers']);
+    expect(JSON.parse(requests[3]!.data as string)).toEqual({ token: 'expired/token' });
     await reachBusiness(ledgers);
 
     // Keep persisted storage across a fresh ordinary entry after the user exits.
@@ -174,14 +176,16 @@ describe('R1 invitation exit and retry flows', () => {
     respond(ledgers);
     await exitInvitation(confirmation);
     expect(invitationTokenStore.get()).toBeNull();
-    expect(paths()).toEqual(['/api/auth/wechat/login', '/api/ledgers', '/api/ledgers']);
+    expect(paths()).toEqual(['/api/auth/wechat/login', '/api/ledgers', '/api/invitations/preview', '/api/ledgers']);
     expect(sessionStore.get()?.userId).toBe(7);
     await reachBusiness(ledgers);
 
     // A later explicit share can still be accepted with the same valid token.
     stack = ['/pages/invitation/detail?token=valid-token'];
     const later = await page('invitation/detail');
+    respond(preview);
     later.onLoad({ token: 'valid-token' });
+    await Promise.resolve();
     respond(membership, invitedLedger);
     await later.handleAccept();
     expect(stack).toEqual(['/pages/ledger/home']);
@@ -236,7 +240,7 @@ describe('R1 invitation exit and retry flows', () => {
     const accepting = confirmation.handleAccept();
     await exitInvitation(confirmation);
     expect(invitationTokenStore.get()).toBe('valid-token');
-    expect(paths()).toEqual(['/api/auth/wechat/login', '/api/ledgers', '/api/invitations/accept']);
+    expect(paths()).toEqual(['/api/auth/wechat/login', '/api/ledgers', '/api/invitations/preview', '/api/invitations/accept']);
     wx.request = request;
     respond(invitedLedger);
     pending!.success?.({ statusCode: 200, data: membership });

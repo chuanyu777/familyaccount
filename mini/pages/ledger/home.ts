@@ -31,6 +31,10 @@ Page({
     ],
   },
   async onShow(): Promise<void> {
+    if (currentLedgerStore.get()) {
+      wx.redirectTo({ url: '/pages/accounting/index' });
+      return;
+    }
     const page = this as unknown as LedgerHomeContext;
     const selected = currentLedgerStore.get();
     if (!selected) {

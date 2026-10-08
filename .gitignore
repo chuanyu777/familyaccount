@@ -9,6 +9,8 @@ data/
 backend/target/
 backups/
 deploy/.env
+backend/.env
+mini/project.private.config.json
 .workbuddy/
 .worktrees/
 .superpowers/

@@ -1,0 +1,50 @@
+page {
+  background: #f4f6f9;
+  color: #151820;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-size: 28rpx;
+  line-height: 1.5;
+}
+
+button::after { border: 0; }
+
+.screen-page {
+  min-height: 100vh;
+  box-sizing: border-box;
+  padding: 28rpx 32rpx 142rpx;
+}
+
+.ledger-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 68rpx;
+}
+
+.ledger-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 8rpx;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #151820;
+  font-size: 38rpx;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.ledger-role { display: block; margin-top: 5rpx; color: #8a92a1; font-size: 22rpx; }
+.chevron { color: #5f6878; font-size: 30rpx; font-weight: 500; }
+.header-icon { width: 52rpx; height: 52rpx; margin: 0; padding: 0; border-radius: 50%; background: transparent; color: #151820; font-size: 34rpx; line-height: 52rpx; }
+.month-row { margin-top: 24rpx; }
+.month-button { display: inline-flex; align-items: center; gap: 8rpx; min-height: 58rpx; padding: 0 20rpx; border: 1rpx solid #d8dee8; border-radius: 12rpx; background: #fff; color: #5f6878; font-size: 24rpx; }
+.section-card { margin-top: 28rpx; padding: 26rpx; border: 1rpx solid #e0e5ec; border-radius: 14rpx; background: #fff; }
+.section-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18rpx; font-size: 30rpx; font-weight: 700; }
+.section-title__meta { color: #8a92a1; font-size: 22rpx; font-weight: 500; }
+.muted { color: #8a92a1; }
+.income { color: #19765d; }
+.expense { color: #b84543; }
+.empty-state { padding: 64rpx 20rpx; color: #8a92a1; text-align: center; }
+.state-error { color: #b84543; text-align: center; }

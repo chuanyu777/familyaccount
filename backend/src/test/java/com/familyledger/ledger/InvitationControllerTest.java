@@ -1,6 +1,7 @@
 package com.familyledger.ledger;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -77,6 +78,14 @@ class InvitationControllerTest {
         .andReturn();
     String token = created.getResponse().getContentAsString()
         .replaceAll(".*\\\"token\\\":\\\"([^\\\"]+)\\\".*", "$1");
+
+    mvc.perform(get("/api/invitations/preview").param("token", token)
+            .cookie(session(AuthPrincipal.ledgerUser(inviteeId))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.ledgerId").value(ledgerId))
+        .andExpect(jsonPath("$.ledgerName").isString())
+        .andExpect(jsonPath("$.inviterName").isString())
+        .andExpect(jsonPath("$.expiresAt").isString());
 
     mvc.perform(post("/api/invitations/accept")
             .cookie(session(AuthPrincipal.ledgerUser(inviteeId)))

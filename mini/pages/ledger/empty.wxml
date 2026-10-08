@@ -1,6 +1,11 @@
 <view class="empty-page">
-  <text class="empty-title">还没有账本</text>
-  <text class="empty-hint">创建一个家庭账本，或接受家人发来的邀请</text>
-  <button class="primary-button" bindtap="handleCreateLedger">创建账本</button>
-  <button class="secondary-button" bindtap="handleAcceptInvitation">接受邀请</button>
+  <view class="empty-visual" aria-hidden="true">
+    <view class="empty-book"><view class="empty-book__binding"></view><view></view><view></view></view>
+    <view class="person person--one"><view></view></view><view class="person person--two"><view></view></view>
+  </view>
+  <view class="empty-copy"><text class="empty-title">开始你的第一个账本</text><text class="empty-hint">创建自己的家庭账本，或接受家人发来的邀请。</text></view>
+  <view class="button-stack">
+    <button class="primary-button" bindtap="handleCreateLedger"><text class="button-icon">＋</text>创建家庭账本</button>
+    <button class="secondary-button" bindtap="handleAcceptInvitation"><text class="link-icon">⌁</text>{{hasInvitation ? '查看收到的邀请' : '接受邀请'}}</button>
+  </view>
 </view>

@@ -49,6 +49,25 @@ public class InvitationService {
     return new InvitationView(id, ledgerId, token, expiresAt);
   }
 
+  public InvitationPreviewView preview(String token) {
+    if (token == null || token.isBlank()) throw invitationInvalid();
+    List<InvitationPreviewView> rows = db.query(
+        "SELECT li.ledger_id, l.name AS ledger_name, u.display_name AS inviter_name, li.expires_at "
+            + "FROM ledger_invitation li "
+            + "JOIN ledger l ON l.id = li.ledger_id "
+            + "JOIN app_user u ON u.id = li.created_by_user_id "
+            + "WHERE li.token_hash = ? AND li.revoked_at IS NULL AND li.accepted_at IS NULL "
+            + "AND li.expires_at > ?",
+        (rs, i) -> new InvitationPreviewView(
+            rs.getLong("ledger_id"),
+            rs.getString("ledger_name"),
+            rs.getString("inviter_name"),
+            rs.getString("expires_at")),
+        hash(token), Time.now());
+    if (rows.isEmpty()) throw invitationInvalid();
+    return rows.get(0);
+  }
+
   @Transactional
   public LedgerMembershipView accept(long userId, String token) {
     return accept(AuthPrincipal.ledgerUser(userId), token);

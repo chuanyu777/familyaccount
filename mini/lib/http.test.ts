@@ -37,7 +37,7 @@ beforeEach(() => {
 describe('request', () => {
   it('uses the selected environment configuration without embedding secrets', () => {
     expect(MINI_CONFIG).toBe(MINI_ENVIRONMENTS[ACTIVE_ENVIRONMENT]);
-    expect(MINI_CONFIG.appId).toContain('REPLACE_WITH');
+    expect(MINI_CONFIG.appId).toBe('wx29eb27ce3ac94f23');
     expect(MINI_CONFIG.apiBaseUrl).toMatch(/^https?:\/\//);
   });
 

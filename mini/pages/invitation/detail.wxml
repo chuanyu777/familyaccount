@@ -1,8 +1,18 @@
 <view class="invitation-page">
-  <text class="page-title">加入账本</text>
-  <text class="hint">请确认邀请口令来自你信任的家人</text>
-  <input class="token-input" value="{{token}}" maxlength="256" placeholder="粘贴邀请口令" bindinput="handleInput" />
-  <button class="accept-button" loading="{{loading}}" disabled="{{loading}}" bindtap="handleAccept">确认加入</button>
-  <button class="decline-button" disabled="{{loading}}" bindtap="handleDecline">暂不加入 / 返回我的账本</button>
+  <view wx:if="{{preview}}" class="invite-card">
+    <view class="avatars"><view class="avatar avatar--blue">{{inviterInitial}}</view><view class="link-mark">⌁</view><view class="avatar avatar--green">人</view></view>
+    <text class="page-title">邀请你加入“{{preview.ledgerName}}”</text>
+    <text class="hint"><text class="inviter">{{preview.inviterName}}</text> 邀请你成为家庭账本成员</text>
+    <view class="invite-meta"><view><text>你的角色</text><text>家庭成员</text></view><view><text>邀请有效期</text><text>{{expiresText}}</text></view></view>
+    <button class="accept-button" loading="{{loading}}" disabled="{{loading}}" bindtap="handleAccept">接受并加入</button>
+    <button class="decline-button" disabled="{{loading}}" bindtap="handleDecline">暂不加入</button>
+  </view>
+  <view wx:else class="invite-card token-card">
+    <view class="token-icon">⌁</view><text class="page-title">接受家庭邀请</text><text class="hint">请粘贴家人发来的邀请口令</text>
+    <input class="token-input" value="{{token}}" maxlength="256" placeholder="粘贴邀请口令" bindinput="handleInput" />
+    <button class="accept-button" loading="{{loading}}" disabled="{{loading || !token}}" bindtap="loadPreview">查看邀请</button>
+    <button class="decline-button" disabled="{{loading}}" bindtap="handleDecline">返回我的账本</button>
+  </view>
   <text wx:if="{{errorMessage}}" class="error-message">{{errorMessage}}</text>
+  <view class="security-hint"><text class="shield">✓</text><text>加入后可查看该账本的全部业务数据</text></view>
 </view>

@@ -1,0 +1,12 @@
+<view class="category-page">
+  <view class="page-head"><view><text class="page-title">分类管理</text><text class="page-subtitle">管理当前账本的收支分类</text></view><button class="add-button" bindtap="openCreate">＋ 新增</button></view>
+  <view class="segmented"><button class="segment {{kind === 'expense' ? 'is-active' : ''}}" data-kind="expense" bindtap="switchKind">支出分类</button><button class="segment {{kind === 'income' ? 'is-active' : ''}}" data-kind="income" bindtap="switchKind">收入分类</button></view>
+  <view wx:if="{{loading}}" class="empty-state">正在加载…</view>
+  <view wx:else class="category-list">
+    <view wx:for="{{kind === 'expense' ? expense : income}}" wx:key="id" class="category-row {{item.archived ? 'is-archived' : ''}}"><view class="category-mark {{kind}}">{{kind === 'expense' ? '−' : '＋'}}</view><view class="category-copy"><text>{{item.name}}</text><text>{{item.archived ? '已停用' : '使用中'}}</text></view><button wx:if="{{!item.archived}}" class="row-action" data-id="{{item.id}}" data-name="{{item.name}}" bindtap="openEdit">编辑</button><button wx:if="{{isOwner}}" class="row-action {{item.archived ? 'restore' : 'archive'}}" data-id="{{item.id}}" data-archived="{{item.archived}}" bindtap="toggleArchive">{{item.archived ? '恢复' : '停用'}}</button></view>
+    <view wx:if="{{!(kind === 'expense' ? expense.length : income.length)}}" class="empty-state">暂无分类</view>
+  </view>
+  <text wx:if="{{!isOwner}}" class="permission-hint">成员可新增和改名；停用或恢复分类需账本管理员操作。</text>
+  <text wx:if="{{errorMessage}}" class="state-error">{{errorMessage}}</text>
+  <view wx:if="{{editorOpen}}" class="sheet-mask" bindtap="closeEditor"><view class="editor-sheet" catchtap="noop"><view class="sheet-head"><button bindtap="closeEditor">取消</button><text>{{editingId === null ? '新增' : '编辑'}}{{kind === 'expense' ? '支出' : '收入'}}分类</text><button class="save" bindtap="saveCategory" loading="{{saving}}">保存</button></view><input value="{{nameDraft}}" maxlength="20" focus="{{editorOpen}}" placeholder="输入分类名称" bindinput="handleName"/><text class="count">{{nameDraft.length}}/20</text></view></view>
+</view>

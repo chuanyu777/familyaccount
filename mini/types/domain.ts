@@ -24,3 +24,10 @@ export interface InvitationView {
   token: string;
   expiresAt: string;
 }
+
+export interface InvitationPreview {
+  ledgerId: number;
+  ledgerName: string;
+  inviterName: string;
+  expiresAt: string;
+}

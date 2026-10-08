@@ -1,1 +1,1 @@
-{"usingComponents":{"money-input":"/components/money-input/index","category-picker":"/components/category-picker/index","confirm-dialog":"/components/confirm-dialog/index"}}
+{"usingComponents":{"money-input":"/components/money-input/index","category-picker":"/components/category-picker/index","confirm-dialog":"/components/confirm-dialog/index","ledger-switcher":"/components/ledger-switcher/index","tabbar":"/components/tabbar/index"}}

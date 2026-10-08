@@ -1,0 +1,6 @@
+<view class="tabbar" aria-label="账本主导航">
+  <button wx:for="{{items}}" wx:key="key" class="tab {{current === item.key ? 'is-active' : ''}}" data-route="{{item.key}}" bindtap="navigate">
+    <image class="tab-icon" src="/assets/icons/{{item.icon}}-{{current === item.key ? 'active' : 'default'}}.svg" mode="aspectFit" />
+    <text class="tab-label">{{item.label}}</text>
+  </button>
+</view>

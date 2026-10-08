@@ -1,6 +1,7 @@
 package com.familyledger;
 
 import java.nio.charset.StandardCharsets;
+import com.familyledger.db.Migrator;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -24,6 +25,10 @@ public final class TestDb {
       if (!s.isEmpty()) {
         jdbc.execute(s);
       }
+    }
+    String profileMigration = readClasspath("db/migration/V3__user_profile_avatar.sql");
+    for (String stmt : Migrator.splitStatements(profileMigration)) {
+      jdbc.execute(stmt);
     }
   }
 

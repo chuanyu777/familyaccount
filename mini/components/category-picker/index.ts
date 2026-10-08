@@ -15,6 +15,14 @@ Component({
     },
   },
   methods: {
+    handleTap(this: CategoryComponentContext, event: { currentTarget: { dataset: { index: number } } }): void {
+      const index = Number(event.currentTarget.dataset.index);
+      const category = this.data.categories[index];
+      if (category) {
+        this.setData({ selectedIndex: index, selectedLabel: category.name });
+        this.triggerEvent('change', { id: category.id });
+      }
+    },
     handleChange(this: CategoryComponentContext, event: { detail: { value: string } }): void {
       const index = Number(event.detail.value);
       const category = this.data.categories[index];

@@ -3,6 +3,8 @@ package com.familyledger.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -23,6 +25,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.mock.web.MockMultipartFile;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -199,6 +202,49 @@ class AuthControllerTest {
             .content("{\"code\":\"wx-code\"}"))
         .andExpect(status().isOk());
     assertThat(db.queryForObject("SELECT COUNT(*) FROM app_user", Integer.class)).isEqualTo(3);
+  }
+
+  @Test
+  void profileCanUpdateNicknameAndPersistAChosenAvatar() throws Exception {
+    Cookie session = loginWeb();
+    mvc.perform(get("/api/profile").cookie(session))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.displayName").value("本人"))
+        .andExpect(jsonPath("$.avatarUrl").doesNotExist());
+
+    mvc.perform(patch("/api/profile").cookie(session).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"displayName\":\"小周\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.displayName").value("小周"));
+
+    MockMultipartFile avatar = new MockMultipartFile(
+        "file", "avatar.png", "image/png", new byte[] {1, 2, 3, 4});
+    String avatarUrl = mvc.perform(multipart("/api/profile/avatar").file(avatar).cookie(session))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.avatarUrl").isString())
+        .andReturn().getResponse().getContentAsString();
+    assertThat(avatarUrl).contains("/api/profile/").contains("/avatar?v=");
+
+    long userId = db.queryForObject(
+        "SELECT user_id FROM web_credential WHERE username = 'ledger-owner'", Long.class);
+    mvc.perform(get("/api/profile/{userId}/avatar", userId))
+        .andExpect(status().isOk())
+        .andExpect(result -> assertThat(result.getResponse().getContentAsByteArray())
+            .containsExactly(1, 2, 3, 4));
+  }
+
+  @Test
+  void profileRejectsBlankNicknameAndUnsupportedAvatar() throws Exception {
+    Cookie session = loginWeb();
+    mvc.perform(patch("/api/profile").cookie(session).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"displayName\":\"   \"}"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("VALIDATION_FAILED"));
+    MockMultipartFile avatar = new MockMultipartFile(
+        "file", "avatar.gif", "image/gif", new byte[] {1});
+    mvc.perform(multipart("/api/profile/avatar").file(avatar).cookie(session))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.error.code").value("INVALID_AVATAR"));
   }
 
   @Test

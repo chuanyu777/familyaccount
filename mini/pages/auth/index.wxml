@@ -1,11 +1,17 @@
 <view class="auth-page">
-  <view class="auth-panel">
-    <text class="auth-title">家庭记账</text>
-    <text class="auth-subtitle">登录后开始管理家庭账本</text>
-    <button class="wechat-button" type="primary" loading="{{loading}}" disabled="{{loading}}" bindtap="handleLogin">
-      微信登录
-    </button>
-    <button class="support-button" size="mini" bindtap="handleBindWeb">已有 Web 绑定码</button>
-    <text wx:if="{{errorMessage}}" class="error-message">{{errorMessage}}</text>
+  <view class="auth-visual" aria-hidden="true">
+    <view class="ledger-mark"><view class="ledger-mark__binding"></view><view class="ledger-mark__line"></view><view class="ledger-mark__line ledger-mark__line--short"></view></view>
+    <view class="coin coin--one">＋</view>
+    <view class="coin coin--two">¥</view>
   </view>
+  <view class="auth-copy">
+    <text class="auth-title">一起记账</text>
+    <text class="auth-subtitle">家庭收支、资产和负债，一本账看清楚。</text>
+  </view>
+  <button class="wechat-button" loading="{{loading}}" disabled="{{loading}}" bindtap="handleLogin">
+    <view class="wechat-icon"><view></view><view></view></view><text>微信一键登录</text>
+  </button>
+  <button class="support-button" bindtap="handleBindWeb">旧 Web 账号迁移</button>
+  <text wx:if="{{errorMessage}}" class="error-message">{{errorMessage}}</text>
+  <text class="auth-terms">登录即表示你同意服务条款和隐私政策</text>
 </view>

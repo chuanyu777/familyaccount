@@ -1,1 +1,7 @@
-<view class="create-page"><text class="page-title">创建账本</text><input class="name-input" value="{{name}}" maxlength="80" placeholder="账本名称" bindinput="handleInput" /><button class="submit-button" loading="{{loading}}" disabled="{{loading}}" bindtap="handleSubmit">创建</button><text wx:if="{{errorMessage}}" class="error-message">{{errorMessage}}</text></view>
+<view class="create-page">
+  <view class="form-intro"><text class="page-title">给账本起个名字</text><text class="page-subtitle">家人加入后会看到这个名称，之后可以修改。</text></view>
+  <view class="field"><text class="field-label">账本名称</text><view class="input-wrap"><input class="name-input" value="{{name}}" maxlength="20" placeholder="例如：周末小家" bindinput="handleInput" /><text class="counter">{{name.length}}/20</text></view></view>
+  <view class="setup-note"><view class="check">✓</view><view><text class="setup-title">创建后自动准备好</text><text class="setup-copy">默认账户和常用收支分类</text></view></view>
+  <button class="submit-button" loading="{{loading}}" disabled="{{loading || !name}}" bindtap="handleSubmit">创建账本</button>
+  <text wx:if="{{errorMessage}}" class="error-message">{{errorMessage}}</text>
+</view>

@@ -34,6 +34,8 @@ services:
       DB_USER: root
       DB_PASSWORD: root123456
       SESSION_SECRET: local-development-session-secret
+      WECHAT_MINI_APP_ID: ${WECHAT_MINI_APP_ID:-}
+      WECHAT_MINI_APP_SECRET: ${WECHAT_MINI_APP_SECRET:-}
       SPECIAL_LEDGER_NAME: 本地测试特殊账本
       PLATFORM_ADMIN_USERNAME: platform-admin
       PLATFORM_ADMIN_PASSWORD: platform-admin-password

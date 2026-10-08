@@ -6,7 +6,8 @@ import { archiveSharedResource, createCategory, listCategories, restoreSharedRes
 import { canDeleteTransaction, canEditTransaction, createTransaction, deleteTransaction, isGeneratedRepaymentTransaction, listTransactions, updateTransaction, type TransactionRecord, type TransactionType } from '../../services/transactions';
 
 interface Draft { type: TransactionType; amount: string; accountId: number | null; toAccountId: number | null; categoryId: number | null; occurredOn: string; note: string; }
-interface Data { month: string; typeFilter: string; items: TransactionRecord[]; accounts: Account[]; expenseCategories: Category[]; incomeCategories: Category[]; allExpenseCategories: Category[]; allIncomeCategories: Category[]; draft: Draft; newCategoryName: string; editingCategoryId: number | null; editingCategoryName: string; editingId: number | null; formOpen: boolean; selected: TransactionRecord | null; selectedGenerated: boolean; selectedCanEdit: boolean; selectedCanDelete: boolean; confirmId: number | null; isOwner: boolean; loading: boolean; saving: boolean; errorMessage: string; referenceError: string; }
+interface Snapshot { income?: string; expense?: string; net?: string; incomeCents?: number; expenseCents?: number; netCents?: number; }
+interface Data { month: string; monthLabel: string; ledgerName: string; switcherOpen: boolean; typeFilter: string; items: TransactionRecord[]; accounts: Account[]; expenseCategories: Category[]; incomeCategories: Category[]; allExpenseCategories: Category[]; allIncomeCategories: Category[]; snapshot: Snapshot | null; draft: Draft; newCategoryName: string; editingCategoryId: number | null; editingCategoryName: string; editingId: number | null; formOpen: boolean; selected: TransactionRecord | null; selectedGenerated: boolean; selectedCanEdit: boolean; selectedCanDelete: boolean; confirmId: number | null; isOwner: boolean; loading: boolean; saving: boolean; errorMessage: string; referenceError: string; }
 interface PageContext { data: Data & { accountLabel: string; toAccountLabel: string; page: number; pageSize: number; hasMore: boolean; loadingMore: boolean; loadMoreError: string }; transactionLoadId: number; syncAccountLabels(): void; setData(data: Partial<PageContext['data']>): void; onShow(): Promise<void>; }
 function msg(error: unknown, fallback: string): string { return error instanceof Error ? error.message : fallback; }
 function emptyDraft(accountId: number | null = null): Draft { return { type: 'expense', amount: '', accountId, toAccountId: null, categoryId: null, occurredOn: todayIso(), note: '' }; }
@@ -21,17 +22,18 @@ Page({
       toAccountLabel: page.data.accounts.find(({ id }) => id === page.data.draft.toAccountId)?.name ?? '请选择',
     });
   },
-  data: { month: currentMonth(), typeFilter: '', accountLabel: '请选择', toAccountLabel: '请选择', items: [], page: 0, pageSize: 20, hasMore: false, loadingMore: false, loadMoreError: '', accounts: [], expenseCategories: [], incomeCategories: [], allExpenseCategories: [], allIncomeCategories: [], draft: emptyDraft(), newCategoryName: '', editingCategoryId: null, editingCategoryName: '', editingId: null, formOpen: false, selected: null, selectedGenerated: false, selectedCanEdit: false, selectedCanDelete: false, confirmId: null, isOwner: false, loading: false, saving: false, errorMessage: '', referenceError: '' },
+  data: { month: currentMonth(), monthLabel: currentMonth().replace('-', '年') + '月', ledgerName: '我的账本', switcherOpen: false, typeFilter: '', accountLabel: '请选择', toAccountLabel: '请选择', items: [], page: 0, pageSize: 20, hasMore: false, loadingMore: false, loadMoreError: '', accounts: [], expenseCategories: [], incomeCategories: [], allExpenseCategories: [], allIncomeCategories: [], snapshot: null, draft: emptyDraft(), newCategoryName: '', editingCategoryId: null, editingCategoryName: '', editingId: null, formOpen: false, selected: null, selectedGenerated: false, selectedCanEdit: false, selectedCanDelete: false, confirmId: null, isOwner: false, loading: false, saving: false, errorMessage: '', referenceError: '' },
   async onShow(): Promise<void> {
     const page = this as unknown as PageContext;
     const loadId = ++page.transactionLoadId;
-    page.setData({ loading: true, page: 0, pageSize: 20, hasMore: false, loadingMore: false, loadMoreError: '', errorMessage: '', referenceError: '', isOwner: currentLedgerStore.get()?.role === 'OWNER' });
+    page.setData({ loading: true, page: 0, pageSize: 20, hasMore: false, loadingMore: false, loadMoreError: '', errorMessage: '', referenceError: '', isOwner: currentLedgerStore.get()?.role === 'OWNER', ledgerName: currentLedgerStore.get()?.name ?? '我的账本' });
     const [transactions, accounts, expenses, incomes] = await Promise.allSettled([listTransactions({ month: page.data.month, type: page.data.typeFilter as TransactionType || undefined, page: 1, pageSize: 20 }), listAccounts(), listCategories('expense'), listCategories('income')]);
     if (loadId !== page.transactionLoadId) return;
     const errors: string[] = [];
     if (transactions.status === 'fulfilled') {
       const result = transactions.value;
-      page.setData({ items: result.items, page: result.page, pageSize: result.pageSize, hasMore: result.page * result.pageSize < result.total });
+      const totals = result.items.reduce((sum, item) => { const cents = item.amountCents ?? Number(item.amount ?? 0) * 100; return { income: sum.income + (item.type === 'income' ? cents : 0), expense: sum.expense + (item.type === 'expense' ? cents : 0) }; }, { income: 0, expense: 0 });
+      page.setData({ items: result.items, page: result.page, pageSize: result.pageSize, hasMore: result.page * result.pageSize < result.total, snapshot: { income: (totals.income / 100).toFixed(2), expense: (totals.expense / 100).toFixed(2), net: ((totals.income - totals.expense) / 100).toFixed(2) } });
     } else errors.push('交易加载失败');
     if (accounts.status === 'fulfilled') page.setData({ accounts: activeAccounts(accounts.value) }); else errors.push('账户加载失败');
     if (expenses.status === 'fulfilled') page.setData({ expenseCategories: activeEntries(expenses.value), allExpenseCategories: expenses.value }); else errors.push('支出分类加载失败');
@@ -59,8 +61,12 @@ Page({
       if (isCurrent()) page.setData({ loadingMore: false });
     }
   },
-  handleMonthInput(event: { detail: { value: string } }): void { const page = this as unknown as PageContext; page.setData({ month: event.detail.value }); void page.onShow(); },
+  openLedgerSwitcher(): void { (this as unknown as PageContext).setData({ switcherOpen: true }); },
+  closeLedgerSwitcher(): void { (this as unknown as PageContext).setData({ switcherOpen: false }); },
+  showNotice(): void { wx.showToast({ title: '暂无新消息', icon: 'none' }); },
+  handleMonthInput(event: { detail: { value: string } }): void { const page = this as unknown as PageContext; page.setData({ month: event.detail.value, monthLabel: event.detail.value.replace('-', '年') + '月' }); void page.onShow(); },
   handleTypeFilter(event: { detail: { value: string } }): void { const page = this as unknown as PageContext; page.setData({ typeFilter: ['', 'expense', 'income', 'transfer'][Number(event.detail.value)] ?? '' }); void page.onShow(); },
+  setTypeFilter(event: { currentTarget: { dataset: { type: string } } }): void { const page = this as unknown as PageContext; page.setData({ typeFilter: event.currentTarget.dataset.type }); void page.onShow(); },
   openCreate(): void { const page = this as unknown as PageContext; page.setData({ draft: emptyDraft(preferredAccountId(page.data.accounts)), newCategoryName: '', editingId: null, formOpen: true, errorMessage: '' }); page.syncAccountLabels(); },
   openDetail(event: { currentTarget: { dataset: { id: string } } }): void { const page = this as unknown as PageContext; const selected = page.data.items.find(({ id }) => id === Number(event.currentTarget.dataset.id)) ?? null; page.setData({ selected, selectedGenerated: selected ? isGeneratedRepaymentTransaction(selected) : false, selectedCanEdit: selected ? currentUserCan(selected, 'edit') : false, selectedCanDelete: selected ? currentUserCan(selected, 'delete') : false }); },
   closeDetail(): void { (this as unknown as PageContext).setData({ selected: null, selectedGenerated: false, selectedCanEdit: false, selectedCanDelete: false }); },
@@ -70,7 +76,7 @@ Page({
   cancelDelete(): void { (this as unknown as PageContext).setData({ confirmId: null }); },
   closeForm(): void { const page = this as unknown as PageContext; if (!page.data.saving) page.setData({ formOpen: false }); },
   handleDraftInput(event: { currentTarget: { dataset: { field: keyof Draft } }; detail: { value: string } }): void { const page = this as unknown as PageContext; page.setData({ draft: { ...page.data.draft, [event.currentTarget.dataset.field]: event.detail.value } }); },
-  handleTypeInput(event: { detail: { value: string } }): void { const page = this as unknown as PageContext; page.setData({ draft: { ...page.data.draft, type: (['expense', 'income', 'transfer'][Number(event.detail.value)] ?? 'expense') as TransactionType, categoryId: null, toAccountId: null } }); page.syncAccountLabels(); },
+  handleTypeInput(event: { detail?: { value?: string }; currentTarget?: { dataset?: { type?: string } } }): void { const page = this as unknown as PageContext; const selected = event.currentTarget?.dataset?.type ?? ['expense', 'income', 'transfer'][Number(event.detail?.value)] ?? 'expense'; page.setData({ draft: { ...page.data.draft, type: selected as TransactionType, categoryId: null, toAccountId: null } }); page.syncAccountLabels(); },
   handleAccountInput(event: { detail: { value: string } }): void { const page = this as unknown as PageContext; page.setData({ draft: { ...page.data.draft, accountId: accountIdAtPickerIndex(page.data.accounts, event.detail.value) } }); page.syncAccountLabels(); },
   handleToAccountInput(event: { detail: { value: string } }): void { const page = this as unknown as PageContext; page.setData({ draft: { ...page.data.draft, toAccountId: accountIdAtPickerIndex(page.data.accounts, event.detail.value) } }); page.syncAccountLabels(); },
   handleCategoryInput(event: { detail: { id: number } }): void { const page = this as unknown as PageContext; page.setData({ draft: { ...page.data.draft, categoryId: event.detail.id } }); },

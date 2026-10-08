@@ -10,7 +10,7 @@ export const ACTIVE_ENVIRONMENT: MiniEnvironment = 'development';
 
 export const MINI_ENVIRONMENTS: Record<MiniEnvironment, MiniEnvironmentConfig> = {
   development: {
-    appId: 'REPLACE_WITH_WECHAT_APP_ID',
+    appId: 'wx29eb27ce3ac94f23',
     apiBaseUrl: 'http://127.0.0.1:3001',
   },
   production: {

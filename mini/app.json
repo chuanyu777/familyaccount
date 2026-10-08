@@ -8,12 +8,17 @@
     "pages/ledger/home",
     "pages/invitation/detail",
     "pages/settings/index",
+    "pages/categories/index",
     "pages/accounting/index",
     "pages/assets/index",
     "pages/liabilities/index",
     "pages/analysis/index"
   ],
   "window": {
-    "navigationBarTitleText": "家庭账本"
+    "navigationBarTitleText": "家庭账本",
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f4f6f9",
+    "backgroundTextStyle": "dark"
   }
 }

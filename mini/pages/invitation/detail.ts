@@ -1,12 +1,16 @@
 import { captureInvitationToken, getPostAuthRoute, invitationTokenStore } from '../../services/auth';
 import { sessionStore } from '../../lib/session';
-import { acceptInvitation, listLedgers } from '../../services/ledgers';
+import { acceptInvitation, listLedgers, previewInvitation } from '../../services/ledgers';
+import type { InvitationPreview } from '../../types/domain';
 import { ApiError } from '../../lib/errors';
 
 interface InvitationPageData {
   token: string;
   loading: boolean;
   errorMessage: string;
+  preview: InvitationPreview | null;
+  expiresText: string;
+  inviterInitial: string;
 }
 
 interface InvitationPageContext {
@@ -22,13 +26,29 @@ export function invitationError(error: unknown, missingToken = false): string {
   return error instanceof Error ? error.message : '接受邀请失败，请重试';
 }
 Page({
-  data: { token: '', loading: false, errorMessage: '' },
+  data: { token: '', loading: false, errorMessage: '', preview: null, expiresText: '', inviterInitial: '家' },
   onLoad(options: Record<string, unknown>): void {
     captureInvitationToken(options);
-    (this as unknown as InvitationPageContext).setData({ token: invitationTokenStore.get() ?? '' });
-    if (!sessionStore.get()) wx.redirectTo({ url: '/pages/auth/index' });
+    const page = this as unknown as InvitationPageContext & { loadPreview(): Promise<void> };
+    page.setData({ token: invitationTokenStore.get() ?? '' });
+    if (!sessionStore.get()) { wx.redirectTo({ url: '/pages/auth/index' }); return; }
+    if (page.data.token) void page.loadPreview();
   },
-  handleInput(event: { detail: { value: string } }): void { (this as unknown as InvitationPageContext).setData({ token: event.detail.value }); },
+  handleInput(event: { detail: { value: string } }): void { (this as unknown as InvitationPageContext).setData({ token: event.detail.value, preview: null, errorMessage: '' }); },
+  async loadPreview(): Promise<void> {
+    const page = this as unknown as InvitationPageContext;
+    const token = page.data.token.trim();
+    if (!token) return;
+    page.setData({ loading: true, errorMessage: '' });
+    try {
+      const preview = await previewInvitation(token);
+      const expires = new Date(preview.expiresAt.replace(' ', 'T')).getTime();
+      const days = Math.max(1, Math.ceil((expires - Date.now()) / 86400000));
+      page.setData({ preview, inviterInitial: preview.inviterName.charAt(0) || '家', expiresText: `剩余 ${days} 天` });
+    } catch (error) {
+      page.setData({ errorMessage: invitationError(error) });
+    } finally { page.setData({ loading: false }); }
+  },
   async handleDecline(): Promise<void> {
     const page = this as unknown as InvitationPageContext;
     if (page.data.loading) return;

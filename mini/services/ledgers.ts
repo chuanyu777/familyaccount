@@ -2,7 +2,7 @@ import { currentLedgerStore } from '../lib/currentLedger';
 import { ApiError } from '../lib/errors';
 import { invalidateLedgerScopedCache } from '../lib/ledgerCache';
 import { request } from '../lib/http';
-import type { InvitationView, LedgerMembership, LedgerSummary } from '../types/domain';
+import type { InvitationPreview, InvitationView, LedgerMembership, LedgerSummary } from '../types/domain';
 
 export function listLedgers(): Promise<LedgerSummary[]> {
   return request<LedgerSummary[]>('/api/ledgers');
@@ -21,6 +21,10 @@ export async function acceptInvitation(token: string): Promise<LedgerMembership>
   const ledger = await request<LedgerSummary>(`/api/ledgers/${membership.ledgerId}`);
   currentLedgerStore.set(ledger);
   return membership;
+}
+
+export function previewInvitation(token: string): Promise<InvitationPreview> {
+  return request<InvitationPreview>(`/api/invitations/preview?token=${encodeURIComponent(token)}`);
 }
 
 export function switchLedger(ledger: LedgerSummary): void {
