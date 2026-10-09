@@ -56,6 +56,28 @@ class AccountCalibrationTest {
   }
 
   @Test
+  void createAcceptsOptionalInitialBalance() throws Exception {
+    mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+            .post("/api/accounts").cookie(session)
+            .header("X-Ledger-Id", ledgerId).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"name\":\"初始余额账户\",\"balance\":\"88.5\"}"))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.balanceCents").value(8850))
+        .andExpect(jsonPath("$.balance").value("88.50"));
+    mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+            .post("/api/accounts").cookie(session)
+            .header("X-Ledger-Id", ledgerId).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"name\":\"无余额账户\"}"))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.balanceCents").value(0));
+    mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+            .post("/api/accounts").cookie(session)
+            .header("X-Ledger-Id", ledgerId).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"name\":\"非法金额\",\"balance\":\"abc\"}"))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
   void memberCalibratesToSignedBalanceWithoutCreatingTransactions() throws Exception {
     mvc.perform(patch("/api/accounts/" + accountId + "/calibrate").cookie(session)
             .header("X-Ledger-Id", ledgerId).contentType(MediaType.APPLICATION_JSON).content("{\"balance\":\"-12.34\"}"))

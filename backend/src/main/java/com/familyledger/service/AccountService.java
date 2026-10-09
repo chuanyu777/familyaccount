@@ -44,10 +44,15 @@ public class AccountService {
   }
 
   public Map<String, Object> create(LedgerContext context, String name) {
+    return create(context, name, null);
+  }
+
+  public Map<String, Object> create(LedgerContext context, String name, Long balanceCents) {
     String normalized = requiredName(name, "账户");
+    long balance = balanceCents == null ? 0 : balanceCents;
     long id = Db.insert(db, "INSERT INTO account "
-        + "(ledger_id, name, balance_cents, is_default, archived, created_at) VALUES (?, ?, 0, 0, 0, ?)",
-        context.ledgerId(), normalized, Time.now());
+        + "(ledger_id, name, balance_cents, is_default, archived, created_at) VALUES (?, ?, ?, 0, 0, ?)",
+        context.ledgerId(), normalized, balance, Time.now());
     return get(context, id);
   }
 
