@@ -4,11 +4,13 @@ from typing import Any
 import httpx
 from fastapi import FastAPI, HTTPException
 from langchain.agents import create_agent
+from langchain_openai import ChatOpenAI
 from langchain.tools import tool
 from pydantic import BaseModel, Field
 
 SPRING_BASE_URL = os.getenv("SPRING_BASE_URL", "http://localhost:8080")
-MODEL_NAME = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+MODEL_NAME = os.getenv("DEEPSEEK_MODEL", "deepseek-flash")
+DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 
 
 class RunContext(BaseModel):
@@ -44,6 +46,9 @@ gateway = ToolGateway()
 
 
 def build_agent(context: RunContext):
+    api_key = os.getenv("DEEPSEEK_API_KEY")
+    if not api_key:
+        raise RuntimeError("DEEPSEEK_API_KEY is required")
     @tool
     async def get_period_summary(month: str | None = None) -> Any:
         """查询指定月份的收入、支出和结余。"""
@@ -70,7 +75,12 @@ def build_agent(context: RunContext):
         "创建交易时只能提出草稿，不能绕过确认直接写入。"
     )
     return create_agent(
-        model=MODEL_NAME,
+        model=ChatOpenAI(
+            model=MODEL_NAME,
+            api_key=api_key,
+            base_url=DEEPSEEK_BASE_URL,
+            temperature=0,
+        ),
         tools=[get_period_summary, get_category_breakdown, list_accounts, get_ledger_overview],
         system_prompt=system,
     )

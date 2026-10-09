@@ -5,7 +5,9 @@
 ```bash
 cd agent
 uv sync
-OPENAI_API_KEY=... uv run uvicorn app.main:app --reload --port 8090
+DEEPSEEK_API_KEY=... uv run uvicorn app.main:app --reload --port 8090
 ```
+
+默认模型为当前 API 接受的 `deepseek-flash`（接口返回 `deepseek-v4.1-flash` 不在支持列表），可通过 `DEEPSEEK_MODEL` 覆盖；密钥只从环境变量读取，不要写入仓库。
 
 Spring Boot 通过内部工具端点提供账本数据，并负责身份、权限、操作草稿和最终写入。
