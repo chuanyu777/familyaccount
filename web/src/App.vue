@@ -11,6 +11,7 @@ import LiabilitiesPage from './features/liabilities/LiabilitiesPage.vue';
 import AnalysisPage from './features/analysis/AnalysisPage.vue';
 import SettingsPage from './features/settings/SettingsPage.vue';
 import MiniBindingPanel from './auth/MiniBindingPanel.vue';
+import AssistantPanel from './features/assistant/AssistantPanel.vue';
 import type { LedgerPermissions, LedgerSession, LedgerSummary } from './auth/types';
 
 defineEmits<{
@@ -69,5 +70,6 @@ onBeforeUnmount(() => window.removeEventListener('web-auth-lost', redirectToLedg
       <MobileNav :model-value="activeTab" @update:model-value="setActiveTab" />
     </template>
   </AppShell>
+  <AssistantPanel />
   <AppToast />
 </template>
