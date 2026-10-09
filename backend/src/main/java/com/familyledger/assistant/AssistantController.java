@@ -15,11 +15,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class AssistantController {
   private final AssistantConversationService conversations;
   private final AssistantOrchestrator orchestrator;
+  private final AssistantActionService actions;
 
   public AssistantController(AssistantConversationService conversations,
-      AssistantOrchestrator orchestrator) {
+      AssistantOrchestrator orchestrator, AssistantActionService actions) {
     this.conversations = conversations;
     this.orchestrator = orchestrator;
+    this.actions = actions;
   }
 
   @GetMapping("/conversations")
@@ -47,6 +49,24 @@ public class AssistantController {
     return orchestrator.respond(id, request.content());
   }
 
+  @PostMapping("/conversations/{id}/actions")
+  public Map<String, Object> proposeAction(@PathVariable long id, @RequestBody ActionRequest request) {
+    return actions.propose(id, request.actionType(), request.payload());
+  }
+
+  @GetMapping("/actions/{id}")
+  public Map<String, Object> getAction(@PathVariable long id) { return actions.get(id); }
+
+  @PostMapping("/actions/{id}/confirm")
+  public Map<String, Object> confirmAction(@PathVariable long id) { return actions.confirm(id); }
+
+  @PostMapping("/actions/{id}/cancel")
+  public Map<String, Object> cancelAction(@PathVariable long id) {
+    actions.cancel(id);
+    return Map.of("ok", true);
+  }
+
   public record CreateConversationRequest(String title) {}
   public record MessageRequest(String content) {}
+  public record ActionRequest(String actionType, Map<String, Object> payload) {}
 }
