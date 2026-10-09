@@ -15,4 +15,5 @@
 .primary-button, .secondary-button { display: flex; align-items: center; justify-content: center; gap: 12rpx; width: 100%; height: 92rpx; border-radius: 14rpx; font-size: 28rpx; font-weight: 700; line-height: 92rpx; }
 .primary-button { background: #3159d7; color: #fff; }
 .secondary-button { margin-top: 20rpx; color: #3159d7; background: #fff; border: 1rpx solid #cbd6f6; }
+.import-link { margin-top: 26rpx; border: 0; background: transparent; color: #7b8494; font-size: 24rpx; }
 .button-icon { font-size: 34rpx; font-weight: 400; }.link-icon { font-size: 38rpx; transform: rotate(-25deg); }

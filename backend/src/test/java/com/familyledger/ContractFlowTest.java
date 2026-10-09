@@ -176,8 +176,9 @@ class ContractFlowTest {
         .andExpect(status().isNoContent()).andReturn().getResponse().getCookie("ledger_session");
     String binding = JsonPath.read(mvc.perform(post("/api/auth/binding-code").cookie(web))
         .andExpect(status().isOk()).andReturn().getResponse().getContentAsString(), "$.code");
-    mvc.perform(post("/api/auth/wechat/bind").contentType(MediaType.APPLICATION_JSON)
-            .content("{\"bindingCode\":\"" + binding + "\",\"code\":\"binding-code\"}"))
+    Cookie mini = wechatLogin("binding-code");
+    mvc.perform(post("/api/auth/web-ledger/import").cookie(mini).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"bindingCode\":\"" + binding + "\"}"))
         .andExpect(status().isOk());
 
     Cookie platform = mvc.perform(post("/api/auth/platform/login").contentType(MediaType.APPLICATION_JSON)

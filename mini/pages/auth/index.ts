@@ -10,9 +10,6 @@ Page({
   onLoad(options: Record<string, unknown>): void {
     captureInvitationToken(options);
   },
-  handleBindWeb(): void {
-    wx.navigateTo({ url: '/pages/bind-web/index' });
-  },
   async handleLogin(): Promise<void> {
     const page = this as unknown as AuthPageContext;
     if (page.data.loading) return;

@@ -40,11 +40,11 @@ async function copyCode() {
   <section class="card mini-binding" aria-labelledby="mini-binding-title">
     <div class="content-section__head">
       <div>
-        <h2 id="mini-binding-title">绑定小程序</h2>
-        <p class="page-header__context">生成一次性绑定码，十分钟内有效。</p>
+        <h2 id="mini-binding-title">导入到微信</h2>
+        <p class="page-header__context">为当前 Web 账号生成一次性导入码，十分钟内有效。</p>
       </div>
       <button type="button" class="btn btn--ghost" :disabled="loading" @click="refreshCode">
-        {{ code ? '刷新绑定码' : '生成绑定码' }}
+        {{ code ? '刷新导入码' : '生成导入码' }}
       </button>
     </div>
     <p v-if="error" class="form-error" role="alert">{{ error }}</p>

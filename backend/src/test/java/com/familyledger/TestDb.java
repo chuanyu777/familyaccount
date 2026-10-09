@@ -9,7 +9,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 public final class TestDb {
   private static final String[] TABLES = {
       "asset_snapshot", "repayment", "txn", "liability", "asset", "category", "account",
-      "ledger_invitation", "web_binding_code", "web_credential", "platform_admin",
+      "ledger_invitation", "web_binding_code", "web_account_link", "web_credential", "platform_admin",
       "ledger_membership", "wechat_identity", "ledger", "app_user"
   };
 
@@ -28,6 +28,10 @@ public final class TestDb {
     }
     String profileMigration = readClasspath("db/migration/V3__user_profile_avatar.sql");
     for (String stmt : Migrator.splitStatements(profileMigration)) {
+      jdbc.execute(stmt);
+    }
+    String webLinkMigration = readClasspath("db/migration/V4__web_ledger_import_links.sql");
+    for (String stmt : Migrator.splitStatements(webLinkMigration)) {
       jdbc.execute(stmt);
     }
   }

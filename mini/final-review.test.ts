@@ -65,7 +65,7 @@ beforeEach(() => {
       if (!reply) throw new Error(`Missing HTTP fixture: ${options.url}`);
       options.success?.({ statusCode: 200, ...reply });
     },
-    redirectTo: vi.fn(), navigateTo: vi.fn(), reLaunch: vi.fn(),
+    redirectTo: vi.fn(), navigateTo: vi.fn(), navigateBack: vi.fn(), reLaunch: vi.fn(), showToast: vi.fn(),
   });
   currentLedgerStore.set(ledger);
   sessionStore.set({ cookie: 'ledger_session=test', userId: 12 });
@@ -96,22 +96,20 @@ describe('final review regressions', () => {
     expect(wx.reLaunch).toHaveBeenCalledWith({ url: '/pages/ledger/home' });
   });
 
-  it('#4 reaches binding before ordinary WeChat login provisions a new identity', async () => {
-    sessionStore.clear();
+  it('#4 keeps Web ledger import out of the login page and reachable from an authenticated account', async () => {
     const auth = await page('auth/index');
-    expect(typeof auth.handleBindWeb).toBe('function');
-    auth.handleBindWeb();
+    expect(typeof auth.handleBindWeb).toBe('undefined');
     expect(requests).toHaveLength(0);
-    expect(wx.navigateTo).toHaveBeenCalledWith({ url: '/pages/bind-web/index' });
-    expect(template('auth/index')).toContain('bindtap="handleBindWeb"');
+    expect(template('auth/index')).not.toContain('旧 Web 账号迁移');
     const bind = await page('bind-web/index');
     bind.data.bindingCode = 'one-time-code';
-    replies.push({ data: { type: 'LEDGER_USER', webSession: false, userId: 11 }, header: { 'Set-Cookie': 'ledger_session=bound; HttpOnly' } });
-    respond([{ id: 1, name: '特殊账本', role: 'OWNER', webEnabled: true }]);
-    await bind.handleBind();
-    expect(requestedPaths()).toEqual(['/api/auth/wechat/bind', '/api/ledgers']);
-    expect(JSON.parse(requests[0]!.data as string)).toEqual({ bindingCode: 'one-time-code', code: 'wx-code' });
-    expect(sessionStore.get()?.userId).toBe(11);
+    respond({ ledgerId: 1, ledgerName: '特殊账本', role: 'OWNER' });
+    await bind.handlePreview();
+    expect(requestedPaths()).toEqual(['/api/auth/web-ledger/preview']);
+    expect(JSON.parse(requests[0]!.data as string)).toEqual({ bindingCode: 'one-time-code' });
+    respond({ ledgerId: 1, ledgerName: '特殊账本', role: 'OWNER' });
+    await bind.handleImport();
+    expect(requestedPaths()).toEqual(['/api/auth/web-ledger/preview', '/api/auth/web-ledger/import']);
     expect(currentLedgerStore.get()?.id).toBe(1);
   });
 

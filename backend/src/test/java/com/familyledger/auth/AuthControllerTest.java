@@ -248,61 +248,89 @@ class AuthControllerTest {
   }
 
   @Test
-  void bindingCodeIsSingleUseAndBindsExistingWebUser() throws Exception {
-    when(weChatClient.exchangeLoginCode("bind-code"))
-        .thenReturn(new WeChatIdentity("openid-owner"));
+  void bindingCodeImportsTheWebLedgerIntoAnExistingWechatUser() throws Exception {
+    when(weChatClient.exchangeLoginCode("mini-code"))
+        .thenReturn(new WeChatIdentity("openid-mini"));
+    Cookie mini = loginWeChat("mini-code");
     Cookie web = loginWeb();
     String bindingCode = issueBindingCode(web);
+    long webUserId = db.queryForObject(
+        "SELECT user_id FROM web_credential WHERE username = 'ledger-owner'", Long.class);
+    long wechatUserId = db.queryForObject(
+        "SELECT user_id FROM wechat_identity WHERE openid = 'openid-mini'", Long.class);
+    long ledgerId = db.queryForObject("SELECT id FROM ledger WHERE is_web_enabled = 1", Long.class);
 
-    mvc.perform(post("/api/auth/wechat/bind")
+    mvc.perform(post("/api/auth/web-ledger/preview").cookie(mini)
             .contentType(MediaType.APPLICATION_JSON)
-            .content("{\"bindingCode\":\"" + bindingCode + "\",\"code\":\"bind-code\"}"))
+            .content("{\"bindingCode\":\"" + bindingCode + "\"}"))
         .andExpect(status().isOk())
-        .andExpect(cookie().exists("ledger_session"));
-    assertThat(db.queryForObject(
-        "SELECT user_id FROM wechat_identity WHERE openid = 'openid-owner'", Long.class))
-        .isEqualTo(db.queryForObject(
-            "SELECT user_id FROM web_credential WHERE username = 'ledger-owner'", Long.class));
+        .andExpect(jsonPath("$.ledgerId").value(ledgerId))
+        .andExpect(jsonPath("$.ledgerName").value("测试特殊账本"))
+        .andExpect(jsonPath("$.role").value("OWNER"));
 
-    mvc.perform(post("/api/auth/wechat/bind")
+    mvc.perform(post("/api/auth/web-ledger/import").cookie(mini)
             .contentType(MediaType.APPLICATION_JSON)
-            .content("{\"bindingCode\":\"" + bindingCode + "\",\"code\":\"bind-code\"}"))
+            .content("{\"bindingCode\":\"" + bindingCode + "\"}"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.ledgerId").value(ledgerId));
+    assertThat(db.queryForObject(
+        "SELECT user_id FROM ledger_membership WHERE ledger_id = ? AND role = 'OWNER'", Long.class, ledgerId))
+        .isEqualTo(wechatUserId);
+    assertThat(db.queryForObject(
+        "SELECT COUNT(*) FROM web_account_link WHERE ledger_id = ? AND web_user_id = ? AND wechat_user_id = ?",
+        Integer.class, ledgerId, webUserId, wechatUserId)).isEqualTo(1);
+
+    mvc.perform(post("/api/auth/web-ledger/import").cookie(mini)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"bindingCode\":\"" + bindingCode + "\"}"))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.error.code").value("BINDING_CODE_INVALID"));
+
+    Cookie linkedWeb = loginWeb();
+    mvc.perform(get("/api/auth/session").param("kind", "ledger").cookie(linkedWeb))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.userId").value(wechatUserId));
   }
 
   @Test
-  void expiredBindingCodeDoesNotCreateIdentity() throws Exception {
-    when(weChatClient.exchangeLoginCode("expired-code"))
-        .thenReturn(new WeChatIdentity("openid-expired"));
+  void expiredBindingCodeCannotBeImported() throws Exception {
+    when(weChatClient.exchangeLoginCode("mini-code"))
+        .thenReturn(new WeChatIdentity("openid-mini"));
+    Cookie mini = loginWeChat("mini-code");
     String bindingCode = issueBindingCode(loginWeb());
     db.update("UPDATE web_binding_code SET expires_at = '2000-01-01 00:00:00' WHERE code_hash = ?",
         hashForTest(bindingCode));
 
-    mvc.perform(post("/api/auth/wechat/bind")
+    mvc.perform(post("/api/auth/web-ledger/preview").cookie(mini)
             .contentType(MediaType.APPLICATION_JSON)
-            .content("{\"bindingCode\":\"" + bindingCode + "\",\"code\":\"expired-code\"}"))
+            .content("{\"bindingCode\":\"" + bindingCode + "\"}"))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.error.code").value("BINDING_CODE_INVALID"));
-    assertThat(db.queryForObject("SELECT COUNT(*) FROM wechat_identity", Integer.class)).isZero();
+    assertThat(db.queryForObject("SELECT COUNT(*) FROM web_account_link", Integer.class)).isZero();
   }
 
   @Test
-  void bindingRejectsAnOpenidAlreadyOwnedByAnotherUser() throws Exception {
-    Long memberId = db.queryForObject(
-        "SELECT user_id FROM web_credential WHERE username = 'ledger-member'", Long.class);
-    db.update("INSERT INTO wechat_identity (user_id, openid, created_at) VALUES (?, ?, '2026-01-01 00:00:00')",
-        memberId, "openid-member");
-    when(weChatClient.exchangeLoginCode("existing-code"))
-        .thenReturn(new WeChatIdentity("openid-member"));
+  void importedWebCreatorCanStillEditHistoricalRecordsFromWechat() throws Exception {
+    when(weChatClient.exchangeLoginCode("mini-code"))
+        .thenReturn(new WeChatIdentity("openid-mini"));
+    Cookie mini = loginWeChat("mini-code");
     String bindingCode = issueBindingCode(loginWeb());
+    long ledgerId = db.queryForObject("SELECT id FROM ledger WHERE is_web_enabled = 1", Long.class);
+    long webUserId = db.queryForObject(
+        "SELECT user_id FROM web_credential WHERE username = 'ledger-owner'", Long.class);
+    long accountId = db.queryForObject("SELECT id FROM account WHERE ledger_id = ?", Long.class, ledgerId);
+    long txnId = com.familyledger.common.Db.insert(db,
+        "INSERT INTO txn (ledger_id, type, amount_cents, occurred_on, account_id, created_by_user_id, source_type, created_at) "
+            + "VALUES (?, 'expense', 100, '2026-10-01', ?, ?, 'manual', '2026-10-01 00:00:00')",
+        ledgerId, accountId, webUserId);
+    mvc.perform(post("/api/auth/web-ledger/import").cookie(mini).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"bindingCode\":\"" + bindingCode + "\"}"))
+        .andExpect(status().isOk());
 
-    mvc.perform(post("/api/auth/wechat/bind")
+    mvc.perform(patch("/api/transactions/{id}", txnId).cookie(mini).header("X-Ledger-Id", ledgerId)
             .contentType(MediaType.APPLICATION_JSON)
-            .content("{\"bindingCode\":\"" + bindingCode + "\",\"code\":\"existing-code\"}"))
-        .andExpect(status().isConflict())
-        .andExpect(jsonPath("$.error.code").value("WECHAT_ALREADY_BOUND"));
-    assertThat(db.queryForObject("SELECT COUNT(*) FROM wechat_identity", Integer.class)).isEqualTo(1);
+            .content("{\"note\":\"微信继续编辑\"}"))
+        .andExpect(status().isOk());
   }
 
   @Test
@@ -320,6 +348,13 @@ class AuthControllerTest {
             .contentType(MediaType.APPLICATION_JSON)
             .content("{\"username\":\"ledger-owner\",\"password\":\"ledger-owner-password\"}"))
         .andExpect(status().isNoContent())
+        .andReturn().getResponse().getCookie("ledger_session");
+  }
+
+  private Cookie loginWeChat(String code) throws Exception {
+    return mvc.perform(post("/api/auth/wechat/login").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"code\":\"" + code + "\"}"))
+        .andExpect(status().isOk())
         .andReturn().getResponse().getCookie("ledger_session");
   }
 

@@ -82,26 +82,24 @@ public class AuthController {
   @PostMapping("/binding-code")
   public Map<String, Object> issueBindingCode(HttpServletRequest request) {
     AuthPrincipal principal = guard.requireLedgerUser(request);
+    long ledgerId = webAuthorization.requireSpecialLedger(principal).ledgerId();
     Map<String, Object> result = new LinkedHashMap<>();
-    BindingCodeView binding = service.issueWebBindingCode(principal.userId());
+    BindingCodeView binding = service.issueWebBindingCode(principal.userId(), ledgerId);
     result.put("code", binding.code());
     result.put("expiresAt", binding.expiresAt());
     return result;
   }
 
-  @PostMapping("/wechat/bind")
-  public Map<String, Object> bindWeChat(@RequestBody(required = false) Map<String, Object> body,
-      HttpServletResponse response) {
-    String bindingCode = text(body, "bindingCode");
-    String loginCode = text(body, "code");
-    WeChatClient.WeChatIdentity identity = service.exchangeWeChatCode(loginCode);
-    if (identity == null || identity.openid() == null || identity.openid().isBlank()) {
-      throw ApiException.unauthorized("WECHAT_LOGIN_FAILED", "微信登录失败");
-    }
-    AuthPrincipal principal = service.bindWeChatIdentity(bindingCode, identity.openid());
-    response.addHeader("Set-Cookie", AuthSession.cookieHeader(config.getLedgerCookie(), principal, config,
-        System.currentTimeMillis()));
-    return principalBody(principal);
+  @PostMapping("/web-ledger/preview")
+  public WebLedgerBindingPreview previewWebLedgerImport(@RequestBody(required = false) Map<String, Object> body,
+      HttpServletRequest request) {
+    return service.previewWebLedgerImport(requireMiniProgramUser(request).userId(), text(body, "bindingCode"));
+  }
+
+  @PostMapping("/web-ledger/import")
+  public WebLedgerBindingPreview importWebLedger(@RequestBody(required = false) Map<String, Object> body,
+      HttpServletRequest request) {
+    return service.importWebLedger(requireMiniProgramUser(request).userId(), text(body, "bindingCode"));
   }
 
   @PostMapping("/logout")
@@ -135,6 +133,14 @@ public class AuthController {
     if (principal.userId() != null) result.put("userId", principal.userId());
     if (principal.platformAdminId() != null) result.put("platformAdminId", principal.platformAdminId());
     return result;
+  }
+
+  private AuthPrincipal requireMiniProgramUser(HttpServletRequest request) {
+    AuthPrincipal principal = guard.requireLedgerUser(request);
+    if (principal.webSession()) {
+      throw ApiException.forbidden("WECHAT_SESSION_REQUIRED", "请在已登录的小程序中导入账本");
+    }
+    return principal;
   }
 
   private static String text(Map<String, Object> body, String key) {

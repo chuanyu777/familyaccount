@@ -16,7 +16,7 @@ import org.springframework.test.context.ActiveProfiles;
 class SchemaSeedTest {
   private static final List<String> LEDGER_TABLES = List.of(
       "app_user", "ledger", "ledger_membership", "ledger_invitation", "web_credential",
-      "platform_admin", "web_binding_code", "account", "category", "txn", "asset",
+      "platform_admin", "web_binding_code", "web_account_link", "account", "category", "txn", "asset",
       "liability", "repayment", "asset_snapshot");
 
   @Autowired JdbcTemplate db;

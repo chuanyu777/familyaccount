@@ -12,6 +12,12 @@ export interface AuthResult {
   ledgers: LedgerSummary[];
 }
 
+export interface WebLedgerImportPreview {
+  ledgerId: number;
+  ledgerName: string;
+  role: 'OWNER' | 'MEMBER';
+}
+
 interface AuthResponse {
   userId: number;
   type: 'LEDGER_USER';
@@ -62,13 +68,18 @@ export async function loginWithWeChat(): Promise<AuthResult> {
   return finishAuthentication(response);
 }
 
-export async function bindExistingWebAccount(bindingCode: string): Promise<AuthResult> {
-  const code = await getWeChatCode();
-  const response = await request<AuthResponse>('/api/auth/wechat/bind', {
+export function previewWebLedgerImport(bindingCode: string): Promise<WebLedgerImportPreview> {
+  return request<WebLedgerImportPreview>('/api/auth/web-ledger/preview', {
     method: 'POST',
-    data: { bindingCode, code },
+    data: { bindingCode },
   });
-  return finishAuthentication(response);
+}
+
+export function importWebLedger(bindingCode: string): Promise<WebLedgerImportPreview> {
+  return request<WebLedgerImportPreview>('/api/auth/web-ledger/import', {
+    method: 'POST',
+    data: { bindingCode },
+  });
 }
 
 export async function logout(): Promise<void> {

@@ -58,9 +58,17 @@ public class LedgerAuthorization {
 
   public LedgerContext requireCreatorOrOwner(AuthPrincipal principal, long ledgerId, long createdByUserId) {
     LedgerContext context = requireMembership(principal, ledgerId);
-    if (!context.isOwner() && context.userId() != createdByUserId) {
+    if (!context.isOwner() && context.userId() != createdByUserId
+        && !isLinkedWebCreator(context.userId(), createdByUserId, ledgerId)) {
       throw ApiException.forbidden("RECORD_CREATOR_REQUIRED", "只能修改自己创建的记录");
     }
     return context;
+  }
+
+  private boolean isLinkedWebCreator(long wechatUserId, long webUserId, long ledgerId) {
+    Long count = db.queryForObject(
+        "SELECT COUNT(*) FROM web_account_link WHERE ledger_id = ? AND wechat_user_id = ? AND web_user_id = ?",
+        Long.class, ledgerId, wechatUserId, webUserId);
+    return count != null && count > 0;
   }
 }

@@ -250,7 +250,7 @@ describe('R1 invitation exit and retry flows', () => {
     expect(invitationTokenStore.get()).toBeNull();
   });
 
-  it('preserves session, ledger and pending invitation on a Web binding conflict', async () => {
+  it('preserves session, ledger and pending invitation on a Web ledger import conflict', async () => {
     sessionStore.set({ cookie: 'ledger_session=existing', userId: 7 });
     currentLedgerStore.set(ledger);
     invitationTokenStore.set('pending-token');
@@ -258,12 +258,12 @@ describe('R1 invitation exit and retry flows', () => {
     const bind = await page('bind-web/index');
     bind.data.bindingCode = 'one-time-code';
     fail(409, 'WECHAT_ALREADY_BOUND', '微信身份已绑定其他用户');
-    await bind.handleBind();
+    await bind.handlePreview();
     expect(bind.data.errorMessage).toBe('微信身份已绑定其他用户');
     expect(sessionStore.get()).toEqual({ cookie: 'ledger_session=existing', userId: 7 });
     expect(currentLedgerStore.get()).toEqual(ledger);
     expect(invitationTokenStore.get()).toBe('pending-token');
     expect(stack).toEqual(['/pages/bind-web/index']);
-    expect(paths()).toEqual(['/api/auth/wechat/bind']);
+    expect(paths()).toEqual(['/api/auth/web-ledger/preview']);
   });
 });

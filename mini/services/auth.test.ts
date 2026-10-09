@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  bindExistingWebAccount,
   captureInvitationToken,
   getPostAuthRoute,
+  importWebLedger,
   loginWithWeChat,
   logout,
+  previewWebLedgerImport,
   invitationTokenStore,
 } from './auth';
 import { request } from '../lib/http';
@@ -84,30 +85,28 @@ describe('auth service', () => {
     expect(currentLedgerStore.get()).toEqual({ id: 3, name: '工作账本', role: 'MEMBER' });
   });
 
-  it('sends the binding code and a fresh WeChat code without clearing the session on failure', async () => {
+  it('previews an existing Web ledger with the current WeChat session', async () => {
     sessionStore.set({ cookie: 'ledger_session=valid-session', userId: 7 });
-    requestMock.mockRejectedValueOnce(new Error('绑定码已过期'));
+    requestMock.mockResolvedValueOnce({ ledgerId: 3, ledgerName: '旧家庭账本', role: 'OWNER' });
 
-    await expect(bindExistingWebAccount('binding-code')).rejects.toThrow('绑定码已过期');
+    await expect(previewWebLedgerImport('binding-code')).resolves.toEqual({ ledgerId: 3, ledgerName: '旧家庭账本', role: 'OWNER' });
 
-    expect(requestMock).toHaveBeenCalledWith('/api/auth/wechat/bind', {
+    expect(requestMock).toHaveBeenCalledWith('/api/auth/web-ledger/preview', {
       method: 'POST',
-      data: { bindingCode: 'binding-code', code: 'wechat-code' },
+      data: { bindingCode: 'binding-code' },
     });
     expect(sessionStore.get()).toEqual({ cookie: 'ledger_session=valid-session', userId: 7 });
   });
 
-  it('refreshes ledgers after a successful Web account binding', async () => {
-    requestMock
-      .mockResolvedValueOnce({ userId: 11, type: 'LEDGER_USER', webSession: true })
-      .mockResolvedValueOnce([{ id: 1, name: '特殊账本', role: 'OWNER', webEnabled: true }]);
+  it('imports a selected Web ledger without replacing the current WeChat session', async () => {
+    sessionStore.set({ cookie: 'ledger_session=valid-session', userId: 7 });
+    requestMock.mockResolvedValueOnce({ ledgerId: 3, ledgerName: '旧家庭账本', role: 'MEMBER' });
 
-    await expect(bindExistingWebAccount('binding-code')).resolves.toMatchObject({
-      userId: 11,
-      webSession: true,
-      ledgers: [{ id: 1, name: '特殊账本', webEnabled: true }],
+    await expect(importWebLedger('binding-code')).resolves.toEqual({ ledgerId: 3, ledgerName: '旧家庭账本', role: 'MEMBER' });
+    expect(requestMock).toHaveBeenCalledWith('/api/auth/web-ledger/import', {
+      method: 'POST', data: { bindingCode: 'binding-code' },
     });
-    expect(requestMock).toHaveBeenNthCalledWith(2, '/api/ledgers');
+    expect(sessionStore.get()).toEqual({ cookie: 'ledger_session=valid-session', userId: 7 });
   });
 
   it('clears the session and current ledger on logout', async () => {

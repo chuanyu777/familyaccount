@@ -63,6 +63,7 @@ Page({
     finally { page.setData({ profileSaving: false }); }
   },
   openCategoryManagement(): void { wx.navigateTo({ url: '/pages/categories/index' }); },
+  openWebLedgerImport(): void { wx.navigateTo({ url: '/pages/bind-web/index' }); },
   openLedgerSwitcher(): void { (this as unknown as SettingsPageContext).setData({ switcherOpen: true }); },
   closeLedgerSwitcher(): void { (this as unknown as SettingsPageContext).setData({ switcherOpen: false }); },
   onShareAppMessage(): { title: string; path: string } {
