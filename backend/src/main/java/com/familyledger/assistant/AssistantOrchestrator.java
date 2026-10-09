@@ -18,11 +18,13 @@ import org.springframework.stereotype.Service;
 public class AssistantOrchestrator {
   private final AssistantToolFacade tools;
   private final AssistantConversationService conversations;
+  private final AssistantAgentClient agent;
 
   public AssistantOrchestrator(AssistantToolFacade tools,
-      AssistantConversationService conversations) {
+      AssistantConversationService conversations, AssistantAgentClient agent) {
     this.tools = tools;
     this.conversations = conversations;
+    this.agent = agent;
   }
 
   public Map<String, Object> respond(long conversationId, String content) {
@@ -30,6 +32,11 @@ public class AssistantOrchestrator {
     String month = MonthUtil.currentMonth();
     AssistantContext context = new AssistantContext("local-" + conversationId, null, null,
         ZoneId.of("Asia/Shanghai"), month);
+    Map<String, Object> runtime = agent.run(content, context);
+    if (runtime != null && runtime.get("content") != null) {
+      return conversations.appendAssistantMessage(conversationId,
+          String.valueOf(runtime.get("content")), runtime.get("blocks"));
+    }
     String normalized = content.toLowerCase(Locale.ROOT);
     Map<String, Object> block = new LinkedHashMap<>();
     String text;
