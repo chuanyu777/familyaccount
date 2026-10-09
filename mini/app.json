@@ -10,6 +10,7 @@
     "pages/settings/index",
     "pages/categories/index",
     "pages/accounting/index",
+    "pages/assistant/index",
     "pages/assets/index",
     "pages/liabilities/index",
     "pages/analysis/index"

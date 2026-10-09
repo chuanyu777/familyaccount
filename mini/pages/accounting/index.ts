@@ -64,6 +64,7 @@ Page({
   openLedgerSwitcher(): void { (this as unknown as PageContext).setData({ switcherOpen: true }); },
   closeLedgerSwitcher(): void { (this as unknown as PageContext).setData({ switcherOpen: false }); },
   showNotice(): void { wx.showToast({ title: '暂无新消息', icon: 'none' }); },
+  openAssistant(): void { wx.navigateTo({ url: '/pages/assistant/index' }); },
   handleMonthInput(event: { detail: { value: string } }): void { const page = this as unknown as PageContext; page.setData({ month: event.detail.value, monthLabel: event.detail.value.replace('-', '年') + '月' }); void page.onShow(); },
   handleTypeFilter(event: { detail: { value: string } }): void { const page = this as unknown as PageContext; page.setData({ typeFilter: ['', 'expense', 'income', 'transfer'][Number(event.detail.value)] ?? '' }); void page.onShow(); },
   setTypeFilter(event: { currentTarget: { dataset: { type: string } } }): void { const page = this as unknown as PageContext; page.setData({ typeFilter: event.currentTarget.dataset.type }); void page.onShow(); },

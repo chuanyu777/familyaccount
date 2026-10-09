@@ -44,7 +44,7 @@
     <view wx:if="{{editingCategoryId !== null}}" class="category-edit"><input value="{{editingCategoryName}}" bindinput="handleCategoryEditName"/><button size="mini" class="primary-button" bindtap="saveCategoryEdit" loading="{{saving}}">保存分类</button></view>
   </view>
 
-  <button class="fab" bindtap="openCreate"><text class="fab-plus">＋</text>记一笔</button>
+  <view class="fab-stack"><button class="assistant-fab" bindtap="openAssistant">✦ 问问助手</button><button class="fab" bindtap="openCreate"><text class="fab-plus">＋</text>记一笔</button></view>
   <ledger-switcher visible="{{switcherOpen}}" bindclose="closeLedgerSwitcher" />
   <tabbar current="accounting" />
 

@@ -29,7 +29,9 @@ async function ensureConversation() {
 }
 async function scrollToBottom(smooth = false) {
   await nextTick();
-  scroller.value?.scrollTo({ top: scroller.value.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+  if (typeof scroller.value?.scrollTo === 'function') {
+    scroller.value.scrollTo({ top: scroller.value.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+  }
 }
 async function reveal() {
   emit('update:open', true);
