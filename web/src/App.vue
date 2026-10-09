@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import AppShell from './components/AppShell.vue';
 import DesktopNav from './components/DesktopNav.vue';
 import MobileNav from './components/MobileNav.vue';
@@ -38,6 +38,14 @@ const PAGES = {
 
 const { activeTab, setActiveTab } = useHashTab('accounting');
 const currentPage = computed(() => PAGES[activeTab.value]);
+const assistantOpen = ref(true);
+const assistantContext = computed(() => ({
+  accounting: '当前页面：本月账目',
+  assets: '当前页面：资产总览',
+  liabilities: '当前页面：负债总览',
+  analysis: '当前页面：财务分析',
+  settings: '当前页面：账本设置',
+})[activeTab.value]);
 
 function redirectToLedgerLogin(event: Event) {
   const detail = (event as CustomEvent<{ kind?: string }>).detail;
@@ -49,27 +57,35 @@ onBeforeUnmount(() => window.removeEventListener('web-auth-lost', redirectToLedg
 </script>
 
 <template>
-  <AppShell>
-    <template #account-actions>
-      <button type="button" class="btn btn--ghost" @click="$emit('logout')">退出登录</button>
-    </template>
-    <template #desktop-nav>
-      <DesktopNav :model-value="activeTab" :family-name="ledger.name" @update:model-value="setActiveTab" />
-    </template>
+  <div class="ledger-app" :class="{ 'ledger-app--assistant-open': assistantOpen }">
+    <AppShell>
+      <template #account-actions>
+        <button type="button" class="btn btn--ghost" @click="$emit('logout')">退出登录</button>
+      </template>
+      <template #desktop-nav>
+        <DesktopNav :model-value="activeTab" :family-name="ledger.name" @update:model-value="setActiveTab" />
+      </template>
 
-    <template #default>
-      <Transition name="page" mode="out-in">
-        <div :key="activeTab" class="page-layout" :data-page="activeTab">
-          <component :is="currentPage" :session="session" :permissions="permissions" />
-          <MiniBindingPanel v-if="activeTab === 'settings'" />
-        </div>
-      </Transition>
-    </template>
+      <template #default>
+        <Transition name="page" mode="out-in">
+          <div :key="activeTab" class="page-layout" :data-page="activeTab">
+            <component :is="currentPage" :session="session" :permissions="permissions" />
+            <MiniBindingPanel v-if="activeTab === 'settings'" />
+          </div>
+        </Transition>
+      </template>
 
-    <template #mobile-nav>
-      <MobileNav :model-value="activeTab" @update:model-value="setActiveTab" />
-    </template>
-  </AppShell>
-  <AssistantPanel />
-  <AppToast />
+      <template #mobile-nav>
+        <MobileNav :model-value="activeTab" @update:model-value="setActiveTab" />
+      </template>
+    </AppShell>
+    <AssistantPanel v-model:open="assistantOpen" :context-label="assistantContext" />
+    <AppToast />
+  </div>
 </template>
+
+<style scoped>
+@media (min-width: 768px) {
+  .ledger-app--assistant-open :deep(.app-shell__main) { margin-right: 380px; }
+}
+</style>

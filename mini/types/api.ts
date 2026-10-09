@@ -23,6 +23,20 @@ export interface MiniRequestOptions<T = unknown> {
   fail?: (error: unknown) => void;
 }
 
+export interface MiniUploadFileSuccessResult {
+  statusCode: number;
+  data: string;
+}
+
+export interface MiniUploadFileOptions {
+  url: string;
+  filePath: string;
+  name: string;
+  header?: Record<string, string>;
+  success?: (result: MiniUploadFileSuccessResult) => void;
+  fail?: (error: unknown) => void;
+}
+
 export interface MiniProgramApi {
   request<T = unknown>(options: MiniRequestOptions<T>): unknown;
   login(options: { success?: (result: { code: string }) => void; fail?: (error: unknown) => void }): unknown;
@@ -32,13 +46,15 @@ export interface MiniProgramApi {
   redirectTo(options: { url: string }): unknown;
   navigateTo(options: { url: string }): unknown;
   reLaunch(options: { url: string }): unknown;
+  showToast(options: { title: string; icon?: 'none' | 'success'; duration?: number }): unknown;
+  uploadFile(options: MiniUploadFileOptions): unknown;
 }
 
 declare global {
   const wx: MiniProgramApi;
   function App(options: Record<string, unknown>): void;
   function Page(options: Record<string, unknown>): void;
-  function Component(options: Record<string, unknown>): void;
+  function Component(options: any): void;
 }
 
 export type { MiniSession };

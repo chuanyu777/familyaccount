@@ -18,7 +18,7 @@ Component({
     ],
   },
   methods: {
-    navigate(event: { currentTarget: { dataset: { route: string } } }): void {
+    navigate(this: { data: { current: string } }, event: { currentTarget: { dataset: { route: string } } }): void {
       const url = routes[event.currentTarget.dataset.route];
       if (url && event.currentTarget.dataset.route !== this.data.current) wx.redirectTo({ url });
     },

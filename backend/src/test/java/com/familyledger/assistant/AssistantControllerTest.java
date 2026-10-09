@@ -6,7 +6,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.familyledger.TestDb;
+import com.familyledger.auth.AuthGuard;
+import com.familyledger.auth.AuthPrincipal;
 import com.familyledger.db.Seeder;
+import com.familyledger.ledger.LedgerContext;
 import com.familyledger.service.LedgerService;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,17 +33,24 @@ class AssistantControllerTest {
   @Autowired Seeder seeder;
   @Autowired LedgerService ledger;
   @Autowired ObjectMapper json;
+  private AuthPrincipal owner;
+  private LedgerContext ledgerContext;
+  private long ledgerId;
 
   @BeforeEach
   void reset() {
     TestDb.reset(jdbc);
     seeder.ensureSeeded();
+    long ownerId = jdbc.queryForObject("SELECT user_id FROM web_credential WHERE username = 'ledger-owner'", Long.class);
+    ledgerId = jdbc.queryForObject("SELECT id FROM ledger WHERE is_web_enabled = 1", Long.class);
+    owner = AuthPrincipal.webLedgerUser(ownerId);
+    ledgerContext = new LedgerContext(ledgerId, ownerId, "OWNER", true);
     long walletId = jdbc.queryForObject("SELECT id FROM account WHERE is_default = 1", Long.class);
-    ledger.createTransaction(Map.of("type", "income", "amount", 9000, "accountId", walletId,
+    ledger.createTransaction(owner, ledgerContext, Map.of("type", "income", "amount", 9000, "accountId", walletId,
         "categoryName", "工资", "occurredOn", "2026-10-01"));
-    ledger.createTransaction(Map.of("type", "expense", "amount", 120.50, "accountId", walletId,
+    ledger.createTransaction(owner, ledgerContext, Map.of("type", "expense", "amount", 120.50, "accountId", walletId,
         "categoryName", "餐饮", "occurredOn", "2026-10-02", "note", "周末聚餐"));
-    ledger.createTransaction(Map.of("type", "expense", "amount", 38, "accountId", walletId,
+    ledger.createTransaction(owner, ledgerContext, Map.of("type", "expense", "amount", 38, "accountId", walletId,
         "categoryName", "交通", "occurredOn", "2026-10-03"));
   }
 
@@ -50,6 +60,7 @@ class AssistantControllerTest {
       case "POST" -> org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(url);
       default -> throw new IllegalArgumentException(method);
     };
+    request.requestAttr(AuthGuard.REQUEST_PRINCIPAL, owner).header("X-Ledger-Id", ledgerId);
     if (body != null) request.contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsBytes(body));
     String response = mvc.perform(request).andExpect(status().is(expected)).andReturn()
         .getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
@@ -98,7 +109,7 @@ class AssistantControllerTest {
 
     JsonNode executed = call("POST", "/api/assistant/actions/" + actionId + "/confirm", Map.of(), 200);
     assertThat(executed.get("status").asText()).isEqualTo("EXECUTED");
-    assertThat(executed.get("result").get("transaction").get("amount_cents").asLong()).isEqualTo(6_660L);
+    assertThat(executed.get("result").get("transaction").get("amountCents").asLong()).isEqualTo(6_660L);
 
     JsonNode repeated = call("POST", "/api/assistant/actions/" + actionId + "/confirm", Map.of(), 200);
     assertThat(repeated.get("status").asText()).isEqualTo("EXECUTED");

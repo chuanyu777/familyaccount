@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref } from 'vue';
+import { nextTick, ref, watch } from 'vue';
+import { ArrowUp, ChartSpline, Paperclip, ReceiptText, Search, Sparkles, SquarePen, X } from 'lucide-vue-next';
 import { apiGet, apiPost } from '../../lib/api';
 
 interface Message {
@@ -9,7 +10,10 @@ interface Message {
   blocks?: Array<{ type: string; data?: unknown; suggestions?: string[] }>;
 }
 
-const open = ref(false);
+const props = withDefaults(defineProps<{ open: boolean; contextLabel?: string }>(), {
+  contextLabel: '当前页面：本月账目',
+});
+const emit = defineEmits<{ 'update:open': [open: boolean] }>();
 const loading = ref(false);
 const input = ref('');
 const conversationId = ref<number | null>(null);
@@ -20,20 +24,26 @@ async function ensureConversation() {
   if (conversationId.value) return;
   const rows = await apiGet<Array<{ id: number }>>('/assistant/conversations');
   if (rows.length) conversationId.value = rows[0]!.id;
-  else {
-    const created = await apiPost<{ id: number }>('/assistant/conversations', {});
-    conversationId.value = created.id;
-  }
+  else conversationId.value = (await apiPost<{ id: number }>('/assistant/conversations', {})).id;
   messages.value = await apiGet<Message[]>(`/assistant/conversations/${conversationId.value}/messages`);
 }
-
-async function show() {
-  open.value = true;
-  try { await ensureConversation(); } catch { /* 页面仍可显示输入框 */ }
+async function scrollToBottom(smooth = false) {
   await nextTick();
-  scroller.value?.scrollTo({ top: scroller.value.scrollHeight });
+  scroller.value?.scrollTo({ top: scroller.value.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
 }
-
+async function reveal() {
+  emit('update:open', true);
+  try { await ensureConversation(); } catch { /* 网络恢复后仍可继续输入 */ }
+  await scrollToBottom();
+}
+function close() { emit('update:open', false); }
+async function newConversation() {
+  if (loading.value) return;
+  try {
+    conversationId.value = (await apiPost<{ id: number }>('/assistant/conversations', {})).id;
+    messages.value = [];
+  } catch { /* 不丢弃现有对话 */ }
+}
 async function send(value = input.value) {
   const content = value.trim();
   if (!content || loading.value) return;
@@ -41,95 +51,101 @@ async function send(value = input.value) {
   loading.value = true;
   try {
     await ensureConversation();
-    const response = await apiPost<Message>(
-      `/assistant/conversations/${conversationId.value}/messages`, { content });
-    messages.value = [...messages.value, {
-      id: response.id - 1,
-      role: 'user',
-      content,
-    }, response];
-    await nextTick();
-    scroller.value?.scrollTo({ top: scroller.value.scrollHeight, behavior: 'smooth' });
-  } finally {
-    loading.value = false;
-  }
+    const response = await apiPost<Message>(`/assistant/conversations/${conversationId.value}/messages`, { content });
+    messages.value = [...messages.value, { id: response.id - 1, role: 'user', content }, response];
+    await scrollToBottom(true);
+  } finally { loading.value = false; }
 }
-
-onMounted(() => { if (open.value) void show(); });
+function quickEntry() { void send('帮我记一笔'); }
+function quickSummary() { void send('总结本月'); }
+function quickSearch() { void send('查最近大额'); }
+function insightRows(message: Message): Array<{ label: string; value: string }> {
+  const block = message.blocks?.[0];
+  const data = block?.data;
+  if (!data || typeof data !== 'object') return [];
+  const values = data as Record<string, unknown>;
+  const format = (value: unknown) => value == null || value === '' ? '—' : `¥${String(value)}`;
+  if ('income' in values || 'expense' in values || 'net' in values) {
+    return [
+      { label: '收入', value: format(values.income) },
+      { label: '支出', value: format(values.expense) },
+      { label: '结余', value: format(values.net) },
+    ];
+  }
+  if ('assetsTotal' in values || 'totalLiabilities' in values || 'netWorth' in values) {
+    return [
+      { label: '资产', value: format(values.assetsTotal) },
+      { label: '负债', value: format(values.totalLiabilities) },
+      { label: '净资产', value: format(values.netWorth) },
+    ];
+  }
+  return [];
+}
+function insightPeriod(message: Message): string {
+  const data = message.blocks?.[0]?.data;
+  return data && typeof data === 'object' && 'month' in data ? String(data.month) : '当前账本';
+}
+watch(() => props.open, open => { if (open) void reveal(); }, { immediate: true });
 </script>
 
 <template>
-  <button class="assistant-fab" type="button" aria-label="打开家庭财务助手" @click="show">
-    <span class="assistant-fab__spark">✦</span>
-    <span>问助手</span>
+  <button class="assistant-fab" :class="{ 'assistant-fab--active': open }" type="button" :aria-label="open ? '收起财务助手' : '打开家庭财务助手'" :aria-pressed="open" @click="open ? close() : reveal()">
+    <Sparkles :size="17" aria-hidden="true" /><span>{{ open ? '收起助手' : '问问助手' }}</span>
   </button>
 
-  <div v-if="open" class="assistant-overlay" @click.self="open = false">
-    <aside class="assistant-panel" aria-label="家庭财务助手">
+  <div v-if="open" class="assistant-scrim" @click.self="close">
+    <aside class="assistant-panel" aria-label="财务助手对话">
       <header class="assistant-panel__header">
-        <div>
-          <p class="assistant-panel__eyebrow">FAMILY FINANCE AI</p>
-          <h2>家庭财务助手</h2>
+        <div class="assistant-title">
+          <span class="assistant-logo"><Sparkles :size="18" aria-hidden="true" /></span>
+          <div><strong>财务助手</strong><span><i class="assistant-status-dot" aria-hidden="true" />正在使用本账本数据</span></div>
         </div>
-        <button class="assistant-panel__close" type="button" aria-label="关闭" @click="open = false">×</button>
+        <div class="assistant-header-actions">
+          <button type="button" aria-label="新对话" title="新对话" @click="newConversation"><SquarePen :size="17" /></button>
+          <button type="button" aria-label="关闭" title="关闭" @click="close"><X :size="18" /></button>
+        </div>
       </header>
-      <div ref="scroller" class="assistant-panel__messages">
-        <div v-if="!messages.length" class="assistant-empty">
-          <div class="assistant-empty__icon">✦</div>
-          <strong>今天想了解什么？</strong>
-          <p>直接问我家庭收支、分类和账户余额。</p>
-          <div class="assistant-suggestions">
-            <button type="button" @click="send('本月花了多少？')">本月花了多少？</button>
-            <button type="button" @click="send('钱都花在哪些分类？')">钱都花在哪些分类？</button>
-            <button type="button" @click="send('看看账户余额')">看看账户余额</button>
+
+      <div class="assistant-context"><Paperclip :size="13" aria-hidden="true" /><span>{{ contextLabel }}</span><button type="button" aria-label="移除页面上下文"><X :size="13" /></button></div>
+
+      <div ref="scroller" class="assistant-chat" aria-live="polite">
+        <section class="assistant-intro">
+          <span class="assistant-small-logo"><Sparkles :size="14" aria-hidden="true" /></span>
+          <p>我可以帮你记账、查账和解释家庭财务变化。</p>
+          <div class="assistant-quick-actions">
+            <button type="button" @click="quickEntry"><ReceiptText :size="13" />帮我记一笔</button>
+            <button type="button" @click="quickSummary"><ChartSpline :size="13" />总结本月</button>
+            <button type="button" @click="quickSearch"><Search :size="13" />查最近大额</button>
           </div>
-        </div>
+        </section>
         <div v-for="message in messages" :key="message.id" class="assistant-message" :class="`assistant-message--${message.role}`">
           <div class="assistant-message__bubble">{{ message.content }}</div>
-          <div v-if="message.blocks?.[0]?.type === 'metric'" class="assistant-card">
-            <template v-if="message.blocks[0].data && typeof message.blocks[0].data === 'object'">
-              <div v-for="(value, key) in (message.blocks[0].data as Record<string, unknown>)" :key="key" v-show="String(key).endsWith('Cents') === false" class="assistant-card__row">
-                <span>{{ key }}</span><strong>{{ value }}</strong>
-              </div>
-            </template>
+          <div v-if="message.blocks?.[0]?.type === 'metric' && insightRows(message).length" class="assistant-card assistant-insight-card">
+            <div class="assistant-insight-card__period"><span>账本摘要</span><span>{{ insightPeriod(message) }}</span></div>
+            <div class="assistant-insight-card__metrics"><div v-for="row in insightRows(message)" :key="row.label"><span>{{ row.label }}</span><strong>{{ row.value }}</strong></div></div>
           </div>
         </div>
         <div v-if="loading" class="assistant-message assistant-message--assistant"><div class="assistant-message__bubble">正在查看账本…</div></div>
       </div>
-      <form class="assistant-composer" @submit.prevent="send()">
-        <input v-model="input" placeholder="问问你的家庭账本" autocomplete="off" />
-        <button type="submit" :disabled="loading || !input.trim()" aria-label="发送">↑</button>
-      </form>
+
+      <form class="assistant-composer" @submit.prevent="send()"><textarea v-model="input" rows="1" placeholder="问问你的家庭账本" aria-label="向财务助手提问" /><button type="submit" :disabled="loading || !input.trim()" aria-label="发送"><ArrowUp :size="17" /></button></form>
+      <p class="assistant-disclaimer">AI 只会在你确认后写入账本</p>
     </aside>
   </div>
 </template>
 
 <style scoped>
-.assistant-fab { position: fixed; right: 24px; bottom: 24px; z-index: 20; display: inline-flex; align-items: center; gap: 7px; border: 0; border-radius: 999px; padding: 12px 17px; color: #fffdf7; background: #1e4b43; box-shadow: 0 12px 28px #1e4b4333; font: inherit; cursor: pointer; }
-.assistant-fab__spark { color: #e3b866; font-size: 18px; }
-.assistant-overlay { position: fixed; inset: 0; z-index: 30; background: #16241d2b; }
-.assistant-panel { position: absolute; top: 20px; right: 20px; bottom: 20px; display: flex; width: min(420px, calc(100vw - 40px)); flex-direction: column; overflow: hidden; border: 1px solid #dcd7c9; border-radius: 22px; background: #faf9f3; box-shadow: 0 24px 80px #26352b2e; }
-.assistant-panel__header { display: flex; justify-content: space-between; padding: 24px 24px 18px; border-bottom: 1px solid #e7e2d7; }
-.assistant-panel__eyebrow { margin: 0 0 7px; color: #a17a38; font-size: 10px; letter-spacing: .16em; }
-.assistant-panel h2 { margin: 0; color: #1d4039; font-size: 21px; }
-.assistant-panel__close { border: 0; background: none; color: #7f877d; font-size: 28px; cursor: pointer; }
-.assistant-panel__messages { flex: 1; overflow-y: auto; padding: 24px; }
-.assistant-empty { padding: 34px 8px; text-align: center; color: #56635a; }
-.assistant-empty__icon { margin: 0 auto 14px; color: #b4863b; font-size: 32px; }
-.assistant-empty strong { color: #1e4039; font-size: 18px; }
-.assistant-empty p { margin: 8px 0 20px; font-size: 13px; }
-.assistant-suggestions { display: grid; gap: 8px; }
-.assistant-suggestions button { border: 1px solid #ded8c8; border-radius: 12px; padding: 11px; background: #fffdf7; color: #31564d; text-align: left; cursor: pointer; }
-.assistant-message { display: flex; flex-direction: column; margin: 0 0 16px; gap: 8px; }
-.assistant-message--user { align-items: flex-end; }
-.assistant-message__bubble { max-width: 88%; border-radius: 15px; padding: 11px 13px; background: #ebe9df; color: #283d35; font-size: 14px; line-height: 1.55; }
-.assistant-message--user .assistant-message__bubble { background: #1e4b43; color: white; }
-.assistant-card { width: 100%; border: 1px solid #e0dacb; border-radius: 13px; padding: 11px 13px; background: #fffdf7; }
-.assistant-card__row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #eee9dc; color: #768078; font-size: 12px; }
-.assistant-card__row:last-child { border: 0; }
-.assistant-card__row strong { color: #284b42; font-weight: 600; }
-.assistant-composer { display: flex; gap: 8px; padding: 15px; border-top: 1px solid #e7e2d7; background: #fffdf7; }
-.assistant-composer input { flex: 1; min-width: 0; border: 1px solid #d8d4c9; border-radius: 12px; padding: 11px 13px; background: #faf9f3; outline: none; }
-.assistant-composer button { width: 40px; border: 0; border-radius: 12px; background: #1e4b43; color: white; font-size: 19px; cursor: pointer; }
-.assistant-composer button:disabled { opacity: .35; cursor: default; }
+.assistant-fab { position: fixed; right: 24px; bottom: 24px; z-index: 40; display: inline-flex; min-height: 43px; align-items: center; justify-content: center; gap: 7px; padding: 10px 15px; border: 1px solid var(--primary); border-radius: 13px; background: var(--surface); box-shadow: 0 8px 20px rgba(19, 23, 34, .16); color: var(--primary); font-size: 13px; font-weight: 500; cursor: pointer; }
+.assistant-fab--active { background: var(--surface-accent); }
+.assistant-scrim { position: fixed; inset: 0; z-index: 30; pointer-events: none; }
+.assistant-panel { position: fixed; top: 64px; right: 0; bottom: 0; display: flex; width: 380px; min-width: 0; flex-direction: column; border-left: 1px solid var(--line); background: var(--surface); pointer-events: auto; }
+.assistant-panel__header { display: flex; min-height: 64px; align-items: center; justify-content: space-between; padding: 12px 15px; border-bottom: 1px solid var(--line); }
+.assistant-title { display: flex; align-items: center; gap: 10px; }.assistant-logo, .assistant-small-logo { display: grid; place-items: center; border-radius: 11px; background: var(--primary); color: #fff; }.assistant-logo { width: 36px; height: 36px; }.assistant-title > div { display: grid; gap: 3px; }.assistant-title strong { font-size: 14px; font-weight: 500; }.assistant-title span { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 10px; }.assistant-status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--income); }
+.assistant-header-actions { display: flex; gap: 3px; }.assistant-header-actions button { display: grid; width: 34px; height: 34px; place-items: center; border: 0; border-radius: 9px; background: transparent; color: var(--muted); cursor: pointer; }.assistant-header-actions button:hover { background: var(--bg); color: var(--ink); }
+.assistant-context { display: flex; align-items: center; gap: 7px; margin: 10px 14px 0; padding: 8px 10px; border-radius: 10px; background: var(--surface-accent); color: var(--primary); font-size: 11px; }.assistant-context span { flex: 1; }.assistant-context button { display: grid; place-items: center; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; }
+.assistant-chat { flex: 1; overflow-y: auto; padding: 17px 14px 12px; }.assistant-intro { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 8px; margin-bottom: 17px; }.assistant-small-logo { width: 28px; height: 28px; border-radius: 9px; }.assistant-intro p { margin: 4px 0 10px; font-size: 12px; line-height: 1.5; }.assistant-quick-actions { grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px; }.assistant-quick-actions button { display: inline-flex; align-items: center; gap: 5px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--ink); font-size: 11px; cursor: pointer; }.assistant-quick-actions button svg { color: var(--primary); }
+.assistant-message { display: flex; flex-direction: column; gap: 8px; margin: 0 0 14px; }.assistant-message--user { align-items: flex-end; }.assistant-message__bubble { max-width: 88%; padding: 9px 12px; border-radius: 13px 13px 13px 3px; background: var(--surface-accent); color: var(--ink); font-size: 12px; line-height: 1.55; white-space: pre-wrap; }.assistant-message--user .assistant-message__bubble { border-radius: 13px 13px 3px 13px; background: var(--primary); color: #fff; }
+.assistant-card { width: 100%; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); }.assistant-insight-card { padding: 13px; }.assistant-insight-card__period { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; }.assistant-insight-card__period span:first-child { color: var(--ink); font-weight: 500; }.assistant-insight-card__metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 13px; }.assistant-insight-card__metrics div { display: grid; gap: 3px; min-width: 0; }.assistant-insight-card__metrics span { color: var(--muted); font-size: 9px; }.assistant-insight-card__metrics strong { overflow: hidden; font-size: 13px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.assistant-composer { display: grid; grid-template-columns: 1fr 34px; align-items: end; gap: 7px; margin: 0 14px 5px; padding: 8px 8px 8px 11px; border: 1px solid var(--line); border-radius: 13px; background: var(--bg); }.assistant-composer textarea { width: 100%; min-height: 29px; max-height: 72px; resize: none; padding: 6px 0 0; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 12px; line-height: 1.4; }.assistant-composer textarea::placeholder { color: var(--muted); }.assistant-composer button { display: grid; width: 34px; height: 34px; place-items: center; border: 0; border-radius: 10px; background: var(--primary); color: #fff; cursor: pointer; }.assistant-composer button:disabled { opacity: .4; cursor: default; }.assistant-disclaimer { margin: 0 0 9px; color: var(--muted); font-size: 9px; text-align: center; }
+@media (max-width: 767px) { .assistant-fab { right: 16px; bottom: calc(var(--safe-bottom) + 140px); }.assistant-scrim { background: rgba(19, 23, 34, .2); pointer-events: auto; }.assistant-panel { top: 0; width: min(100%, 480px); box-shadow: -8px 0 24px rgba(19, 23, 34, .14); } }
 </style>

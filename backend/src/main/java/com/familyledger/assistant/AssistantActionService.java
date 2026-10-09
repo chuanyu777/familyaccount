@@ -7,6 +7,8 @@ import com.familyledger.common.ApiException;
 import com.familyledger.common.Db;
 import com.familyledger.common.Row;
 import com.familyledger.common.Time;
+import com.familyledger.auth.AuthPrincipal;
+import com.familyledger.ledger.LedgerContext;
 import com.familyledger.service.LedgerService;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -50,7 +52,7 @@ public class AssistantActionService {
   }
 
   @Transactional
-  public Map<String, Object> confirm(long id) {
+  public Map<String, Object> confirm(long id, AuthPrincipal principal, LedgerContext context) {
     Map<String, Object> action = get(id);
     String status = Row.str(action, "status");
     if ("CONFIRMED".equals(status) || "EXECUTED".equals(status)) return action;
@@ -62,7 +64,7 @@ public class AssistantActionService {
     }
     @SuppressWarnings("unchecked")
     Map<String, Object> payload = (Map<String, Object>) action.get("payload");
-    Map<String, Object> result = ledger.createTransaction(payload);
+    Map<String, Object> result = ledger.createTransaction(principal, context, payload);
     String now = Time.now();
     int changed = db.update("UPDATE assistant_action SET status='EXECUTED', result_json=?, "
         + "version=version+1, confirmed_at=? WHERE id=? AND status='PROPOSED'",

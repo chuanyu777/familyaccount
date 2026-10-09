@@ -1,7 +1,6 @@
 package com.familyledger.assistant;
 
 import com.familyledger.common.MonthUtil;
-import java.time.ZoneId;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -27,11 +26,9 @@ public class AssistantOrchestrator {
     this.agent = agent;
   }
 
-  public Map<String, Object> respond(long conversationId, String content) {
+  public Map<String, Object> respond(long conversationId, String content, AssistantContext context) {
     conversations.appendUserMessage(conversationId, content);
-    String month = MonthUtil.currentMonth();
-    AssistantContext context = new AssistantContext("local-" + conversationId, null, null,
-        ZoneId.of("Asia/Shanghai"), month);
+    String month = context.month() == null ? MonthUtil.currentMonth() : context.month();
     Map<String, Object> runtime = agent.run(content, context);
     if (runtime != null && runtime.get("content") != null) {
       return conversations.appendAssistantMessage(conversationId,
