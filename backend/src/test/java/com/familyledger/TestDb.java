@@ -16,6 +16,12 @@ public final class TestDb {
   private TestDb() {}
 
   public static void reset(JdbcTemplate jdbc) {
+    // 助手表由 V3 迁移创建而不是 schema.sql 创建；保留表结构但清空运行数据，
+    // 让每个集成测试都从干净的会话/操作状态开始。
+    jdbc.execute("DELETE FROM assistant_message");
+    jdbc.execute("DELETE FROM assistant_action");
+    jdbc.execute("DELETE FROM assistant_run");
+    jdbc.execute("DELETE FROM assistant_conversation");
     for (String t : TABLES) {
       jdbc.execute("DROP TABLE IF EXISTS " + t);
     }

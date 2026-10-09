@@ -4,6 +4,7 @@ import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,19 +25,21 @@ public class AssistantToolController {
   }
 
   @PostMapping("/{name}")
-  public Map<String, Object> call(String name,
+  public Map<String, Object> call(@PathVariable String name,
       @RequestHeader(value = "X-Assistant-Internal-Token", required = false) String token,
       @RequestBody ToolRequest request) {
     if (!internalToken.isBlank() && !internalToken.equals(token)) {
       throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid assistant runtime token");
     }
+    Map<String, Object> requestContext = request.context() == null ? Map.of() : request.context();
+    Map<String, Object> requestParams = request.params() == null ? Map.of() : request.params();
     AssistantContext context = new AssistantContext(
-        String.valueOf(request.context().getOrDefault("run_id", "runtime")),
-        number(request.context().get("user_id")), number(request.context().get("ledger_id")),
-        java.time.ZoneId.of("Asia/Shanghai"), string(request.params().get("month")));
+        String.valueOf(requestContext.getOrDefault("run_id", "runtime")),
+        number(requestContext.get("user_id")), number(requestContext.get("ledger_id")),
+        java.time.ZoneId.of("Asia/Shanghai"), string(requestParams.get("month")));
     return switch (name) {
-      case "get_period_summary" -> tools.getPeriodSummary(context, string(request.params().get("month")));
-      case "get_category_breakdown" -> tools.getCategoryBreakdown(context, string(request.params().get("month")));
+      case "get_period_summary" -> tools.getPeriodSummary(context, string(requestParams.get("month")));
+      case "get_category_breakdown" -> tools.getCategoryBreakdown(context, string(requestParams.get("month")));
       case "list_accounts" -> tools.listAccounts(context);
       case "get_ledger_overview" -> tools.getLedgerOverview(context);
       default -> throw new ResponseStatusException(HttpStatus.NOT_FOUND, "unknown assistant tool");
