@@ -2,6 +2,7 @@ import { request } from '../lib/http';
 import { currentLedgerStore } from '../lib/currentLedger';
 import { sessionStore } from '../lib/session';
 import type { LedgerSummary } from '../types/domain';
+import { resetAssistantConversation } from './assistant';
 
 const INVITATION_TOKEN_KEY = 'family-ledger.invitation-token';
 
@@ -95,6 +96,7 @@ export async function logout(): Promise<void> {
   await request<void>('/api/auth/logout', { method: 'POST' });
   sessionStore.clear();
   currentLedgerStore.clear();
+  resetAssistantConversation();
 }
 
 export function getPostAuthRoute(ledgers: LedgerSummary[]): string {

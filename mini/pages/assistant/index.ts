@@ -25,11 +25,23 @@ Page({
     const page = this as unknown as Context;
     const content = (value ?? page.data.input).trim();
     if (!content || page.data.loading || page.data.conversationId === null) return;
-    page.setData({ input: '', loading: true, error: '' });
+    // 先把用户消息挂上去（乐观更新），不等 Agent 回复才显示。
+    const pendingId = -Date.now();
+    page.setData({
+      input: '', loading: true, error: '',
+      messages: [...page.data.messages, { id: pendingId, role: 'user', content }],
+    });
     try {
       const response = await sendAssistantMessage(page.data.conversationId, content);
-      page.setData({ messages: [...page.data.messages, { id: response.id - 1, role: 'user', content }, response] });
-    } catch (error) { page.setData({ input: content, error: errorText(error) }); }
+      page.setData({ messages: [...page.data.messages, response] });
+    } catch (error) {
+      // 失败时撤回本地这条消息并把内容还给输入框。
+      page.setData({
+        messages: page.data.messages.filter((message) => message.id !== pendingId),
+        input: content,
+        error: errorText(error),
+      });
+    }
     finally { page.setData({ loading: false }); }
   },
 });
