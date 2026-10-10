@@ -36,8 +36,13 @@ class RunContext(BaseModel):
     month: str | None = None
 
 
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
 class RunRequest(BaseModel):
-    message: str = Field(min_length=1, max_length=4000)
+    messages: list[ChatMessage] = Field(min_length=1)
     context: RunContext
 
 
@@ -88,9 +93,10 @@ def build_agent(context: RunContext):
         return await gateway.call("get_ledger_overview", context)
 
     system = (
-        "你是家庭财务助手，只处理当前账本的数据查询和记账草稿。"
+        "你是家庭财务助手，只能查询当前账本的收支、分类、账户和资产负债。"
         "回答简洁、使用中文；查询必须调用工具，不能猜测金额。"
-        "创建交易时只能提出草稿，不能绕过确认直接写入。"
+        "你没有创建、修改或删除账目的能力，也不存在「已存入草稿」这类动作；"
+        "用户要求记账时，如实说明你目前只能查询，并引导他到记账页面手工录入。"
     )
     return create_agent(
         model=ChatOpenAI(
@@ -117,7 +123,7 @@ async def run(request: RunRequest) -> dict[str, Any]:
     try:
         agent = build_agent(request.context)
         result = await agent.ainvoke(
-            {"messages": [{"role": "user", "content": request.message}]},
+            {"messages": [{"role": m.role, "content": m.content} for m in request.messages]},
             context=request.context.model_dump(),
         )
         messages = result.get("messages", [])

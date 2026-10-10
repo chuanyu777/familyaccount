@@ -1,6 +1,7 @@
 package com.familyledger.assistant;
 
 import java.net.http.HttpClient;
+import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,7 +26,13 @@ public class AssistantAgentClient {
         .build();
   }
 
-  public Map<String, Object> run(String message, AssistantContext context) {
+  /**
+   * 携带多轮上下文调用 Agent。
+   *
+   * <p>{@code messages} 为 {@code [{"role","content"}]} 形式，最后一条是用户当前输入。
+   * 只发当前一条会让「回复确认」这类追问失去前文，Agent 无法判断在确认什么。</p>
+   */
+  public Map<String, Object> run(List<Map<String, String>> messages, AssistantContext context) {
     if (baseUrl.isBlank()) return null;
     Map<String, Object> contextBody = new LinkedHashMap<>();
     contextBody.put("run_id", context.runId());
@@ -33,7 +40,7 @@ public class AssistantAgentClient {
     contextBody.put("ledger_id", context.ledgerId());
     contextBody.put("month", context.month());
     return client.post().uri(baseUrl + "/runs").contentType(MediaType.APPLICATION_JSON)
-        .body(Map.of("message", message, "context", contextBody))
+        .body(Map.of("messages", messages, "context", contextBody))
         .retrieve().body(Map.class);
   }
 }

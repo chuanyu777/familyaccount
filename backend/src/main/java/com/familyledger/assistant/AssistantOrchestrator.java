@@ -29,7 +29,7 @@ public class AssistantOrchestrator {
   public Map<String, Object> respond(long conversationId, String content, AssistantContext context) {
     conversations.appendUserMessage(conversationId, context.userId(), context.ledgerId(), content);
     String month = context.month() == null ? MonthUtil.currentMonth() : context.month();
-    Map<String, Object> runtime = agent.run(content, context);
+    Map<String, Object> runtime = agent.run(history(conversationId, context), context);
     if (runtime != null && runtime.get("content") != null) {
       return conversations.appendAssistantMessage(conversationId, context.userId(), context.ledgerId(),
           String.valueOf(runtime.get("content")), runtime.get("blocks"));
@@ -64,5 +64,21 @@ public class AssistantOrchestrator {
     }
     return conversations.appendAssistantMessage(conversationId, context.userId(), context.ledgerId(),
         text, List.of(block));
+  }
+
+  /**
+   * 交给 Agent 的多轮上下文。
+   *
+   * <p>只发当前一句会让「好的，确认」这类追问失去前文，Agent 无从判断在确认什么。
+   * 这里带上最近 20 条消息：既保留上下文，又避免长会话把请求体撑大。</p>
+   */
+  private List<Map<String, String>> history(long conversationId, AssistantContext context) {
+    List<Map<String, Object>> rows =
+        conversations.messages(conversationId, context.userId(), context.ledgerId());
+    int from = Math.max(0, rows.size() - 20);
+    return rows.subList(from, rows.size()).stream()
+        .map(row -> Map.of("role", String.valueOf(row.get("role")),
+            "content", String.valueOf(row.get("content"))))
+        .toList();
   }
 }
