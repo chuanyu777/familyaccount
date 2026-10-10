@@ -41,7 +41,15 @@ public class AccountController {
   public ResponseEntity<Map<String, Object>> create(HttpServletRequest request,
       @RequestBody(required = false) Map<String, Object> body) {
     LedgerContext context = LedgerRequest.context(request, body, guard, authorization);
-    return ResponseEntity.status(HttpStatus.CREATED).body(service.create(context, text(body, "name")));
+    Long balance = null;
+    if (body != null && body.get("balance") != null) {
+      try {
+        balance = Money.toCents(body.get("balance"));
+      } catch (IllegalArgumentException e) {
+        throw ApiException.badRequest("VALIDATION_FAILED", "金额格式非法");
+      }
+    }
+    return ResponseEntity.status(HttpStatus.CREATED).body(service.create(context, text(body, "name"), balance));
   }
 
   @PatchMapping("/{id}")
