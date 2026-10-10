@@ -1,4 +1,5 @@
 import os
+import re
 from typing import Any
 
 import httpx
@@ -11,6 +12,21 @@ from pydantic import BaseModel, Field
 SPRING_BASE_URL = os.getenv("SPRING_BASE_URL", "http://localhost:8080")
 MODEL_NAME = os.getenv("DEEPSEEK_MODEL", "deepseek-flash")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+
+MONTH_PATTERN = re.compile(r"\d{4}-(0[1-9]|1[0-2])")
+
+
+def normalize_month(value: str | None, fallback: str | None) -> str | None:
+    """月份只接受 YYYY-MM。
+
+    模型可能给出「本月」「2026年10月」这类自由文本，直接透传给后端会命中
+    month 校验并返回 400，因此在工具边界做一次收口，非法值回退到上下文月份。
+    """
+    if value:
+        candidate = value.strip()
+        if MONTH_PATTERN.fullmatch(candidate):
+            return candidate
+    return fallback
 
 
 class RunContext(BaseModel):
@@ -51,13 +67,15 @@ def build_agent(context: RunContext):
         raise RuntimeError("DEEPSEEK_API_KEY is required")
     @tool
     async def get_period_summary(month: str | None = None) -> Any:
-        """查询指定月份的收入、支出和结余。"""
-        return await gateway.call("get_period_summary", context, {"month": month or context.month})
+        """查询指定月份的收入、支出和结余。month 必须形如 YYYY-MM（如 2026-10），不确定就省略。"""
+        return await gateway.call("get_period_summary", context,
+                                  {"month": normalize_month(month, context.month)})
 
     @tool
     async def get_category_breakdown(month: str | None = None) -> Any:
-        """查询指定月份的支出分类。"""
-        return await gateway.call("get_category_breakdown", context, {"month": month or context.month})
+        """查询指定月份的支出分类。month 必须形如 YYYY-MM（如 2026-10），不确定就省略。"""
+        return await gateway.call("get_category_breakdown", context,
+                                  {"month": normalize_month(month, context.month)})
 
     @tool
     async def list_accounts() -> Any:
