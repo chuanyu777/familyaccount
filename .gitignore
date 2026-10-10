@@ -10,6 +10,8 @@ backend/target/
 backups/
 deploy/.env
 backend/.env
+agent/.env
+.venv/
 mini/project.private.config.json
 .workbuddy/
 .worktrees/
