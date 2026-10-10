@@ -31,31 +31,35 @@ public class AssistantConversationService {
         "INSERT INTO assistant_conversation (user_id, ledger_id, title, created_at, updated_at) "
             + "VALUES (?, ?, ?, ?, ?)", userId, ledgerId,
         title == null || title.isBlank() ? "家庭财务助手" : title.trim(), now, now);
-    return get(id);
+    return get(id, userId, ledgerId);
   }
 
-  public List<Map<String, Object>> list() {
+  /** 仅返回当前用户在当前账本下的会话；跨账本、跨用户的会话一律不可见。 */
+  public List<Map<String, Object>> list(Long userId, Long ledgerId) {
     return db.queryForList("SELECT id, user_id, ledger_id, title, created_at, updated_at "
-        + "FROM assistant_conversation ORDER BY updated_at DESC, id DESC");
+        + "FROM assistant_conversation WHERE user_id = ? AND ledger_id = ? "
+        + "ORDER BY updated_at DESC, id DESC", userId, ledgerId);
   }
 
-  public Map<String, Object> get(long id) {
+  public Map<String, Object> get(long id, Long userId, Long ledgerId) {
     List<Map<String, Object>> rows = db.queryForList(
         "SELECT id, user_id, ledger_id, title, created_at, updated_at "
-            + "FROM assistant_conversation WHERE id = ?", id);
+            + "FROM assistant_conversation WHERE id = ? AND user_id = ? AND ledger_id = ?",
+        id, userId, ledgerId);
     if (rows.isEmpty()) throw ApiException.notFound("ASSISTANT_CONVERSATION_NOT_FOUND", "助手会话不存在");
     return rows.get(0);
   }
 
-  public List<Map<String, Object>> messages(long conversationId) {
-    get(conversationId);
+  public List<Map<String, Object>> messages(long conversationId, Long userId, Long ledgerId) {
+    get(conversationId, userId, ledgerId);
     return db.queryForList("SELECT id, conversation_id, role, content, blocks_json, created_at "
         + "FROM assistant_message WHERE conversation_id = ? ORDER BY id", conversationId);
   }
 
   @Transactional
-  public Map<String, Object> appendUserMessage(long conversationId, String content) {
-    get(conversationId);
+  public Map<String, Object> appendUserMessage(long conversationId, Long userId, Long ledgerId,
+      String content) {
+    get(conversationId, userId, ledgerId);
     if (content == null || content.isBlank()) {
       throw ApiException.badRequest("VALIDATION_FAILED", "消息内容不能为空");
     }
@@ -68,9 +72,9 @@ public class AssistantConversationService {
   }
 
   @Transactional
-  public Map<String, Object> appendAssistantMessage(long conversationId, String content,
-      Object blocks) {
-    get(conversationId);
+  public Map<String, Object> appendAssistantMessage(long conversationId, Long userId, Long ledgerId,
+      String content, Object blocks) {
+    get(conversationId, userId, ledgerId);
     String now = Time.now();
     String blocksJson = blocks == null ? null : stringify(blocks);
     long messageId = Db.insert(db,

@@ -27,11 +27,11 @@ public class AssistantOrchestrator {
   }
 
   public Map<String, Object> respond(long conversationId, String content, AssistantContext context) {
-    conversations.appendUserMessage(conversationId, content);
+    conversations.appendUserMessage(conversationId, context.userId(), context.ledgerId(), content);
     String month = context.month() == null ? MonthUtil.currentMonth() : context.month();
     Map<String, Object> runtime = agent.run(content, context);
     if (runtime != null && runtime.get("content") != null) {
-      return conversations.appendAssistantMessage(conversationId,
+      return conversations.appendAssistantMessage(conversationId, context.userId(), context.ledgerId(),
           String.valueOf(runtime.get("content")), runtime.get("blocks"));
     }
     String normalized = content.toLowerCase(Locale.ROOT);
@@ -62,6 +62,7 @@ public class AssistantOrchestrator {
       block.put("type", "text");
       block.put("suggestions", List.of("本月花了多少？", "钱都花在哪些分类？", "看看账户余额"));
     }
-    return conversations.appendAssistantMessage(conversationId, text, List.of(block));
+    return conversations.appendAssistantMessage(conversationId, context.userId(), context.ledgerId(),
+        text, List.of(block));
   }
 }

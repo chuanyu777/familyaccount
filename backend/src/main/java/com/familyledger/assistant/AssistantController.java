@@ -39,8 +39,8 @@ public class AssistantController {
 
   @GetMapping("/conversations")
   public List<Map<String, Object>> list(HttpServletRequest request) {
-    ledgerContext(request);
-    return conversations.list();
+    LedgerContext context = ledgerContext(request);
+    return conversations.list(context.userId(), context.ledgerId());
   }
 
   @PostMapping("/conversations")
@@ -52,14 +52,14 @@ public class AssistantController {
 
   @GetMapping("/conversations/{id}")
   public Map<String, Object> get(@PathVariable long id, HttpServletRequest request) {
-    ledgerContext(request);
-    return conversations.get(id);
+    LedgerContext context = ledgerContext(request);
+    return conversations.get(id, context.userId(), context.ledgerId());
   }
 
   @GetMapping("/conversations/{id}/messages")
   public List<Map<String, Object>> messages(@PathVariable long id, HttpServletRequest request) {
-    ledgerContext(request);
-    return conversations.messages(id);
+    LedgerContext context = ledgerContext(request);
+    return conversations.messages(id, context.userId(), context.ledgerId());
   }
 
   @PostMapping("/conversations/{id}/messages")
@@ -71,14 +71,15 @@ public class AssistantController {
   @PostMapping("/conversations/{id}/actions")
   public Map<String, Object> proposeAction(@PathVariable long id, HttpServletRequest httpRequest,
       @RequestBody ActionRequest request) {
-    ledgerContext(httpRequest);
-    return actions.propose(id, request.actionType(), request.payload());
+    LedgerContext context = ledgerContext(httpRequest);
+    return actions.propose(id, request.actionType(), request.payload(),
+        context.userId(), context.ledgerId());
   }
 
   @GetMapping("/actions/{id}")
   public Map<String, Object> getAction(@PathVariable long id, HttpServletRequest request) {
-    ledgerContext(request);
-    return actions.get(id);
+    LedgerContext context = ledgerContext(request);
+    return actions.get(id, context.userId(), context.ledgerId());
   }
 
   @PostMapping("/actions/{id}/confirm")
@@ -89,8 +90,8 @@ public class AssistantController {
 
   @PostMapping("/actions/{id}/cancel")
   public Map<String, Object> cancelAction(@PathVariable long id, HttpServletRequest request) {
-    ledgerContext(request);
-    actions.cancel(id);
+    LedgerContext context = ledgerContext(request);
+    actions.cancel(id, context.userId(), context.ledgerId());
     return Map.of("ok", true);
   }
 
