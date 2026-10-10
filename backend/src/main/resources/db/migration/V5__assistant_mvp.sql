@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS assistant_message (
   conversation_id BIGINT NOT NULL,
   role            VARCHAR(16) NOT NULL,
   content         VARCHAR(10000) NOT NULL,
-  blocks_json     VARCHAR(30000),
+  blocks_json     MEDIUMTEXT,
   created_at      VARCHAR(19) NOT NULL,
   CONSTRAINT fk_assistant_message_conversation
     FOREIGN KEY (conversation_id) REFERENCES assistant_conversation (id) ON DELETE CASCADE
@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS assistant_run (
   conversation_id BIGINT NOT NULL,
   message_id      BIGINT,
   status          VARCHAR(16) NOT NULL,
-  tool_calls_json VARCHAR(30000),
+  tool_calls_json MEDIUMTEXT,
   error_code      VARCHAR(64),
   started_at      VARCHAR(19) NOT NULL,
   finished_at     VARCHAR(19),
@@ -39,8 +39,8 @@ CREATE TABLE IF NOT EXISTS assistant_action (
   run_id          BIGINT,
   action_type     VARCHAR(64) NOT NULL,
   status          VARCHAR(16) NOT NULL,
-  payload_json    VARCHAR(10000) NOT NULL,
-  result_json     VARCHAR(10000),
+  payload_json    MEDIUMTEXT NOT NULL,
+  result_json     MEDIUMTEXT,
   version         INT NOT NULL DEFAULT 0,
   created_at      VARCHAR(19) NOT NULL,
   expires_at      VARCHAR(19),
