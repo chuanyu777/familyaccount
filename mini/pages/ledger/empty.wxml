@@ -7,6 +7,5 @@
   <view class="button-stack">
     <button class="primary-button" bindtap="handleCreateLedger"><text class="button-icon">＋</text>创建家庭账本</button>
     <button class="secondary-button" bindtap="handleAcceptInvitation"><text class="link-icon">⌁</text>{{hasInvitation ? '查看收到的邀请' : '接受邀请'}}</button>
-    <button class="import-link" bindtap="handleImportWebLedger">导入已有账本</button>
   </view>
 </view>

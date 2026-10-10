@@ -96,11 +96,14 @@ describe('final review regressions', () => {
     expect(wx.reLaunch).toHaveBeenCalledWith({ url: '/pages/ledger/home' });
   });
 
-  it('#4 keeps Web ledger import out of the login page and reachable from an authenticated account', async () => {
+  it('#4 keeps Web ledger binding as a secondary login support entry and reachable from an authenticated account', async () => {
     const auth = await page('auth/index');
-    expect(typeof auth.handleBindWeb).toBe('undefined');
+    expect(typeof auth.handleBindWeb).toBe('function');
+    auth.handleBindWeb();
+    expect(wx.navigateTo).toHaveBeenCalledWith({ url: '/pages/bind-web/index' });
     expect(requests).toHaveLength(0);
-    expect(template('auth/index')).not.toContain('旧 Web 账号迁移');
+    expect(template('auth/index')).toContain('已有 Web 绑定码');
+    expect(template('ledger/empty')).not.toContain('导入已有账本');
     const bind = await page('bind-web/index');
     bind.data.bindingCode = 'one-time-code';
     respond({ ledgerId: 1, ledgerName: '特殊账本', role: 'OWNER' });
@@ -111,6 +114,19 @@ describe('final review regressions', () => {
     await bind.handleImport();
     expect(requestedPaths()).toEqual(['/api/auth/web-ledger/preview', '/api/auth/web-ledger/import']);
     expect(currentLedgerStore.get()?.id).toBe(1);
+  });
+
+  it('#4 binds a pre-existing Web account before creating a new WeChat identity', async () => {
+    sessionStore.clear();
+    const bind = await page('bind-web/index');
+    expect(bind.data.mode).toBe('bind');
+    bind.data.bindingCode = 'one-time-code';
+    respond({ userId: 1, type: 'LEDGER_USER', webSession: false });
+    respond([{ id: 1, name: '特殊账本', role: 'OWNER' }]);
+    await bind.handleBind();
+    expect(requestedPaths()).toEqual(['/api/auth/wechat/bind', '/api/ledgers']);
+    expect(JSON.parse(requests[0]!.data as string)).toEqual({ bindingCode: 'one-time-code', code: 'wx-code' });
+    expect(wx.redirectTo).toHaveBeenCalledWith({ url: '/pages/ledger/list' });
   });
 
   it.each([

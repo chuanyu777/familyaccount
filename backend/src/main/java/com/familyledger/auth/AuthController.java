@@ -79,6 +79,19 @@ public class AuthController {
     return principalBody(principal);
   }
 
+  @PostMapping("/wechat/bind")
+  public Map<String, Object> bindWeChat(@RequestBody(required = false) Map<String, Object> body,
+      HttpServletResponse response) {
+    WeChatClient.WeChatIdentity identity = service.exchangeWeChatCode(text(body, "code"));
+    if (identity == null || identity.openid() == null || identity.openid().isBlank()) {
+      throw ApiException.unauthorized("WECHAT_LOGIN_FAILED", "微信登录失败");
+    }
+    AuthPrincipal principal = service.bindWeChatIdentity(text(body, "bindingCode"), identity.openid());
+    response.addHeader("Set-Cookie", AuthSession.cookieHeader(config.getLedgerCookie(), principal, config,
+        System.currentTimeMillis()));
+    return principalBody(principal);
+  }
+
   @PostMapping("/binding-code")
   public Map<String, Object> issueBindingCode(HttpServletRequest request) {
     AuthPrincipal principal = guard.requireLedgerUser(request);

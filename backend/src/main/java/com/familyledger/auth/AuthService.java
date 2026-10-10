@@ -84,6 +84,29 @@ public class AuthService {
     return AuthPrincipal.ledgerUser(userId);
   }
 
+  @Transactional
+  public AuthPrincipal bindWeChatIdentity(String code, String openid) {
+    Map<String, Object> binding = validBinding(code, true);
+    long webUserId = ((Number) binding.get("user_id")).longValue();
+    long ledgerId = ((Number) binding.get("ledger_id")).longValue();
+    preview(binding);
+    Long linked = db.queryForObject(
+        "SELECT COUNT(*) FROM web_account_link WHERE ledger_id = ? AND web_user_id = ?",
+        Long.class, ledgerId, webUserId);
+    if (linked != null && linked > 0) {
+      throw ApiException.conflict("WEB_ACCOUNT_ALREADY_LINKED", "该 Web 账号已绑定其他微信账号");
+    }
+    List<Long> existing = db.query("SELECT user_id FROM wechat_identity WHERE openid = ? FOR UPDATE",
+        (rs, i) -> rs.getLong(1), openid);
+    if (!existing.isEmpty()) {
+      throw ApiException.conflict("WECHAT_ALREADY_BOUND", "微信身份已绑定其他用户");
+    }
+    db.update("INSERT INTO wechat_identity (user_id, openid, created_at) VALUES (?, ?, ?)",
+        webUserId, openid, Time.now());
+    db.update("UPDATE web_binding_code SET used_at = ? WHERE code_hash = ?", Time.now(), sha256(code));
+    return AuthPrincipal.ledgerUser(webUserId);
+  }
+
   public WeChatClient.WeChatIdentity exchangeWeChatCode(String loginCode) {
     try {
       return wechat.exchangeLoginCode(loginCode);

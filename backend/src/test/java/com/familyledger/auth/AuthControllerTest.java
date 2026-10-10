@@ -205,6 +205,31 @@ class AuthControllerTest {
   }
 
   @Test
+  void bindingCodeCanBindAWebLedgerBeforeOrdinaryWechatLogin() throws Exception {
+    when(weChatClient.exchangeLoginCode("bind-code"))
+        .thenReturn(new WeChatIdentity("openid-owner"));
+    Cookie web = loginWeb();
+    String bindingCode = issueBindingCode(web);
+    long webUserId = db.queryForObject(
+        "SELECT user_id FROM web_credential WHERE username = 'ledger-owner'", Long.class);
+
+    mvc.perform(post("/api/auth/wechat/bind").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"bindingCode\":\"" + bindingCode + "\",\"code\":\"bind-code\"}"))
+        .andExpect(status().isOk())
+        .andExpect(cookie().exists("ledger_session"))
+        .andExpect(jsonPath("$.userId").value(webUserId))
+        .andExpect(jsonPath("$.webSession").value(false));
+    assertThat(db.queryForObject(
+        "SELECT user_id FROM wechat_identity WHERE openid = 'openid-owner'", Long.class))
+        .isEqualTo(webUserId);
+
+    mvc.perform(post("/api/auth/wechat/bind").contentType(MediaType.APPLICATION_JSON)
+            .content("{\"bindingCode\":\"" + bindingCode + "\",\"code\":\"bind-code\"}"))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.error.code").value("BINDING_CODE_INVALID"));
+  }
+
+  @Test
   void profileCanUpdateNicknameAndPersistAChosenAvatar() throws Exception {
     Cookie session = loginWeb();
     mvc.perform(get("/api/profile").cookie(session))

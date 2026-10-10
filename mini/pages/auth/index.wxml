@@ -11,6 +11,7 @@
   <button class="wechat-button" loading="{{loading}}" disabled="{{loading}}" bindtap="handleLogin">
     <view class="wechat-icon"><view></view><view></view></view><text>微信一键登录</text>
   </button>
+  <button class="web-binding-link" bindtap="handleBindWeb">已有 Web 绑定码</button>
   <text wx:if="{{errorMessage}}" class="error-message">{{errorMessage}}</text>
   <text class="auth-terms">登录即表示你同意服务条款和隐私政策</text>
 </view>

@@ -23,4 +23,7 @@ Page({
       page.setData({ loading: false });
     }
   },
+  handleBindWeb(): void {
+    wx.navigateTo({ url: '/pages/bind-web/index' });
+  },
 });

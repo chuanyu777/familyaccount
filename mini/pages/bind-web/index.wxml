@@ -1,12 +1,13 @@
 <view class="bind-page">
   <view class="bind-panel">
     <view class="binding-icon"><view class="screen-icon"></view><view class="link-dot">⌁</view></view>
-    <text class="bind-title">导入已有账本</text>
-    <text class="bind-hint">在目标 Web 账号的“账号设置”中生成一次性导入码，再回到这里确认。</text>
+    <text class="bind-title">绑定已有 Web 账本</text>
+    <text class="bind-hint">在目标 Web 账号的“账号设置”中生成一次性绑定码，再回到这里确认。</text>
     <view class="field"><text>绑定码</text><input class="bind-input" value="{{bindingCode}}" maxlength="128" placeholder="请输入绑定码" bindinput="handleInput" /></view>
-    <view class="binding-note"><text>i</text><view><text>导入说明</text><text>每个 Web 账号只能关联一个微信账号；导入后该账本会加入你的账本列表。</text></view></view>
-    <button wx:if="{{!preview}}" class="bind-button" loading="{{loading}}" disabled="{{loading || !bindingCode}}" bindtap="handlePreview">查看账本</button>
-    <view wx:if="{{preview}}" class="preview-card"><text class="preview-label">即将导入</text><text class="preview-name">{{preview.ledgerName}}</text><text class="preview-role">导入后角色：{{preview.role === 'OWNER' ? '所有者' : '成员'}}</text><button class="bind-button" loading="{{loading}}" disabled="{{loading}}" bindtap="handleImport">确认导入</button></view>
+    <view class="binding-note"><text>i</text><view><text>绑定说明</text><text>每个 Web 账号只能关联一个微信账号；绑定后该账本会加入你的账本列表。</text></view></view>
+    <button wx:if="{{mode === 'bind'}}" class="bind-button" loading="{{loading}}" disabled="{{loading || !bindingCode}}" bindtap="handleBind">确认绑定</button>
+    <button wx:elif="{{!preview}}" class="bind-button" loading="{{loading}}" disabled="{{loading || !bindingCode}}" bindtap="handlePreview">查看账本</button>
+    <view wx:elif="{{preview}}" class="preview-card"><text class="preview-label">即将绑定</text><text class="preview-name">{{preview.ledgerName}}</text><text class="preview-role">绑定后角色：{{preview.role === 'OWNER' ? '所有者' : '成员'}}</text><button class="bind-button" loading="{{loading}}" disabled="{{loading}}" bindtap="handleImport">确认绑定</button></view>
     <text wx:if="{{errorMessage}}" class="error-message">{{errorMessage}}</text>
   </view>
 </view>

@@ -68,6 +68,15 @@ export async function loginWithWeChat(): Promise<AuthResult> {
   return finishAuthentication(response);
 }
 
+export async function bindExistingWebAccount(bindingCode: string): Promise<AuthResult> {
+  const code = await getWeChatCode();
+  const response = await request<AuthResponse>('/api/auth/wechat/bind', {
+    method: 'POST',
+    data: { bindingCode, code },
+  });
+  return finishAuthentication(response);
+}
+
 export function previewWebLedgerImport(bindingCode: string): Promise<WebLedgerImportPreview> {
   return request<WebLedgerImportPreview>('/api/auth/web-ledger/preview', {
     method: 'POST',

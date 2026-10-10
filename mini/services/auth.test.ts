@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   captureInvitationToken,
+  bindExistingWebAccount,
   getPostAuthRoute,
   importWebLedger,
   loginWithWeChat,
@@ -69,6 +70,19 @@ describe('auth service', () => {
     await loginWithWeChat();
 
     expect(currentLedgerStore.get()).toEqual({ id: 3, name: '工作账本', role: 'MEMBER' });
+  });
+
+  it('binds an existing Web account before ordinary WeChat login', async () => {
+    requestMock
+      .mockResolvedValueOnce({ userId: 7, type: 'LEDGER_USER', webSession: false })
+      .mockResolvedValueOnce([{ id: 9, name: '特殊账本', role: 'OWNER', webEnabled: true }]);
+
+    await expect(bindExistingWebAccount('binding-code')).resolves.toMatchObject({ userId: 7 });
+    expect(requestMock).toHaveBeenNthCalledWith(1, '/api/auth/wechat/bind', {
+      method: 'POST', data: { bindingCode: 'binding-code', code: 'wechat-code' },
+    });
+    expect(requestMock).toHaveBeenNthCalledWith(2, '/api/ledgers');
+    expect(sessionStore.get()).toBeNull();
   });
 
   it('uses the stable first ledger when the stored ledger is unavailable', async () => {

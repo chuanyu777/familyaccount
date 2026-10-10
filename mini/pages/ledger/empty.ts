@@ -17,7 +17,4 @@ Page({
     const query = token ? `?token=${encodeURIComponent(token)}` : '';
     wx.navigateTo({ url: `/pages/invitation/detail${query}` });
   },
-  handleImportWebLedger(): void {
-    wx.navigateTo({ url: '/pages/bind-web/index' });
-  },
 });
