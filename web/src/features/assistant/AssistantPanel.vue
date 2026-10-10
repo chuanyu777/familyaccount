@@ -20,12 +20,20 @@ const conversationId = ref<number | null>(null);
 const messages = ref<Message[]>([]);
 const scroller = ref<HTMLElement>();
 
+// 每次登录用一个新会话；同一标签页内（含刷新、切 Tab）沿用同一会话，保证多轮上下文。
+const CONVERSATION_KEY = 'family-ledger.assistant-conversation';
+
 async function ensureConversation() {
   if (conversationId.value) return;
-  const rows = await apiGet<Array<{ id: number }>>('/assistant/conversations');
-  if (rows.length) conversationId.value = rows[0]!.id;
-  else conversationId.value = (await apiPost<{ id: number }>('/assistant/conversations', {})).id;
-  messages.value = await apiGet<Message[]>(`/assistant/conversations/${conversationId.value}/messages`);
+  const remembered = Number(sessionStorage.getItem(CONVERSATION_KEY) ?? '');
+  if (Number.isFinite(remembered) && remembered > 0) {
+    conversationId.value = remembered;
+    messages.value = await apiGet<Message[]>(`/assistant/conversations/${remembered}/messages`);
+    return;
+  }
+  conversationId.value = (await apiPost<{ id: number }>('/assistant/conversations', {})).id;
+  sessionStorage.setItem(CONVERSATION_KEY, String(conversationId.value));
+  messages.value = [];
 }
 async function scrollToBottom(smooth = false) {
   await nextTick();
@@ -43,19 +51,34 @@ async function newConversation() {
   if (loading.value) return;
   try {
     conversationId.value = (await apiPost<{ id: number }>('/assistant/conversations', {})).id;
+    sessionStorage.setItem(CONVERSATION_KEY, String(conversationId.value));
     messages.value = [];
   } catch { /* 不丢弃现有对话 */ }
+}
+// 输入法组词时的回车是「选词确认」，不能当发送；Shift+Enter 仍用于换行。
+function onEnter(event: KeyboardEvent) {
+  if (event.isComposing || event.keyCode === 229) return;
+  event.preventDefault();
+  void send();
 }
 async function send(value = input.value) {
   const content = value.trim();
   if (!content || loading.value) return;
   input.value = '';
   loading.value = true;
+  // 先把用户消息挂上去（乐观更新），不等 Agent 回复才显示。
+  const pendingId = -Date.now();
+  messages.value = [...messages.value, { id: pendingId, role: 'user', content }];
+  await scrollToBottom(true);
   try {
     await ensureConversation();
     const response = await apiPost<Message>(`/assistant/conversations/${conversationId.value}/messages`, { content });
-    messages.value = [...messages.value, { id: response.id - 1, role: 'user', content }, response];
+    messages.value = [...messages.value, response];
     await scrollToBottom(true);
+  } catch {
+    // 失败时撤回本地这条消息并把内容还给输入框，避免「发出去了却没反应」。
+    messages.value = messages.value.filter((message) => message.id !== pendingId);
+    input.value = content;
   } finally { loading.value = false; }
 }
 function quickEntry() { void send('帮我记一笔'); }
@@ -130,7 +153,7 @@ watch(() => props.open, open => { if (open) void reveal(); }, { immediate: true 
         <div v-if="loading" class="assistant-message assistant-message--assistant"><div class="assistant-message__bubble">正在查看账本…</div></div>
       </div>
 
-      <form class="assistant-composer" @submit.prevent="send()"><textarea v-model="input" rows="1" placeholder="问问你的家庭账本" aria-label="向财务助手提问" /><button type="submit" :disabled="loading || !input.trim()" aria-label="发送"><ArrowUp :size="17" /></button></form>
+      <form class="assistant-composer" @submit.prevent="send()"><textarea v-model="input" rows="1" placeholder="问问你的家庭账本（回车发送，Shift+回车换行）" aria-label="向财务助手提问" @keydown.enter="onEnter" /><button type="submit" :disabled="loading || !input.trim()" aria-label="发送"><ArrowUp :size="17" /></button></form>
       <p class="assistant-disclaimer">AI 只会在你确认后写入账本</p>
     </aside>
   </div>

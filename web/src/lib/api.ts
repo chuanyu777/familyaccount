@@ -266,6 +266,8 @@ export async function logout(kind: WebAuthKind): Promise<void> {
   // Invalidate even an anonymous pending discovery before awaiting the logout request.
   authScopes[kind].generation += 1;
   setSessionScope(kind, null);
+  // 登出即丢弃助手会话标记，保证下次登录从新会话开始。
+  if (kind === 'ledger') sessionStorage.removeItem('family-ledger.assistant-conversation');
   try {
     await rawFetch<void>('POST', `/api/auth/logout?kind=${kind}`, undefined, undefined, kind);
   } finally {
