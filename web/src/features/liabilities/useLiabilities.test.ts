@@ -27,6 +27,7 @@ const liabilities: Liability[] = [
 const accounts: Account[] = [
   { id: 1, name: '现金', balance: '1000.00', balance_cents: 100000, is_default: true },
 ];
+const members = [{ id: 1, name: '我', color: '#3a7' }];
 const repayments: Repayment[] = [
   { id: 1, liability_id: 1, amount_cents: 300000, occurred_on: '2026-09-10', account_id: 1 },
   { id: 2, liability_id: 2, amount_cents: 500000, occurred_on: '2026-09-11', account_id: 1 },

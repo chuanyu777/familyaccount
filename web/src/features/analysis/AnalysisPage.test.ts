@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
 import { cachedGet } from '../../lib/api';
-import { currentMonth, formatMoney, shiftMonth } from '../../lib/format';
+import { currentMonth, formatMoney, monthLabel, shiftMonth } from '../../lib/format';
 import { publishResources } from '../../lib/resourceInvalidation';
 import AnalysisPage from './AnalysisPage.vue';
 
@@ -27,7 +27,7 @@ const breakdown = [
 ];
 
 const summary = {
-  month: '2026-09',
+  month: currentMonth(),
   incomeCents: 100000,
   expenseCents: 50000,
   netCents: 50000,
@@ -144,10 +144,10 @@ describe('分析页 · C3 结构', () => {
 
     expect(wrapper.get('h1').text()).toBe('分析');
     expect(wrapper.find('[aria-label="选择月份"]').exists()).toBe(true);
-    expect(wrapper.text()).toContain('当月结余');
+    expect(wrapper.text()).toContain(`${monthLabel(summary.month)}结余`);
     expect(wrapper.text()).toContain(formatMoney(summary.netCents));
-    expect(wrapper.text()).toContain('当月收入');
-    expect(wrapper.text()).toContain('当月支出');
+    expect(wrapper.text()).toContain(`${monthLabel(summary.month)}收入`);
+    expect(wrapper.text()).toContain(`${monthLabel(summary.month)}支出`);
   });
 
   it('renders paired income/expense bars and direct category percentages', async () => {
@@ -273,14 +273,14 @@ describe('分析页 · 资源加载', () => {
     await wrapper.get('[aria-label="上一月"]').trigger('click');
     expect(wrapper.get('[aria-label="选择月份"]').text()).toContain('8月');
     expect(wrapper.text()).toContain(formatMoney(summary.netCents));
-    expect(wrapper.get('[data-retained-month]').text()).toContain('9月');
-    expect(wrapper.get('.summary-strip__primary dt').text()).toContain('9月');
-    expect(wrapper.get('.content-section__meta').text()).toContain('9月');
+    expect(wrapper.get('[data-retained-month]').text()).toContain(monthLabel(summary.month));
+    expect(wrapper.get('.summary-strip__primary dt').text()).toContain(monthLabel(summary.month));
+    expect(wrapper.get('.content-section__meta').text()).toContain(monthLabel(summary.month));
 
     pendingSnapshot.reject(new Error('网络异常'));
     pendingTrend.resolve(trend);
     await settle();
-    expect(wrapper.get('[data-retained-month]').text()).toContain('9月');
+    expect(wrapper.get('[data-retained-month]').text()).toContain(monthLabel(summary.month));
     expect(wrapper.get('[role="alert"]').text()).toContain('网络异常');
     expect(wrapper.text()).toContain(formatMoney(summary.netCents));
 
@@ -310,7 +310,7 @@ describe('分析页 · 资源加载', () => {
     publishResources(['statistics']);
     await flushPromises();
     expect(wrapper.text()).toContain(formatMoney(summary.netCents));
-    expect(wrapper.text()).toContain('正在更新分析');
+    expect(wrapper.text()).toContain('加载中');
 
     refreshedSnapshot.reject(new Error('网络异常'));
     refreshedTrend.resolve(trend);

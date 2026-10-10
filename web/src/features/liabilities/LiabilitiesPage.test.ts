@@ -38,6 +38,10 @@ const accounts: Account[] = [
   { id: 1, name: '现金', balance: '0.00', balance_cents: 0, is_default: true },
   { id: 2, name: '银行卡', balance: '1000.00', balance_cents: 100000, is_default: false },
 ];
+const members = [
+  { id: 1, name: '我', color: '#3a7' },
+  { id: 2, name: '配偶', color: '#a75' },
+];
 const liabilities: Liability[] = [
   { id: 1, name: '房贷', remaining: '200000.00', monthlyPayment: '3000.00', payment_day: 5 },
   { id: 2, name: '消费贷', remaining: '50000.00', monthlyPayment: '', payment_day: 0 },

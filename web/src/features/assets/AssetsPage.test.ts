@@ -37,6 +37,10 @@ const accounts: Account[] = [
   { id: 1, name: '现金', balance: '0.00', balance_cents: 0, is_default: true },
   { id: 2, name: '银行卡', balance: '-200.00', balance_cents: -20000, is_default: false },
 ];
+const members = [
+  { id: 1, name: '我', color: '#3a7' },
+  { id: 2, name: '配偶', color: '#a75' },
+];
 const assets: Asset[] = [
   {
     id: 1,
@@ -653,7 +657,7 @@ describe('AC-05 资产市值历史', () => {
     const monthInput = fieldInput('记账月份');
     expect(monthInput).toBeTruthy();
     setInput(monthInput!, '2026-09');
-    setInput(fieldInput('9月末市值')!, '1010000');
+    setInput(document.querySelector<HTMLInputElement>('[aria-label="市值"]')!, '1010000');
     await settle();
     clickBtn('保存');
     await settle();

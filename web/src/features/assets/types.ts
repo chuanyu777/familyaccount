@@ -5,6 +5,7 @@ export interface Account {
   balanceCents?: number;
   isDefault?: number | boolean;
   balance_cents?: number;
+  member_id?: number;
   is_default?: number | boolean;
   archived?: number | boolean;
 }
@@ -18,6 +19,8 @@ export interface Asset {
   kind: string;
   updatedAt?: string;
   updated_at?: string;
+  member_id?: number;
+  updated_by_member_id?: number;
   archived?: number | boolean;
 }
 

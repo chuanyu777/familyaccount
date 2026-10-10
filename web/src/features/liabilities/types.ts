@@ -5,6 +5,7 @@ export interface Account {
   balanceCents?: number;
   isDefault?: number | boolean;
   balance_cents?: number;
+  member_id?: number;
   is_default?: number | boolean;
   archived?: number | boolean;
 }
@@ -16,6 +17,7 @@ export interface Liability {
   monthlyPayment: string;
   paymentDay?: number;
   payment_day?: number;
+  member_id?: number;
   archived?: number | boolean;
 }
 
