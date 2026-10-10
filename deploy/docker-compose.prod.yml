@@ -51,12 +51,28 @@ services:
       SPECIAL_LEDGER_MEMBER_DISPLAY_NAME: ${SPECIAL_LEDGER_MEMBER_DISPLAY_NAME:-配偶}
       SPECIAL_LEDGER_MEMBER_USERNAME: ${SPECIAL_LEDGER_MEMBER_USERNAME:?请在 .env 中设置配偶 Web 用户名}
       SPECIAL_LEDGER_MEMBER_PASSWORD: ${SPECIAL_LEDGER_MEMBER_PASSWORD:?请在 .env 中设置配偶 Web 密码}
-      ASSISTANT_AGENT_URL: ${ASSISTANT_AGENT_URL:-}
-      ASSISTANT_INTERNAL_TOKEN: ${ASSISTANT_INTERNAL_TOKEN:-}
+      ASSISTANT_AGENT_URL: ${ASSISTANT_AGENT_URL:-http://agent:8090}
+      ASSISTANT_INTERNAL_TOKEN: ${ASSISTANT_INTERNAL_TOKEN:?请在 .env 中设置助手内部令牌}
     depends_on:
       mysql:
         condition: service_healthy
     # 不对外暴露 3001，仅由 web 容器反代访问，更安全
+
+  agent:
+    build:
+      context: ../agent
+    container_name: family-ledger-agent
+    restart: unless-stopped
+    environment:
+      # 容器内直接用服务名访问后端，不必绕 host.docker.internal
+      SPRING_BASE_URL: http://app:3001
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:?请在 .env 中设置 DeepSeek API Key}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-flash}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      ASSISTANT_INTERNAL_TOKEN: ${ASSISTANT_INTERNAL_TOKEN:?请在 .env 中设置助手内部令牌}
+    depends_on:
+      - app
+    # 不对外暴露 8090，仅由 app 容器在内部网络访问
 
   web:
     build:
