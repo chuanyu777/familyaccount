@@ -150,4 +150,11 @@ watch(() => props.open, open => { if (open) void reveal(); }, { immediate: true 
 .assistant-card { width: 100%; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--bg); }.assistant-insight-card { padding: 13px; }.assistant-insight-card__period { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; }.assistant-insight-card__period span:first-child { color: var(--ink); font-weight: 500; }.assistant-insight-card__metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 13px; }.assistant-insight-card__metrics div { display: grid; gap: 3px; min-width: 0; }.assistant-insight-card__metrics span { color: var(--muted); font-size: 9px; }.assistant-insight-card__metrics strong { overflow: hidden; font-size: 13px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .assistant-composer { display: grid; grid-template-columns: 1fr 34px; align-items: end; gap: 7px; margin: 0 14px 5px; padding: 8px 8px 8px 11px; border: 1px solid var(--line); border-radius: 13px; background: var(--bg); }.assistant-composer textarea { width: 100%; min-height: 29px; max-height: 72px; resize: none; padding: 6px 0 0; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 12px; line-height: 1.4; }.assistant-composer textarea::placeholder { color: var(--muted); }.assistant-composer button { display: grid; width: 34px; height: 34px; place-items: center; border: 0; border-radius: 10px; background: var(--primary); color: #fff; cursor: pointer; }.assistant-composer button:disabled { opacity: .4; cursor: default; }.assistant-disclaimer { margin: 0 0 9px; color: var(--muted); font-size: 9px; text-align: center; }
 @media (max-width: 767px) { .assistant-fab { right: 16px; bottom: calc(var(--safe-bottom) + 140px); }.assistant-scrim { background: rgba(19, 23, 34, .2); pointer-events: auto; }.assistant-panel { top: 0; width: min(100%, 480px); box-shadow: -8px 0 24px rgba(19, 23, 34, .14); } }
+
+/* 面板打开时把浮动按钮让到面板外侧，避免压住输入框右侧的发送按钮。 */
+.assistant-fab--active { right: calc(380px + 16px); }
+@media (max-width: 767px) {
+  /* 移动端面板接近全宽，没有可让位的空间；收起改由面板内的关闭按钮完成。 */
+  .assistant-fab--active { display: none; }
+}
 </style>

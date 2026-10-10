@@ -185,6 +185,9 @@ onMounted(() => void load());
 .settings-group h2 { margin: 0; font-size: var(--text-base); }
 .family-form { display: flex; align-items: end; gap: var(--sp-3); }
 .family-form__field { flex: 1; }
+/* .field 自带 margin-bottom；横向 flex + align-items:end 对齐的是 margin box，
+   会把输入框整体垫高，使按钮比输入框低一截。补零后两者底边齐平。 */
+.family-form .field { margin-bottom: 0; }
 .settings-list { list-style: none; margin: 0; padding: 0; }
 .settings-row { display: flex; align-items: center; gap: var(--sp-3); min-height: 48px; border-top: 1px solid var(--line); }
 .settings-row__name { flex: 1; color: var(--ink); }
