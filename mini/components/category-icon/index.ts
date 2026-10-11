@@ -86,8 +86,10 @@ Component({
   },
   lifetimes: {
     attached(this: unknown): void {
-      const instance = this as ComponentInstance;
-      instance.syncIcon('');
+      // 注意：attached 晚于 observers 的初始触发，这里必须用真实初始属性同步；
+      // 传空串会把 observers 已算好的正确图标覆盖回兜底（历史 bug：明细全显示 🏷️）。
+      const instance = this as ComponentInstance & { data: { iconKey?: string } };
+      instance.syncIcon(instance.data.iconKey ?? '');
     },
   },
 });
