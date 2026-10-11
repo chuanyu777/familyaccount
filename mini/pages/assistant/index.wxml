@@ -10,6 +10,7 @@
         <text class="draft-card__type">{{item.typeLabel}}</text>
       </view>
       <text wx:if="{{item.inferred.length}}" class="draft-card__tag">含 AI 补充的字段</text>
+      <block wx:if="{{item.actionType === 'create_transaction'}}">
       <view class="draft-card__row"><text class="draft-card__label">金额</text>
         <input wx:if="{{item.editing}}" class="draft-card__input" type="digit" value="{{form.amount}}" data-field="amount" bindinput="handleFormInput"/>
         <text wx:else class="draft-card__value">¥{{item.amount}}</text>
@@ -28,8 +29,12 @@
         <input wx:if="{{item.editing}}" class="draft-card__input" value="{{form.note}}" data-field="note" bindinput="handleFormInput"/>
         <text wx:else class="draft-card__value">{{item.note}}</text>
       </view>
+      </block>
+      <block wx:else>
+        <view wx:for="{{item.rows}}" wx:for-item="row" wx:key="key" class="draft-card__row"><text class="draft-card__label">{{row.label}}</text><text class="draft-card__value">{{row.value}}</text></view>
+      </block>
       <text wx:if="{{item.error}}" class="draft-card__error">{{item.error}}</text>
-      <text wx:if="{{item.status === 'confirmed'}}" class="draft-card__done">已记入账本</text>
+      <text wx:if="{{item.status === 'confirmed'}}" class="draft-card__done">已执行</text>
       <text wx:elif="{{item.status === 'cancelled'}}" class="draft-card__done">已取消，没有对账本做任何修改</text>
       <view wx:else class="draft-card__actions">
         <block wx:if="{{item.editing}}">

@@ -67,7 +67,14 @@ public class Migrator {
     long start = System.currentTimeMillis();
     List<String> statements = splitStatements(content);
     for (String sql : statements) {
-      db.execute(sql);
+      try {
+        db.execute(sql);
+      } catch (org.springframework.jdbc.BadSqlGrammarException e) {
+        // H2 测试环境由 schema.sql 建表，迁移再 ADD COLUMN 会撞「列已存在」；
+        // 该类冲突幂等（列已在），跳过即可。其余语法错误照常抛出。
+        if (!isDuplicateColumn(e)) throw e;
+        System.out.printf("[migrate] V%d 跳过重复列语句：%s%n", version, brief(sql));
+      }
     }
     long cost = System.currentTimeMillis() - start;
     db.update(
@@ -191,7 +198,16 @@ public class Migrator {
     return out;
   }
 
-  static String checksum(String content) {
+  private static boolean isDuplicateColumn(org.springframework.jdbc.BadSqlGrammarException e) {
+    String message = e.getMostSpecificCause().getMessage();
+    return message != null && (message.contains("already exists") || message.contains("Duplicate column"));
+  }
+
+  private static String brief(String sql) {
+    return sql.length() > 60 ? sql.substring(0, 60) + "..." : sql;
+  }
+
+  public static String checksum(String content) {
     try {
       MessageDigest md = MessageDigest.getInstance("MD5");
       byte[] digest = md.digest(content.getBytes(StandardCharsets.UTF_8));

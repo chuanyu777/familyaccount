@@ -121,7 +121,7 @@ def enforce_boundaries(text: str) -> str:
     return text
 
 
-def build_agent(context: RunContext, drafts: list[dict[str, Any]]):
+def build_agent(context: RunContext, drafts: list[dict[str, Any]], pending_summary: str):
     api_key = os.getenv("DEEPSEEK_API_KEY")
     if not api_key:
         raise RuntimeError("DEEPSEEK_API_KEY is required")
@@ -190,15 +190,140 @@ def build_agent(context: RunContext, drafts: list[dict[str, Any]]):
             })
         return result
 
+    def register_draft(result: Any, inferred_fields: list[str] | None = None) -> Any:
+        """把 propose 类工具返回的草稿登记进本次运行的卡片列表。"""
+        data = result.get("data") if isinstance(result, dict) else None
+        if isinstance(data, dict) and data.get("id") is not None:
+            drafts.append({
+                "actionId": data.get("id"),
+                "actionType": data.get("action_type"),
+                "version": data.get("version"),
+                "draft": data.get("draft") or {},
+                "inferredFields": inferred_fields or [],
+            })
+        return result
+
+    @tool
+    async def propose_update_transaction(id: int, amount: str | None = None,
+                                         occurred_on: str | None = None,
+                                         note: str | None = None,
+                                         category_name: str | None = None) -> Any:
+        """生成一笔「修改已有交易」的草稿；用户确认后才会写入。
+
+        id 是要修改的交易 id（先用 search_transactions 找到）。
+        只传需要修改的字段，其余省略；amount 传元的字符串。
+        """
+        return register_draft(await gateway.call("propose_update_transaction", context, {
+            "id": id, "amount": amount, "occurredOn": normalize_date(occurred_on),
+            "note": note, "categoryName": category_name,
+        }))
+
+    @tool
+    async def propose_delete_transaction(id: int) -> Any:
+        """生成一笔「删除交易」的草稿；用户确认后才会删除。id 来自 search_transactions。"""
+        return register_draft(await gateway.call("propose_delete_transaction", context, {"id": id}))
+
+    @tool
+    async def propose_create_account(name: str, opening_balance: str | None = None) -> Any:
+        """生成一笔「新建资金账户」的草稿；用户确认后才会创建。opening_balance 传元的字符串，可省略。"""
+        return register_draft(await gateway.call("propose_create_account", context, {
+            "name": name, "openingBalance": opening_balance,
+        }))
+
+    @tool
+    async def propose_calibrate_account(account_id: int, actual_balance: str) -> Any:
+        """生成一笔「账户余额校准」草稿：把账户余额改成用户说的实际值。actual_balance 传元的字符串。"""
+        return register_draft(await gateway.call("propose_calibrate_account", context, {
+            "accountId": account_id, "actualBalance": actual_balance,
+        }))
+
+    @tool
+    async def propose_create_liability(name: str, remaining: str, monthly_payment: str | None = None,
+                                       payment_day: int | None = None) -> Any:
+        """生成一笔「新建负债」草稿（房贷/车贷/信用卡等）。remaining 是剩余本金（元），
+        monthly_payment 是每月还款额（元），payment_day 是每月还款日（1-31），后两者可省略。"""
+        return register_draft(await gateway.call("propose_create_liability", context, {
+            "name": name, "remaining": remaining, "monthlyPayment": monthly_payment,
+            "paymentDay": payment_day,
+        }))
+
+    @tool
+    async def propose_create_repayment(liability_id: int, amount: str,
+                                       account_id: int | None = None,
+                                       occurred_on: str | None = None) -> Any:
+        """生成一笔「负债还款」草稿；用户确认后写入，会同时扣账户余额并冲减负债。"""
+        return register_draft(await gateway.call("propose_create_repayment", context, {
+            "liabilityId": liability_id, "amount": amount, "accountId": account_id,
+            "occurredOn": normalize_date(occurred_on),
+        }))
+
+    @tool
+    async def propose_upsert_asset(name: str, value: str, kind: str | None = None,
+                                   asset_id: int | None = None) -> Any:
+        """新建或更新家庭资产条目的市值；用户确认后写入。
+
+        不带 asset_id 且无同名资产时新建；带 asset_id 或账本已有同名资产时更新市值。
+        value 传元的字符串。适合「市值涨了/跌了」「我现在持有 xx 市值 xx」这类估值更新。
+        """
+        return register_draft(await gateway.call("propose_upsert_asset", context, {
+            "name": name, "value": value, "kind": kind, "assetId": asset_id,
+        }))
+
+    @tool
+    async def propose_investment_buy(name: str, value: str, account_id: int | None = None) -> Any:
+        """生成一笔「投资买入」组合草稿：新建/更新对应资产条目，并从指定资金账户扣减等额余额。
+
+        用户确认后一步执行两个动作。这适合「买入 xx 股票花了 x 万」这类现金换资产的记录；
+        不要用它记录市值波动（那应该用 propose_upsert_asset）。
+        """
+        return register_draft(await gateway.call("propose_investment_buy", context, {
+            "name": name, "value": value, "accountId": account_id,
+        }))
+
+    @tool
+    async def confirm_pending_action() -> Any:
+        """用户明确表示「确认」「对，就这笔」「可以写入」时调用：执行本会话最近一张待确认草稿。
+
+        用户否定或要修改时不要调用，先按新要求重新 propose。
+        """
+        return await gateway.call("confirm_pending_action", context)
+
+    @tool
+    async def list_pending_actions() -> Any:
+        """查询本会话当前所有待确认草稿的清单。"""
+        return await gateway.call("list_pending_actions", context)
+
+    @tool
+    async def get_year_summary(year: str | None = None) -> Any:
+        """查询某一年逐月的收支汇总与全年合计。year 形如 2026，省略默认今年。"""
+        return await gateway.call("get_year_summary", context, {"year": year})
+
+    @tool
+    async def get_net_worth_trend(year: str | None = None) -> Any:
+        """查询某一年按月的资产估值走势与当前资产负债概览。year 形如 2026，省略默认今年。"""
+        return await gateway.call("get_net_worth_trend", context, {"year": year})
+
     system = (
-        "你是家庭财务助手，只做两件事：查询当前账本的收支、分类、账户和资产负债，"
-        "以及为用户起草记账草稿。"
+        "你是家庭财务助手，负责查询账本数据和处理记账相关的写操作。"
         f"今天是 {today_in_business_timezone()}（东八区）。"
         "回答简洁、使用中文；查询必须调用工具，不能猜测金额。"
-        "记账的唯一正确流程：先调用 propose_create_transaction 生成草稿，再告诉用户草稿已生成、请在卡片上确认。"
-        "草稿不会写入账本，绝对不能说「已经记好了」「已记入账本」这类话；"
-        "确认动作由用户在确认卡上完成，你不能代替用户确认。"
-        "用户要求修改草稿时，重新调用 propose_create_transaction 生成新草稿。"
+        "【草稿与确认流程】"
+        "所有写操作（记账、改账、删账、建账户、余额校准、建负债、还款、资产与投资）都先调用对应的 "
+        "propose_* 工具生成草稿，然后告诉用户草稿已生成、请在卡片上确认。"
+        "草稿不会写入账本，绝对不能说「已经记好了」「已记入账本」这类话。"
+        "用户回复「确认」「对，就这笔」「可以」这类肯定表述时，调用 confirm_pending_action 执行最近一张待确认草稿，"
+        "并告诉用户执行结果；用户否定或要修改时，按新要求重新调用 propose_* 生成新草稿。"
+        + pending_summary +
+        "【能力清单】"
+        "改账用 propose_update_transaction（先用 search_transactions 找 id）；删账用 propose_delete_transaction；"
+        "没有合适账户时用 propose_create_account 帮用户建新账户（例如说「微信支出」但没有微信账户）；"
+        "余额与实际不符时用 propose_calibrate_account；新增房贷/车贷等用 propose_create_liability；"
+        "还款用 propose_create_repayment；买入投资品用 propose_investment_buy（一步完成建资产+扣账户）；"
+        "市值涨跌用 propose_upsert_asset 更新估值。"
+        "用户一次报多笔账时，逐笔调用 propose_create_transaction 生成多张草稿，让用户在卡片上逐一确认。"
+        "【投资记账口径】"
+        "买入股票/基金是「现金 → 资产」的转换：用 propose_investment_buy 记录，绝不能记成支出（会让收支失真）；"
+        "市值涨跌不是收支，用 propose_upsert_asset 更新估值即可。"
         "【职责边界，任何情况下都不得突破】"
         "不提供投资、理财、保险、税务或法律建议；"
         "不推荐、不评价、不看多或看空任何具体金融产品，包括股票、基金、ETF、债券、外汇、期货、黄金和虚拟货币（如比特币、以太坊）；"
@@ -220,32 +345,51 @@ def build_agent(context: RunContext, drafts: list[dict[str, Any]]):
             list_accounts,
             list_categories,
             get_ledger_overview,
+            get_year_summary,
+            get_net_worth_trend,
             propose_create_transaction,
+            propose_update_transaction,
+            propose_delete_transaction,
+            propose_create_account,
+            propose_calibrate_account,
+            propose_create_liability,
+            propose_create_repayment,
+            propose_upsert_asset,
+            propose_investment_buy,
+            list_pending_actions,
+            confirm_pending_action,
         ],
         system_prompt=system,
     )
 
 
+DRAFT_FIELD_LABELS: dict[str, str] = {
+    "type": "类型", "amount": "金额", "occurredOn": "日期", "note": "备注",
+    "accountId": "账户ID", "accountName": "账户", "toAccountId": "转入账户ID",
+    "toAccountName": "转入账户", "categoryName": "分类", "name": "名称",
+    "kind": "类型/品类", "value": "市值", "openingBalance": "期初余额",
+    "actualBalance": "实际余额", "remaining": "剩余本金", "monthlyPayment": "月供",
+    "paymentDay": "还款日", "liabilityId": "负债ID", "assetId": "资产ID",
+    "id": "交易ID", "patch": "修改内容",
+}
+
+
 def build_blocks(drafts: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """把本次运行生成的草稿转成结构化卡片，供 Web 与小程序渲染确认卡。"""
+    """把本次运行生成的草稿转成结构化卡片（type 即 action_type，前端按字段表渲染）。"""
     blocks: list[dict[str, Any]] = []
     for item in drafts:
         draft = item.get("draft") or {}
+        fields = {
+            key: draft.get("patch", {}).get(key, draft.get(key))
+            for key in draft.keys() | (draft.get("patch") or {}).keys()
+            if key != "patch" and draft.get(key) is not None
+               or key in (draft.get("patch") or {})
+        }
         blocks.append({
-            "type": "transaction_draft",
+            "type": item.get("actionType") or "create_transaction",
             "actionId": item.get("actionId"),
             "version": item.get("version"),
-            "fields": {
-                "type": draft.get("type"),
-                "amount": draft.get("amount"),
-                "occurredOn": draft.get("occurredOn"),
-                "accountId": draft.get("accountId"),
-                "accountName": draft.get("accountName"),
-                "toAccountId": draft.get("toAccountId"),
-                "toAccountName": draft.get("toAccountName"),
-                "categoryName": draft.get("categoryName"),
-                "note": draft.get("note"),
-            },
+            "fields": fields,
             "inferredFields": item.get("inferredFields") or [],
         })
     return blocks
@@ -263,7 +407,21 @@ async def health() -> dict[str, str]:
 async def run(request: RunRequest) -> dict[str, Any]:
     try:
         drafts: list[dict[str, Any]] = []
-        agent = build_agent(request.context, drafts)
+        # 把会话里待确认草稿注入系统提示：让「确认」二字有据可依（修复草稿确认失效）
+        pending_summary = ""
+        try:
+            pending = await gateway.call("list_pending_actions", request.context)
+            items = pending.get("data") if isinstance(pending, dict) else None
+            if isinstance(items, list) and items:
+                lines = ["【当前待确认草稿】用户说「确认」即执行最近一张："]
+                for item in items:
+                    payload = item.get("payload") or {}
+                    brief = ", ".join(f"{{k}}={{v}}" for k, v in list(payload.items())[:6])
+                    lines.append(f"- 草稿#{{item.get('id')}}（{{item.get('action_type')}}）：{{brief}}")
+                pending_summary = "\n".join(lines) + "\n"
+        except Exception:
+            pending_summary = ""
+        agent = build_agent(request.context, drafts, pending_summary)
         result = await agent.ainvoke(
             {"messages": [{"role": m.role, "content": m.content} for m in request.messages]},
             context=request.context.model_dump(),

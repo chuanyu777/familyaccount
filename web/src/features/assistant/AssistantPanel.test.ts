@@ -23,7 +23,7 @@ const DRAFT_MESSAGE = {
   role: 'assistant' as const,
   content: '草稿已生成，请在卡片上确认。',
   blocks: [{
-    type: 'transaction_draft',
+    type: 'create_transaction',
     actionId: 7,
     version: 0,
     fields: {
@@ -80,16 +80,16 @@ describe('助手确认卡', () => {
     expect(card.text()).toContain('交通');
     expect(card.text()).toContain('打车');
     expect(card.text()).toContain('AI 补充');
-    expect(card.findAll('button').map((button) => button.text())).toEqual(['确认记账', '修改', '取消']);
+    expect(card.findAll('button').map((button) => button.text())).toEqual(['确认执行', '修改', '取消']);
   });
 
-  it('确认记账：调用确认接口、刷新账目账户统计，并显示已记入账本', async () => {
+  it('确认记账：调用确认接口、刷新账目账户统计，并显示已执行', async () => {
     const wrapper = await mountPanel([DRAFT_MESSAGE]);
     await wrapper.find('.assistant-draft-card button').trigger('click');
     await flushPromises();
     expect(mockedApiPost).toHaveBeenCalledWith('/assistant/actions/7/confirm', {});
-    expect(publishResources).toHaveBeenCalledWith(['transactions', 'accounts', 'statistics']);
-    expect(wrapper.find('.assistant-draft-card').text()).toContain('已记入账本');
+    expect(publishResources).toHaveBeenCalledWith(['transactions', 'accounts', 'statistics', 'assets', 'liabilities']);
+    expect(wrapper.find('.assistant-draft-card').text()).toContain('已执行');
   });
 
   it('取消：调用取消接口，并明确告知没有修改账本', async () => {
@@ -118,7 +118,7 @@ describe('助手确认卡', () => {
     expect(mockedApiPatch.mock.calls[0]![1]).toMatchObject({ amount: '40.00' });
     const card = wrapper.find('.assistant-draft-card');
     expect(card.text()).toContain('¥40.00');
-    expect(card.findAll('button').map((button) => button.text())).toEqual(['确认记账', '修改', '取消']);
+    expect(card.findAll('button').map((button) => button.text())).toEqual(['确认执行', '修改', '取消']);
   });
 
   it('确认失败时给出错误提示，卡片保持可操作', async () => {
@@ -128,7 +128,7 @@ describe('助手确认卡', () => {
     await flushPromises();
     const card = wrapper.find('.assistant-draft-card');
     expect(card.text()).toContain('网络异常');
-    expect(card.text()).not.toContain('已记入账本');
+    expect(card.text()).not.toContain('已执行');
     expect(card.findAll('button')).toHaveLength(3);
   });
 

@@ -16,9 +16,9 @@ interface DraftFields {
   note?: string | null;
 }
 
-/** 记账草稿卡：用户确认后才会真正写入账本。 */
+/** 助手草稿卡：type 即后端 action_type；用户确认后才会真正写入账本。 */
 interface DraftBlock {
-  type: 'transaction_draft';
+  type: string;
   actionId: number;
   version: number;
   fields: DraftFields;
@@ -115,7 +115,7 @@ function quickEntry() { void send('帮我记一笔'); }
 function quickSummary() { void send('总结本月'); }
 function quickSearch() { void send('查最近大额'); }
 function insightRows(message: Message): Array<{ label: string; value: string }> {
-  const block = message.blocks?.[0];
+  const block = message.blocks?.[0] as { type?: string; data?: unknown } | undefined;
   const data = block && block.type === 'metric' ? block.data : undefined;
   if (!data || typeof data !== 'object') return [];
   const values = data as Record<string, unknown>;
@@ -137,18 +137,40 @@ function insightRows(message: Message): Array<{ label: string; value: string }> 
   return [];
 }
 function insightPeriod(message: Message): string {
-  const block = message.blocks?.[0];
+  const block = message.blocks?.[0] as { type?: string; data?: unknown } | undefined;
   const data = block && block.type === 'metric' ? block.data : undefined;
   return data && typeof data === 'object' && 'month' in data ? String(data.month) : '当前账本';
 }
 
 // —— 记账确认卡（需求 4.1 / 7：先出草稿，用户可修改、取消、确认后才写入账本）——
 
-const TYPE_LABELS: Record<string, string> = { expense: '支出', income: '收入', transfer: '转账' };
+const TYPE_LABELS: Record<string, string> = {
+  expense: '支出', income: '收入', transfer: '转账',
+  create_transaction: '记账草稿', update_transaction: '修改交易', delete_transaction: '删除交易',
+  create_account: '新建账户', calibrate_account: '余额校准',
+  create_liability: '新建负债', create_repayment: '负债还款',
+  upsert_asset: '资产估值更新', investment_buy: '投资买入',
+};
 function typeLabel(type: string): string { return TYPE_LABELS[type] ?? type; }
 
+/** 通用卡片隐藏纯 id 字段，展示可读名称。 */
+const HIDDEN_FIELDS = new Set(['accountId', 'toAccountId', 'assetId', 'liabilityId']);
+const FIELD_LABELS: Record<string, string> = {
+  amount: '金额', occurredOn: '日期', note: '备注', categoryName: '分类',
+  accountName: '账户', toAccountName: '转入账户', name: '名称', kind: '类型',
+  value: '市值', actualBalance: '实际余额', openingBalance: '期初余额',
+  remaining: '剩余本金', monthlyPayment: '月供', paymentDay: '还款日',
+  type: '类型', id: 'ID',
+};
+function draftRows(block: DraftBlock): Array<{ key: string; label: string; value: string }> {
+  return Object.entries(block.fields ?? {})
+    .filter(([key, value]) => value != null && value !== '' && !HIDDEN_FIELDS.has(key))
+    .map(([key, value]) => ({ key, label: FIELD_LABELS[key] ?? key, value: String(value) }));
+}
+
 function draftsOf(message: Message): DraftBlock[] {
-  return (message.blocks ?? []).filter((block): block is DraftBlock => block.type === 'transaction_draft');
+  return (message.blocks ?? []).filter((block): block is DraftBlock =>
+    typeof (block as DraftBlock).actionId === 'number');
 }
 function isInferred(block: DraftBlock, field: string): boolean {
   return (block.inferredFields ?? []).includes(field);
@@ -202,8 +224,8 @@ async function confirmDraft(block: DraftBlock) {
     await apiPost(`/assistant/actions/${block.actionId}/confirm`, {});
     draftStatus[block.actionId] = 'confirmed';
     delete draftEdits[block.actionId];
-    // 记账成功后让账目、账户与统计重新拉取。
-    publishResources(['transactions', 'accounts', 'statistics']);
+    // 写操作成功后让相关资源全部重新拉取。
+    publishResources(['transactions', 'accounts', 'statistics', 'assets', 'liabilities']);
   } catch (error) {
     draftError[block.actionId] = error instanceof Error ? error.message : '确认失败';
   } finally { draftBusy[block.actionId] = false; }
@@ -261,8 +283,8 @@ watch(() => props.open, open => { if (open) void reveal(); }, { immediate: true 
             <div class="assistant-insight-card__metrics"><div v-for="row in insightRows(message)" :key="row.label"><span>{{ row.label }}</span><strong>{{ row.value }}</strong></div></div>
           </div>
           <div v-for="draft in draftsOf(message)" :key="`draft-${draft.actionId}`" class="assistant-card assistant-draft-card">
-            <div class="assistant-draft-card__head"><span>待确认的记账草稿</span><span class="assistant-draft-card__type">{{ typeLabel(draft.fields.type) }}</span></div>
-            <ul class="assistant-draft-card__rows">
+            <div class="assistant-draft-card__head"><span>待确认草稿</span><span class="assistant-draft-card__type">{{ typeLabel(draft.type) }}</span></div>
+            <ul v-if="draft.type === 'create_transaction'" class="assistant-draft-card__rows">
               <li><span>金额</span>
                 <input v-if="draftEditing(draft)" class="assistant-draft-card__input" inputmode="decimal" :value="draftValue(draft, 'amount')" @input="updateDraftField(draft, 'amount', ($event.target as HTMLInputElement).value)" />
                 <strong v-else>¥{{ draft.fields.amount }}</strong>
@@ -285,8 +307,11 @@ watch(() => props.open, open => { if (open) void reveal(); }, { immediate: true 
                 <strong v-else>{{ draft.fields.note || '—' }}</strong>
               </li>
             </ul>
+            <ul v-else class="assistant-draft-card__rows">
+              <li v-for="row in draftRows(draft)" :key="row.key"><span>{{ row.label }}</span><strong>{{ row.value }}</strong></li>
+            </ul>
             <p v-if="draftError[draft.actionId]" class="assistant-draft-card__error" role="alert">{{ draftError[draft.actionId] }}</p>
-            <p v-if="draftState(draft) === 'confirmed'" class="assistant-draft-card__done">已记入账本</p>
+            <p v-if="draftState(draft) === 'confirmed'" class="assistant-draft-card__done">已执行</p>
             <p v-else-if="draftState(draft) === 'cancelled'" class="assistant-draft-card__done">已取消，没有对账本做任何修改</p>
             <div v-else class="assistant-draft-card__actions">
               <template v-if="draftEditing(draft)">
@@ -294,8 +319,8 @@ watch(() => props.open, open => { if (open) void reveal(); }, { immediate: true 
                 <button type="button" class="assistant-draft-btn" :disabled="draftBusy[draft.actionId]" @click="stopDraftEdit(draft)">放弃</button>
               </template>
               <template v-else>
-                <button type="button" class="assistant-draft-btn assistant-draft-btn--primary" :disabled="draftBusy[draft.actionId]" @click="confirmDraft(draft)">确认记账</button>
-                <button type="button" class="assistant-draft-btn" :disabled="draftBusy[draft.actionId]" @click="startDraftEdit(draft)">修改</button>
+                <button type="button" class="assistant-draft-btn assistant-draft-btn--primary" :disabled="draftBusy[draft.actionId]" @click="confirmDraft(draft)">确认执行</button>
+                <button v-if="draft.type === 'create_transaction'" type="button" class="assistant-draft-btn" :disabled="draftBusy[draft.actionId]" @click="startDraftEdit(draft)">修改</button>
                 <button type="button" class="assistant-draft-btn" :disabled="draftBusy[draft.actionId]" @click="cancelDraft(draft)">取消</button>
               </template>
             </div>

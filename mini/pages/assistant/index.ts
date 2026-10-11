@@ -8,7 +8,9 @@ import {
 /** 确认卡的视图模型：展示字段 + 本地交互状态。 */
 interface DraftView {
   actionId: number;
+  actionType: string;
   typeLabel: string;
+  rows: Array<{ key: string; label: string; value: string }>;
   amount: string;
   occurredOn: string;
   accountName: string;
@@ -33,7 +35,20 @@ interface Data {
 }
 interface Context { data: Data & { conversationId: number | null }; setData(data: Partial<Data & { conversationId: number | null }>): void; }
 
-const TYPE_LABELS: Record<string, string> = { expense: '支出', income: '收入', transfer: '转账' };
+const TYPE_LABELS: Record<string, string> = {
+  expense: '支出', income: '收入', transfer: '转账',
+  create_transaction: '记账草稿', update_transaction: '修改交易', delete_transaction: '删除交易',
+  create_account: '新建账户', calibrate_account: '余额校准',
+  create_liability: '新建负债', create_repayment: '负债还款',
+  upsert_asset: '资产估值更新', investment_buy: '投资买入',
+};
+const HIDDEN_FIELDS = ['accountId', 'toAccountId', 'assetId', 'liabilityId'];
+const FIELD_LABELS: Record<string, string> = {
+  amount: '金额', occurredOn: '日期', note: '备注', categoryName: '分类',
+  accountName: '账户', toAccountName: '转入账户', name: '名称', kind: '类型',
+  value: '市值', actualBalance: '实际余额', openingBalance: '期初余额',
+  remaining: '剩余本金', monthlyPayment: '月供', paymentDay: '还款日',
+};
 
 function errorText(error: unknown): string { return error instanceof Error ? error.message : '助手暂时不可用，请稍后重试'; }
 
@@ -43,11 +58,17 @@ function buildDrafts(messages: AssistantMessage[], previous: DraftView[]): Draft
   for (const message of messages) {
     for (const block of message.blocks ?? []) {
       if (!('actionId' in block)) continue;
+      const actionType = String((block as { type?: string }).type ?? 'create_transaction');
       const fields = block.fields;
       const before = previous.find((item) => item.actionId === block.actionId);
+      const rows = Object.entries(fields ?? {})
+        .filter(([key, value]) => value != null && value !== '' && HIDDEN_FIELDS.indexOf(key) < 0)
+        .map(([key, value]) => ({ key, label: FIELD_LABELS[key] ?? key, value: String(value) }));
       drafts.push({
         actionId: block.actionId,
-        typeLabel: TYPE_LABELS[fields.type] ?? fields.type,
+        actionType,
+        typeLabel: TYPE_LABELS[actionType] ?? actionType,
+        rows,
         amount: fields.amount,
         occurredOn: fields.occurredOn,
         accountName: fields.accountName || '默认账户',

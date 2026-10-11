@@ -45,6 +45,18 @@ public class AssistantToolController {
       case "list_categories" -> tools.listCategories(context, string(requestParams.get("kind")));
       case "get_ledger_overview" -> tools.getLedgerOverview(context);
       case "propose_create_transaction" -> tools.proposeCreateTransaction(context, requestParams);
+      case "propose_update_transaction" -> tools.proposeUpdateTransaction(context, requestParams);
+      case "propose_delete_transaction" -> tools.proposeDeleteTransaction(context, requestParams);
+      case "propose_create_account" -> tools.proposeCreateAccount(context, requestParams);
+      case "propose_calibrate_account" -> tools.proposeCalibrateAccount(context, requestParams);
+      case "propose_create_liability" -> tools.proposeCreateLiability(context, requestParams);
+      case "propose_create_repayment" -> tools.proposeCreateRepayment(context, requestParams);
+      case "propose_upsert_asset" -> tools.proposeUpsertAsset(context, requestParams);
+      case "propose_investment_buy" -> tools.proposeInvestmentBuy(context, requestParams);
+      case "list_pending_actions" -> tools.listPendingActions(context);
+      case "confirm_pending_action" -> tools.confirmPendingAction(context);
+      case "get_year_summary" -> tools.getYearSummary(context, string(requestParams.get("year")));
+      case "get_net_worth_trend" -> tools.getNetWorthTrend(context, string(requestParams.get("year")));
       default -> throw new ResponseStatusException(HttpStatus.NOT_FOUND, "unknown assistant tool");
     };
   }
