@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import MoneyText from '../../components/MoneyText.vue';
+import { ACCOUNT_EMOJI } from './util';
 import type { Account } from './types';
 
 defineProps<{ accounts: Account[] }>();
@@ -15,7 +16,7 @@ defineEmits<{ 'select-account': [account: Account] }>();
         :data-account-row="account.id"
         @click="$emit('select-account', account)"
       >
-        <span class="row__bubble" aria-hidden="true">{{ account.name.slice(0, 1) }}</span>
+        <span class="row__bubble" aria-hidden="true">{{ ACCOUNT_EMOJI }}</span>
         <span class="row__main">
           <span class="row__title">{{ account.name }} <span v-if="account.isDefault ?? account.is_default" class="tag">默认</span></span>
           <span class="row__meta">

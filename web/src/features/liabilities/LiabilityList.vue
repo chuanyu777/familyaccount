@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import MoneyText from '../../components/MoneyText.vue';
+import { liabilityNameEmoji } from './util';
 import { parseYuanToCents } from './util';
 import type { Liability, Repayment } from './types';
 
@@ -63,10 +64,13 @@ function progressPercent(liability: Liability): number {
           @keydown.space.prevent="emit('select', liability)"
         >
           <span class="liability-row__identity">
-            <span class="liability-row__name">{{ liability.name }}</span>
-            <span class="liability-row__meta">
-              <span>月供 <MoneyText :cents="monthlyCents(liability)" tone="expense" /></span>
-              <span v-if="liability.paymentDay ?? liability.payment_day">{{ liability.paymentDay ?? liability.payment_day }} 日/月</span>
+            <span class="liability-row__emoji" aria-hidden="true">{{ liabilityNameEmoji(liability.name) }}</span>
+            <span class="liability-row__text">
+              <span class="liability-row__name">{{ liability.name }}</span>
+              <span class="liability-row__meta">
+                <span>月供 <MoneyText :cents="monthlyCents(liability)" tone="expense" /></span>
+                <span v-if="liability.paymentDay ?? liability.payment_day">{{ liability.paymentDay ?? liability.payment_day }} 日/月</span>
+              </span>
             </span>
           </span>
 
@@ -117,7 +121,9 @@ function progressPercent(liability: Liability): number {
 .liability-row { display: grid; grid-template-columns: minmax(0, 1fr) 76px; align-items: center; gap: var(--sp-3); padding: 0 var(--sp-3); }
 .liab__hit { min-width: 0; display: grid; grid-template-columns: minmax(180px, 1.15fr) minmax(170px, .85fr) minmax(120px, .55fr); align-items: center; gap: var(--sp-3); padding: 11px 0; cursor: pointer; outline: none; }
 .liab__hit:focus-visible { box-shadow: inset 0 0 0 2px var(--primary); }
-.liability-row__identity { min-width: 0; display: grid; gap: 3px; }
+.liability-row__identity { min-width: 0; display: grid; grid-template-columns: auto 1fr; column-gap: 10px; align-items: center; }
+.liability-row__emoji { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 9px; background: var(--surface-accent); font-size: 18px; line-height: 1; user-select: none; }
+.liability-row__text { min-width: 0; display: grid; gap: 3px; }
 .liability-row__name { overflow: hidden; color: var(--ink); font-size: var(--text-base); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .liability-row__meta { min-width: 0; display: flex; gap: var(--sp-2); overflow: hidden; color: var(--muted); font-size: var(--text-xs); text-overflow: ellipsis; white-space: nowrap; }
 .liability-row__progress-block { min-width: 0; display: grid; gap: 4px; }

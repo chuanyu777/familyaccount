@@ -24,3 +24,18 @@ export function accountName(accounts: Account[], id?: number): string {
   const a = accounts.find((x) => x.id === id);
   return a ? a.name : '';
 }
+
+/** 负债名称 → emoji：按名称子串匹配；顺序即优先级（"房贷"先于"贷"）。未命中给 🏦（与小程序映射一致） */
+export function liabilityNameEmoji(name: string | null | undefined): string {
+  const value = (name ?? '').toLowerCase();
+  const table: Array<[string, string]> = [
+    ['房贷', '🏠'], ['房', '🏠'],
+    ['车贷', '🚗'], ['车', '🚗'],
+    ['信用卡', '💳'], ['花呗', '💳'], ['白条', '💳'],
+    ['消费贷', '🧾'], ['经营贷', '🧾'], ['借款', '🧾'], ['贷款', '🧾'], ['贷', '🧾'], ['借', '🧾'],
+  ];
+  for (const [keyword, emoji] of table) {
+    if (value.includes(keyword)) return emoji;
+  }
+  return '🏦';
+}
