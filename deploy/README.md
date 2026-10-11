@@ -199,7 +199,29 @@ cd /root/family-ledger
 
 备份目前只在本机 `backups/` 目录，**建议再同步一份到对象存储或另一台机器**（本机磁盘坏掉就全没了）。
 
-## 七、常见问题
+## 七、小程序接入（上线前必做）
+
+小程序要连到生产后端，**必须在微信公众平台配置 request 合法域名**。开发者工具里勾了「不校验合法域名」能通，
+**不代表真机、体验版、正式版能通** —— 这两个环境的校验是强制的，绕过不了。
+
+| 项 | 值 |
+| --- | --- |
+| 配置路径 | 微信公众平台 → 开发管理 → 开发设置 → 服务器域名 |
+| request 合法域名 | `https://theseven.cc` |
+| 前置条件 1 | 域名**已完成 ICP 备案**，且备案主体与小程序主体一致（未备案无法提交，提交了也拦） |
+| 前置条件 2 | 证书由受信任 CA 签发且未过期（自签名不行、证书链要完整） |
+
+提交后约 3–5 分钟生效。改完在小程序里**重新进入登录页**再试。
+
+排查顺序与现象对照：
+
+| 现象 | 定位 |
+| --- | --- |
+| 开发者工具正常、真机/体验版失败 | 90% 是合法域名没配，或域名没备案 |
+| 登录页提示「请求域名未配置」 | 客户端已能识别，直接照提示去配 |
+| 登录页「当前接口」显示 `http://127.0.0.1:80` | **手上的包是旧构建**。重新上传一版体验版即可（接口地址按版本自动判断） |
+
+## 八、常见问题
 
 | 现象 | 原因与处理 |
 | --- | --- |
@@ -209,8 +231,9 @@ cd /root/family-ledger
 | app 启动报迁移校验和不匹配 | 有人改过已应用的 `V*.sql`。恢复原内容；确实要改就新增迁移 |
 | 容器时间不对（凌晨记账日期差一天） | app 需 `TZ=Asia/Shanghai` + `-Duser.timezone=Asia/Shanghai`，compose 里已配 |
 | 磁盘被日志吃满 | 各服务已配 `json-file 10m × 3`；若仍满，检查 `docker system df` |
+| 小程序体验版登录失败 | 先看第七节。再看 app 日志 `docker logs family-ledger-app`，`WECHAT_LOGIN_FAILED` 时用服务端的 AppID/Secret 直连微信 `jscode2session` 验证凭据 |
 
-## 八、证书
+## 九、证书
 
 - 位置：`deploy/certs/theseven.cc_bundle.crt` + `.key`（私钥 `chmod 600`）
 - 覆盖域名：`theseven.cc`、`www.theseven.cc`
@@ -225,7 +248,7 @@ chmod 600 certs/theseven.cc.key
 docker-compose -f docker-compose.prod.yml restart tls
 ```
 
-## 九、资源与运维
+## 十、资源与运维
 
 - **内存上限**：mysql/app 各 768m、agent 384m、web/tls 各 64m（合计约 2.1GB）
 - **日志上限**：各服务 `json-file`，单文件 10m、保留 3 个
