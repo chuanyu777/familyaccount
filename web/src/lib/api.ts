@@ -106,6 +106,22 @@ async function rawFetch<T>(
 ): Promise<T> {
   const url = buildUrl(path, params);
   const kind = authKind ?? kindForPath(path);
+  // 账本请求守卫：登录后「当前账本」尚未就绪时（getLedger 的网络往返还没完成，
+  // 页面首屏请求已发出），先自动补拉一次基础信息，消除偶发的「缺少 ledgerId」。
+  // 排除认证接口与 /api/ledgers 本身，避免递归；补拉失败则按原样发出，由后端错误上抛。
+  const full = fullPath(path);
+  if (
+    kind === 'ledger' &&
+    activeLedgerId === null &&
+    !full.startsWith('/api/auth') &&
+    full !== '/api/ledgers'
+  ) {
+    try {
+      await getLedger();
+    } catch {
+      // 基础信息拿不到（如会话失效）时放行原请求，让后端返回 401/LEDGER_REQUIRED 走既有处理
+    }
+  }
   const generation = authScopes[kind].generation;
   const res = await fetch(url, {
     method,

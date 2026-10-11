@@ -393,3 +393,35 @@ describe('写后刷新', () => {
     expect(mockedIdbSet).not.toHaveBeenCalled();
   });
 });
+
+describe('账本请求守卫（缺少 ledgerId 竞态）', () => {
+  it('activeLedgerId 未就绪时，先自动补拉 /api/ledgers，再带着 X-Ledger-Id 发原请求', async () => {
+    setActiveLedgerId(null);
+    const responses = [
+      { body: [{ id: 5, name: '我家', role: 'OWNER', active: true, webLoginAllowed: true }], status: 200 },
+      { body: [], status: 200 },
+    ];
+    let call = 0;
+    const fetchSpy = vi.fn(async () => {
+      const r = responses[Math.min(call, responses.length - 1)]!;
+      call += 1;
+      return {
+        ok: true,
+        status: r.status,
+        text: async () => JSON.stringify(r.body),
+        json: async () => r.body,
+      } as unknown as Response;
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await apiGet('/api/accounts');
+
+    const calls = fetchSpy.mock.calls as unknown as Array<[string, RequestInit?]>;
+    const urls = calls.map(([url]) => String(url));
+    // 第一次是补拉的基础信息，第二次才是原请求
+    expect(urls[0]).toContain('/api/ledgers');
+    expect(urls[1]).toContain('/api/accounts');
+    const headers = new Headers(calls[1]![1]!.headers as HeadersInit);
+    expect(headers.get('X-Ledger-Id')).toBe('5');
+  });
+});
