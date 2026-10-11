@@ -1,12 +1,20 @@
 # 家庭记账簿生产部署（单台云服务器，Docker Compose）
 #
-# 三个服务：
+# 四个服务：
 #   web   —— Nginx：托管前端静态文件 + 反代 /api 到后端（对外 80）
 #   app   —— Spring Boot 后端（不对外暴露端口，仅内网）
+#   agent —— LangChain 助手运行时（不对外暴露端口，仅内网）
 #   mysql —— MySQL 8（数据持久化到卷）
 #
-# 使用：docker compose -f deploy/docker-compose.prod.yml up -d --build
-# 首次会构建前端与后端镜像（依赖走阿里云/淘宝镜像源，视网络约几分钟）。
+# 启动（服务器上是 docker-compose v1，命令用 docker-compose）：
+#   docker-compose --env-file deploy/.env -f deploy/docker-compose.prod.yml up -d
+#
+# 小服务器（2C4G）注意事项：
+#   - 不要在服务器上构建镜像：vite 构建峰值 1~2GB、Maven 编译 1GB+，极易 OOM。
+#     请在本地或 CI 构建后推送镜像仓库，或本地 docker save 后搬运；服务器只 pull + up。
+#   - 各服务已配 mem_limit 与日志上限（合计约 2.0GB，给系统留出余量）。
+#   - app 的 JVM 堆固定 512m，避免按宿主机 4GB 估算默认堆。
+#   - 建议宿主机加 2~4GB swap 兜底，否则内存吃紧时 OOM killer 会先杀掉 mysql。
 
 services:
   mysql:
@@ -17,9 +25,15 @@ services:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?请在 .env 中设置数据库密码}
       MYSQL_DATABASE: family_ledger
       TZ: Asia/Shanghai
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --innodb-buffer-pool-size=128M
     volumes:
       - mysql-data:/var/lib/mysql
+    mem_limit: 768m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_PASSWORD:?请在 .env 中设置数据库密码}"]
       interval: 5s
@@ -53,9 +67,21 @@ services:
       SPECIAL_LEDGER_MEMBER_PASSWORD: ${SPECIAL_LEDGER_MEMBER_PASSWORD:?请在 .env 中设置配偶 Web 密码}
       ASSISTANT_AGENT_URL: ${ASSISTANT_AGENT_URL:-http://agent:8090}
       ASSISTANT_INTERNAL_TOKEN: ${ASSISTANT_INTERNAL_TOKEN:?请在 .env 中设置助手内部令牌}
+      # 时区必须是东八区：Time.today() / Time.now() / MonthUtil 用的是 JVM 默认时区，
+      # 若为 UTC，北京时间 00:00–08:00 会把「今天」算成前一天，记账日期与月度统计都会错位。
+      TZ: Asia/Shanghai
+      # 再显式指定一次作为双保险，同时固定 JVM 堆上限。
+      # 注意不要动 locale（现为 en_US），改成 zh_CN 可能影响金额格式化。
+      JAVA_TOOL_OPTIONS: "-Duser.timezone=Asia/Shanghai -Xmx512m"
     depends_on:
       mysql:
         condition: service_healthy
+    mem_limit: 768m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     # 不对外暴露 3001，仅由 web 容器反代访问，更安全
 
   agent:
@@ -66,12 +92,19 @@ services:
     environment:
       # 容器内直接用服务名访问后端，不必绕 host.docker.internal
       SPRING_BASE_URL: http://app:3001
+      TZ: Asia/Shanghai
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:?请在 .env 中设置 DeepSeek API Key}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-flash}
       DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
       ASSISTANT_INTERNAL_TOKEN: ${ASSISTANT_INTERNAL_TOKEN:?请在 .env 中设置助手内部令牌}
     depends_on:
       - app
+    mem_limit: 384m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     # 不对外暴露 8090，仅由 app 容器在内部网络访问
 
   web:
@@ -80,10 +113,19 @@ services:
       dockerfile: deploy/Dockerfile.web
     container_name: family-ledger-web
     restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
     ports:
       - "80:80"
     depends_on:
       - app
+    mem_limit: 64m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # 只映射 80；生产应在前面加一层终止 TLS 的网关，并把 80 限制为仅网关可访问
 
 volumes:
   mysql-data:
