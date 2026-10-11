@@ -35,13 +35,15 @@ beforeAll(async () => {
  * 微信运行时会把 methods 合入实例，这里同样合入。
  */
 function createComponent(initialIconKey: string): Instance {
-  const instance = {
+  const instance: Instance & Record<string, unknown> = {
     data: { ...captured!.data, iconKey: initialIconKey },
     setData(patch: Record<string, unknown>) { Object.assign(this.data, patch); },
-  } as Instance & Record<string, unknown>;
+    syncIcon(iconKey: string) { /* 运行时由 methods 合入覆盖 */ },
+  };
   Object.assign(instance, captured!.methods);
+  const observer = captured!.observers['iconKey, kind']!;
   // 1) 属性初始化阶段：observers 以初始值触发
-  captured!.observers['iconKey, kind'].call(instance, initialIconKey);
+  observer.call(instance, initialIconKey);
   // 2) attached 阶段
   captured!.lifetimes.attached.call(instance);
   return instance;
@@ -64,7 +66,8 @@ describe('category-icon', () => {
     const instance = createComponent('');
     // 用户点选「交通」→ 属性变化 → observers 触发
     instance.data.iconKey = 'transport';
-    captured!.observers['iconKey, kind'].call(instance, 'transport');
+    const observer = captured!.observers['iconKey, kind']!;
+    observer.call(instance, 'transport');
     expect(instance.data.emoji).toBe('🚗');
   });
 

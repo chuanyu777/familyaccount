@@ -7,13 +7,27 @@ interface Data { ledgerName: string; switcherOpen: boolean; liabilities: Liabili
 interface PageContext { data: Data; syncAccountLabel(): void; setData(data: Partial<Data>): void; onShow(): Promise<void>; }
 const text = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback;
 const owner = () => currentLedgerStore.get()?.role === 'OWNER';
+/** 负债名称 → emoji：按名称子串匹配；顺序即优先级（"房贷"须先于"贷"判断）。未命中给 🏦。 */
+function liabilityEmoji(name: string | null | undefined): string {
+  const value = (name ?? '').toLowerCase();
+  const table: Array<[string, string]> = [
+    ['房贷', '🏠'], ['房', '🏠'],
+    ['车贷', '🚗'], ['车', '🚗'],
+    ['信用卡', '💳'], ['花呗', '💳'], ['白条', '💳'],
+    ['消费贷', '🧾'], ['经营贷', '🧾'], ['借款', '🧾'], ['贷款', '🧾'], ['贷', '🧾'], ['借', '🧾'],
+  ];
+  for (const [keyword, emoji] of table) {
+    if (value.includes(keyword)) return emoji;
+  }
+  return '🏦';
+}
 Page({
   syncAccountLabel(): void {
     const page = this as unknown as PageContext;
     page.setData({ accountLabel: page.data.accounts.find(({ id }) => id === page.data.accountId)?.name ?? '请选择' });
   },
   data: { ledgerName: '我的账本', switcherOpen: false, liabilities: [], accounts: [], repayments: [], totalRemaining: '0.00', totalMonthly: '0.00', selectedId: null, form: '', editingId: null, name: '', remaining: '', monthlyPayment: '', paymentDay: '', amount: '', accountId: null, accountLabel: '请选择', occurredOn: todayIso(), isOwner: false, confirmId: null, loading: false, saving: false, errorMessage: '' },
-  async onShow(): Promise<void> { const page = this as unknown as PageContext; page.setData({ loading: true, errorMessage: '', isOwner: owner(), ledgerName: currentLedgerStore.get()?.name ?? '我的账本' }); const [liabilities, accounts, repayments] = await Promise.allSettled([listLiabilities(), listAccounts(), listRepayments()]); const current = currentLedgerStore.get(); const userId = sessionStore.get()?.userId ?? -1; const liabilityItems = liabilities.status === 'fulfilled' ? liabilities.value : []; const repaymentItems = repayments.status === 'fulfilled' ? repayments.value.map((item) => ({ ...item, canEdit: Boolean(current && canEditRepayment(item, userId, current.role)) })) : []; const cents = (value: unknown): number => typeof value === 'number' ? value : Number(value ?? 0) * 100; page.setData({ liabilities: liabilityItems, accounts: accounts.status === 'fulfilled' ? activeAccounts(accounts.value) : [], repayments: repaymentItems, totalRemaining: (liabilityItems.reduce((sum, item) => sum + (item.remainingCents ?? cents(item.remaining)), 0) / 100).toFixed(2), totalMonthly: (liabilityItems.reduce((sum, item) => sum + (item.monthlyPaymentCents ?? cents(item.monthlyPayment)), 0) / 100).toFixed(2), errorMessage: [liabilities, accounts, repayments].some((result) => result.status === 'rejected') ? '负债数据加载失败' : '', loading: false }); },
+  async onShow(): Promise<void> { const page = this as unknown as PageContext; page.setData({ loading: true, errorMessage: '', isOwner: owner(), ledgerName: currentLedgerStore.get()?.name ?? '我的账本' }); const [liabilities, accounts, repayments] = await Promise.allSettled([listLiabilities(), listAccounts(), listRepayments()]); const current = currentLedgerStore.get(); const userId = sessionStore.get()?.userId ?? -1; const liabilityItems = liabilities.status === 'fulfilled' ? liabilities.value : []; const repaymentItems = repayments.status === 'fulfilled' ? repayments.value.map((item) => ({ ...item, canEdit: Boolean(current && canEditRepayment(item, userId, current.role)) })) : []; const cents = (value: unknown): number => typeof value === 'number' ? value : Number(value ?? 0) * 100; page.setData({ liabilities: liabilityItems.map((item) => ({ ...item, emoji: liabilityEmoji(item.name) })), accounts: accounts.status === 'fulfilled' ? activeAccounts(accounts.value) : [], repayments: repaymentItems, totalRemaining: (liabilityItems.reduce((sum, item) => sum + (item.remainingCents ?? cents(item.remaining)), 0) / 100).toFixed(2), totalMonthly: (liabilityItems.reduce((sum, item) => sum + (item.monthlyPaymentCents ?? cents(item.monthlyPayment)), 0) / 100).toFixed(2), errorMessage: [liabilities, accounts, repayments].some((result) => result.status === 'rejected') ? '负债数据加载失败' : '', loading: false }); },
   openLedgerSwitcher(): void { (this as unknown as PageContext).setData({ switcherOpen: true }); },
   closeLedgerSwitcher(): void { (this as unknown as PageContext).setData({ switcherOpen: false }); },
   openAssistant(): void { wx.navigateTo({ url: '/pages/assistant/index' }); },

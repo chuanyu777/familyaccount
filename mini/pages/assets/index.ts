@@ -6,10 +6,29 @@ interface Data { ledgerName: string; switcherOpen: boolean; accounts: Account[];
 interface PageContext { data: Data; snapshotLoadId: number; showSnapshots(event: { currentTarget: { dataset: { id: string | number } } }): Promise<void>; setData(data: Partial<Data>): void; onShow(): Promise<void>; }
 const errorText = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback;
 const isOwner = () => currentLedgerStore.get()?.role === 'OWNER';
+/** 资金账户固定银行卡 emoji（替换原 CSS 画的卡片图形，与全站 emoji 图标风格统一）。 */
+const ACCOUNT_EMOJI = '💳';
+/** 资产类型 → emoji：按 kind 文本子串匹配，未命中给 💼。 */
+function assetEmoji(kind: string | null | undefined): string {
+  const text = (kind ?? '').toLowerCase();
+  const table: Array<[string, string]> = [
+    ['不动产', '🏠'], ['房', '🏠'],
+    ['投资', '📈'], ['基金', '📈'], ['股票', '📈'], ['理财', '📈'], ['证券', '📈'],
+    ['车', '🚗'],
+    ['黄金', '🪙'], ['贵金属', '🪙'],
+    ['保险', '🛡️'],
+    ['收藏', '🏺'], ['古玩', '🏺'],
+    ['存款', '💰'], ['现金', '💰'],
+  ];
+  for (const [keyword, emoji] of table) {
+    if (text.includes(keyword)) return emoji;
+  }
+  return '💼';
+}
 Page({
   snapshotLoadId: 0,
   data: { ledgerName: '我的账本', switcherOpen: false, accounts: [], assets: [], totalNet: '0.00', totalAccounts: '0.00', totalAssets: '0.00', snapshots: [], snapshotsLoading: false, snapshotsError: '', selectedAssetId: null, form: '', editingId: null, name: '', value: '', kind: '', month: currentMonth(), note: '', isOwner: false, loading: false, saving: false, errorMessage: '' },
-  async onShow(): Promise<void> { const page = this as unknown as PageContext; page.setData({ loading: true, errorMessage: '', isOwner: isOwner(), ledgerName: currentLedgerStore.get()?.name ?? '我的账本' }); const [accounts, assets] = await Promise.allSettled([listAccounts(), listAssets()]); const accountItems = accounts.status === 'fulfilled' ? accounts.value : []; const assetItems = assets.status === 'fulfilled' ? assets.value : []; const accountCents = accountItems.filter((item) => !booleanLike(item.archived)).reduce((sum, item) => sum + (item.balanceCents ?? Number(item.balance ?? 0) * 100), 0); const assetCents = assetItems.filter((item) => !booleanLike(item.archived)).reduce((sum, item) => sum + (item.valueCents ?? Number(item.value ?? 0) * 100), 0); page.setData({ accounts: accountItems, assets: assetItems, totalAccounts: (accountCents / 100).toFixed(2), totalAssets: (assetCents / 100).toFixed(2), totalNet: ((accountCents + assetCents) / 100).toFixed(2), errorMessage: accounts.status === 'rejected' || assets.status === 'rejected' ? '资产或账户加载失败' : '', loading: false }); },
+  async onShow(): Promise<void> { const page = this as unknown as PageContext; page.setData({ loading: true, errorMessage: '', isOwner: isOwner(), ledgerName: currentLedgerStore.get()?.name ?? '我的账本' }); const [accounts, assets] = await Promise.allSettled([listAccounts(), listAssets()]); const accountItems = accounts.status === 'fulfilled' ? accounts.value : []; const assetItems = assets.status === 'fulfilled' ? assets.value : []; const accountCents = accountItems.filter((item) => !booleanLike(item.archived)).reduce((sum, item) => sum + (item.balanceCents ?? Number(item.balance ?? 0) * 100), 0); const assetCents = assetItems.filter((item) => !booleanLike(item.archived)).reduce((sum, item) => sum + (item.valueCents ?? Number(item.value ?? 0) * 100), 0); page.setData({ accounts: accountItems.map((item) => ({ ...item, emoji: ACCOUNT_EMOJI })), assets: assetItems.map((item) => ({ ...item, emoji: assetEmoji(item.kind) })), totalAccounts: (accountCents / 100).toFixed(2), totalAssets: (assetCents / 100).toFixed(2), totalNet: ((accountCents + assetCents) / 100).toFixed(2), errorMessage: accounts.status === 'rejected' || assets.status === 'rejected' ? '资产或账户加载失败' : '', loading: false }); },
   openLedgerSwitcher(): void { (this as unknown as PageContext).setData({ switcherOpen: true }); },
   closeLedgerSwitcher(): void { (this as unknown as PageContext).setData({ switcherOpen: false }); },
   openAssistant(): void { wx.navigateTo({ url: '/pages/assistant/index' }); },

@@ -93,3 +93,6 @@ Component({
     },
   },
 });
+
+// 使本文件成为 ES module（TS 类型层需要；小程序编译为 CommonJS 无副作用）
+export {};
