@@ -96,14 +96,18 @@ describe('final review regressions', () => {
     expect(wx.reLaunch).toHaveBeenCalledWith({ url: '/pages/ledger/home' });
   });
 
-  it('#4 keeps Web ledger binding as a secondary login support entry and reachable from an authenticated account', async () => {
+  it('#4 keeps Web ledger binding out of the login page but reachable from an authenticated account', async () => {
     const auth = await page('auth/index');
-    expect(typeof auth.handleBindWeb).toBe('function');
-    auth.handleBindWeb();
-    expect(wx.navigateTo).toHaveBeenCalledWith({ url: '/pages/bind-web/index' });
+    // 登录页只保留微信一键登录，不再暴露任何 Web 绑定入口
+    expect(typeof auth.handleBindWeb).toBe('undefined');
+    expect(template('auth/index')).not.toContain('已有 Web 绑定码');
+    expect(template('auth/index')).not.toContain('handleBindWeb');
     expect(requests).toHaveLength(0);
-    expect(template('auth/index')).toContain('已有 Web 绑定码');
     expect(template('ledger/empty')).not.toContain('导入已有账本');
+    // 已登录后仍可从设置页进入绑定/导入流程
+    const settings = await page('settings/index');
+    settings.openWebLedgerImport();
+    expect(wx.navigateTo).toHaveBeenCalledWith({ url: '/pages/bind-web/index' });
     const bind = await page('bind-web/index');
     bind.data.bindingCode = 'one-time-code';
     respond({ ledgerId: 1, ledgerName: '特殊账本', role: 'OWNER' });

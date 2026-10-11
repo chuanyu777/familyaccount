@@ -10,6 +10,7 @@ backend/target/
 backups/
 deploy/.env
 deploy/certs/
+deploy/docker-compose.local.yml
 backend/.env
 agent/.env
 .venv/

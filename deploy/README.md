@@ -83,7 +83,41 @@ chmod 600 .env
 > **⚠️ 平台管理员与两位账本用户的密码只在「首次启动」时预置。**
 > 第一次 `up` 之前必须改好；之后再改需要手动改数据库或重建库。
 
-## 四、首次部署（全新机器）
+## 四、本地开发启动（★ 微信开发者工具要连的那套）
+
+生产配置里 `web` **刻意不暴露任何端口**，公网只由 `tls` 层作为唯一入口。本地开发因此**不能**直接
+`docker-compose -f docker-compose.prod.yml up` —— 那样起的 web 没有端口映射，开发者工具会连不上。
+
+本地用 `docker-compose.local.yml` 覆盖，把 web 的 80 端口映射回来：
+
+```bash
+cd deploy
+docker-compose -f docker-compose.prod.yml -f docker-compose.local.yml up -d
+```
+
+之后小程序 `development` 环境的 `http://127.0.0.1:80` 即可用。验证：
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:80/api/healthz   # 期望 401
+```
+
+**该文件不进仓库**（已在 `.gitignore`），且刻意不叫 `docker-compose.override.yml` —— 那个名字会被
+`docker-compose up` **自动加载**，一旦误传到生产服务器，web 就会在公网暴露 80 端口，绕过 TLS。
+名字不同 + 忽略规则，两层保险。
+
+### 为什么后端会 502（本地高发，务必知道）
+
+nginx 的 `proxy_pass http://app:3001` 是**启动时解析一次并永久缓存**的。`app` 容器一重启换 IP
+（例如被 `docker restart` 或重新 `up`），nginx 仍往旧 IP 打，客户端拿到 **502 且没有任何提示**。
+
+`deploy/nginx.conf` 已用 `resolver 127.0.0.11` + 变量写法改为**请求时解析**，改后 app 换 IP 无需重启 web。
+如果你改了 nginx 配置，**必须重建 web 镜像**才生效（配置是 COPY 进镜像的，不是挂载）：
+
+```bash
+docker-compose -f docker-compose.prod.yml build web
+```
+
+## 五、首次部署（全新机器）
 
 ```bash
 # 1. 加 swap（2C4G 上很重要，否则内存吃紧时 OOM killer 会先杀 mysql）
@@ -106,7 +140,7 @@ docker-compose -f docker-compose.prod.yml up -d
 
 **不要在服务器上构建镜像**：vite 构建峰值 1~2GB、Maven 编译 1GB+，2C4G 上三个镜像一起构建极易 OOM。镜像一律在本地构建后搬运。
 
-## 五、日常更新部署（★ 历史数据怎么办）
+## 六、日常更新部署（★ 历史数据怎么办）
 
 ### 三条铁律
 
@@ -183,7 +217,7 @@ cd /root/family-ledger
 
 `restore.sh` 会先自动备份当前状态，所以回滚本身也是可回滚的。
 
-## 六、备份与恢复
+## 七、备份与恢复
 
 ```bash
 ./deploy/backup.sh                      # 导出到 backups/，默认保留 14 天
@@ -199,7 +233,7 @@ cd /root/family-ledger
 
 备份目前只在本机 `backups/` 目录，**建议再同步一份到对象存储或另一台机器**（本机磁盘坏掉就全没了）。
 
-## 七、小程序接入（上线前必做）
+## 八、小程序接入（上线前必做）
 
 小程序要连到生产后端，**必须在微信公众平台配置 request 合法域名**。开发者工具里勾了「不校验合法域名」能通，
 **不代表真机、体验版、正式版能通** —— 这两个环境的校验是强制的，绕过不了。
@@ -221,7 +255,7 @@ cd /root/family-ledger
 | 登录页提示「请求域名未配置」 | 客户端已能识别，直接照提示去配 |
 | 登录页「当前接口」显示 `http://127.0.0.1:80` | **手上的包是旧构建**。重新上传一版体验版即可（接口地址按版本自动判断） |
 
-## 八、常见问题
+## 九、常见问题
 
 | 现象 | 原因与处理 |
 | --- | --- |
@@ -233,7 +267,7 @@ cd /root/family-ledger
 | 磁盘被日志吃满 | 各服务已配 `json-file 10m × 3`；若仍满，检查 `docker system df` |
 | 小程序体验版登录失败 | 先看第七节。再看 app 日志 `docker logs family-ledger-app`，`WECHAT_LOGIN_FAILED` 时用服务端的 AppID/Secret 直连微信 `jscode2session` 验证凭据 |
 
-## 九、证书
+## 十、证书
 
 - 位置：`deploy/certs/theseven.cc_bundle.crt` + `.key`（私钥 `chmod 600`）
 - 覆盖域名：`theseven.cc`、`www.theseven.cc`
@@ -248,7 +282,7 @@ chmod 600 certs/theseven.cc.key
 docker-compose -f docker-compose.prod.yml restart tls
 ```
 
-## 十、资源与运维
+## 十一、资源与运维
 
 - **内存上限**：mysql/app 各 768m、agent 384m、web/tls 各 64m（合计约 2.1GB）
 - **日志上限**：各服务 `json-file`，单文件 10m、保留 3 个
