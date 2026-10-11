@@ -9,6 +9,7 @@ data/
 backend/target/
 backups/
 deploy/.env
+deploy/certs/
 backend/.env
 agent/.env
 .venv/

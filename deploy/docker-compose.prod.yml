@@ -1,13 +1,18 @@
 # 家庭记账簿生产部署（单台云服务器，Docker Compose）
 #
-# 四个服务：
-#   web   —— Nginx：托管前端静态文件 + 反代 /api 到后端（对外 80）
-#   app   —— Spring Boot 后端（不对外暴露端口，仅内网）
-#   agent —— LangChain 助手运行时（不对外暴露端口，仅内网）
+# 五个服务：
+#   tls   —— Nginx 反代：终止 TLS，对外唯一入口（443 提供 HTTPS，80 只做 301 跳转）
+#   web   —— Nginx：托管前端静态文件 + 反代 /api 到后端（仅内部网络）
+#   app   —— Spring Boot 后端（仅内部网络）
+#   agent —— LangChain 助手运行时（仅内部网络）
 #   mysql —— MySQL 8（数据持久化到卷）
 #
 # 启动（服务器上是 docker-compose v1，命令用 docker-compose）：
 #   docker-compose --env-file deploy/.env -f deploy/docker-compose.prod.yml up -d
+#
+# 访问：https://theseven.cc/platform（平台管理员，只读）
+#       https://theseven.cc/ledger （账本 Web 用户）
+# 证书：deploy/certs/（已加入 .gitignore；私钥需 chmod 600），绑定 theseven.cc
 #
 # 小服务器（2C4G）注意事项：
 #   - 不要在服务器上构建镜像：vite 构建峰值 1~2GB、Maven 编译 1GB+，极易 OOM。
@@ -115,8 +120,6 @@ services:
     restart: unless-stopped
     environment:
       TZ: Asia/Shanghai
-    ports:
-      - "80:80"
     depends_on:
       - app
     mem_limit: 64m
@@ -125,7 +128,28 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    # 只映射 80；生产应在前面加一层终止 TLS 的网关，并把 80 限制为仅网关可访问
+    # 不再对外暴露端口，只由 tls 反代在内部网络访问
+
+  # TLS 终止层，也是公网唯一入口：
+  #   443 提供 HTTPS 并反代到 web；80 只做 301 跳转，避免有人用 http 绕过 HTTPS。
+  tls:
+    image: nginx:1.27-alpine
+    container_name: family-ledger-tls
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx-tls.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      - web
+    mem_limit: 64m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   mysql-data:
