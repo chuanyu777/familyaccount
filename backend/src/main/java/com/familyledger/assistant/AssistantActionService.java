@@ -140,20 +140,21 @@ public class AssistantActionService {
     };
   }
 
-  /** 新建或更新家庭资产条目；同名未归档资产已存在时更新其市值。 */
+  /** 新建或更新家庭资产条目：指定 assetId 或账本内已有同名未归档资产时更新市值，否则新建。 */
   private Map<String, Object> upsertAsset(Map<String, Object> payload, LedgerContext context) {
-    if (payload.get("assetId") != null) {
-      Map<String, Object> patch = new LinkedHashMap<>();
-      if (payload.get("value") != null) patch.put("value", String.valueOf(payload.get("value")));
-      if (payload.get("kind") != null) patch.put("kind", String.valueOf(payload.get("kind")));
-      if (payload.get("name") != null) patch.put("name", String.valueOf(payload.get("name")));
-      return assets.update(context, Row.lng(payload, "assetId"), patch);
+    Map<String, Object> patch = new LinkedHashMap<>();
+    if (payload.get("value") != null) patch.put("value", String.valueOf(payload.get("value")));
+    if (payload.get("kind") != null) patch.put("kind", String.valueOf(payload.get("kind")));
+    if (payload.get("name") != null) patch.put("name", String.valueOf(payload.get("name")));
+    Long targetId = payload.get("assetId") == null ? null : Row.lng(payload, "assetId");
+    if (targetId == null && payload.get("name") != null) {
+      List<Map<String, Object>> existing = db.queryForList(
+          "SELECT id FROM asset WHERE ledger_id = ? AND name = ? AND archived = 0",
+          context.ledgerId(), payload.get("name"));
+      if (!existing.isEmpty()) targetId = Row.lng(existing.get(0), "id");
     }
-    Map<String, Object> input = new LinkedHashMap<>();
-    input.put("name", payload.get("name"));
-    input.put("value", payload.get("value"));
-    if (payload.get("kind") != null) input.put("kind", payload.get("kind"));
-    return assets.create(context, input);
+    if (targetId != null) return assets.update(context, targetId, patch);
+    return assets.create(context, new LinkedHashMap<>(patch));
   }
 
   /**
