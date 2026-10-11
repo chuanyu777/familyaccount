@@ -1,0 +1,15 @@
+.category-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.category-icon .icon-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.category-icon.expense { color: #3159d7; }
+.category-icon.income { color: #19765d; }
+.category-icon.transfer { color: #697080; }
+.category-icon.default { color: #697080; }

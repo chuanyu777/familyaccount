@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue';
 import AppSheet from '../../components/AppSheet.vue';
 import SegmentedControl from '../../components/SegmentedControl.vue';
+import CategoryIcon from '../../components/CategoryIcon.vue';
 import { apiPatch, apiPost } from '../../lib/api';
 import { centsToInput, todayISO } from '../../lib/format';
 import {
@@ -273,7 +274,7 @@ async function handleSubmit() {
         :class="{ 'is-active': !newCatOpen && categoryId === c.id }"
         @click="pickCategory(c.id)"
       >
-        <span class="cat__bubble" aria-hidden="true">{{ c.name.slice(0, 1) }}</span>
+        <CategoryIcon :icon-key="c.icon_key ?? null" :kind="type === 'income' ? 'income' : 'expense'" :size="32" class="cat__bubble" />
         <span class="cat__name">{{ c.name }}</span>
       </button>
       <button
@@ -435,6 +436,7 @@ async function handleSubmit() {
   transition:
     background var(--dur-fast) var(--ease-out),
     color var(--dur-fast) var(--ease-out);
+  overflow: hidden;
 }
 
 .cat.is-active .cat__bubble {

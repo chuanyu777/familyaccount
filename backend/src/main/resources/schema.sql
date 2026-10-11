@@ -108,6 +108,7 @@ CREATE TABLE IF NOT EXISTS category (
   ledger_id BIGINT NOT NULL,
   kind VARCHAR(16) NOT NULL,
   name VARCHAR(255) NOT NULL,
+  icon_key VARCHAR(32) NULL,
   archived INT NOT NULL DEFAULT 0,
   created_at VARCHAR(19) NOT NULL,
   CONSTRAINT uq_category_name UNIQUE (ledger_id, kind, name),

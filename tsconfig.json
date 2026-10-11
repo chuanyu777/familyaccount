@@ -13,9 +13,14 @@
     "isolatedModules": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "types": ["node", "vitest/globals"]
+    "types": ["node", "vitest/globals"],
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["shared/*"]
+    }
   },
   "include": [
+    "shared/**/*.ts",
     "web/src/**/*.ts",
     "web/src/**/*.vue",
     "mini/**/*.ts",

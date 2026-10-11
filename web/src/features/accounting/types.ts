@@ -50,6 +50,8 @@ export interface Category {
   kind: 'expense' | 'income';
   name: string;
   archived?: number | boolean;
+  /** 图标代号，由后端按分类名匹配词典自动分配；未知 key 渲染兜底图标。 */
+  icon_key?: string | null;
 }
 
 export const DEFAULT_EXPENSE_CATEGORY = '其他';

@@ -11,6 +11,7 @@ COPY package.json package-lock.json ./
 RUN npm install --registry=$NPM_REGISTRY --no-audit --no-fund
 
 COPY web ./web
+COPY shared ./shared
 COPY tsconfig.json ./
 RUN npm run build
 

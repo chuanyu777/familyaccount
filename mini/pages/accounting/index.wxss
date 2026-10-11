@@ -26,7 +26,9 @@
 .load-more button { display: inline-block; color: #3159d7; background: #e9efff; border-radius: 12rpx; font-size: 23rpx; }
 .category-management { display: none; margin-top: 30rpx; }
 .category-label { display: block; margin: 18rpx 0 6rpx; color: #8a92a1; font-size: 22rpx; }
-.category-row { display: flex; align-items: center; justify-content: space-between; min-height: 70rpx; border-bottom: 1rpx solid #eef1f5; }
+.category-row { display: flex; align-items: center; gap: 14rpx; min-height: 70rpx; padding: 8rpx 0; border-bottom: 1rpx solid #eef1f5; }
+.category-row__icon { display: flex; align-items: center; justify-content: center; width: 50rpx; height: 50rpx; border-radius: 12rpx; background: #e9efff; flex-shrink: 0; }
+.category-row > text { flex: 1; min-width: 0; }
 .category-actions { display: flex; gap: 8rpx; }
 .category-actions button { margin: 0; color: #3159d7; background: #eef2ff; font-size: 20rpx; }
 .tag { margin-left: 10rpx; color: #b7791f; font-size: 20rpx; }

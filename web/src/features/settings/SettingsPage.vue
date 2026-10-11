@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import PageHeader from '../../components/PageHeader.vue';
+import CategoryIcon from '../../components/CategoryIcon.vue';
 import { apiDelete, apiPatch, apiPost, cachedGet } from '../../lib/api';
 import { resourceVersion } from '../../lib/resourceInvalidation';
 import type { LedgerPermissions, LedgerSession, LedgerSummary } from '../../auth/types';
 
 interface Membership { id: number; ledgerId: number; userId: number; role: string; active: boolean; displayName: string; }
-interface Category { id: number; kind: 'expense' | 'income'; name: string; archived?: number | boolean; }
+interface Category { id: number; kind: 'expense' | 'income'; name: string; archived?: number | boolean; icon_key?: string | null; }
 interface Invitation { id: number; ledgerId: number; token: string; expiresAt: string; }
 
 const props = withDefaults(defineProps<{ session?: LedgerSession; permissions?: LedgerPermissions }>(), {
@@ -167,12 +168,13 @@ onMounted(() => void load());
             <button type="button" class="btn btn--ghost btn--sm" @click="cancelCategoryEdit">取消</button>
           </template>
           <template v-else>
+            <CategoryIcon :icon-key="category.icon_key" :kind="category.kind" :size="32" class="settings-row__icon" />
             <span class="settings-row__name">{{ category.name }}</span><span class="settings-row__meta">{{ category.kind === 'expense' ? '支出' : '收入' }}</span>
             <button type="button" class="btn btn--ghost btn--sm" @click="startCategoryEdit(category)">编辑</button>
             <button v-if="props.permissions.canArchiveResources" type="button" class="btn btn--ghost btn--sm" @click="setCategoryArchived(category, true)">归档</button>
           </template>
         </li>
-        <li v-for="category in archivedCategories" :key="`archived-${category.id}`" class="settings-row"><span class="settings-row__name">{{ category.name }}</span><span class="settings-row__meta">已归档</span><button v-if="props.permissions.canArchiveResources" type="button" class="btn btn--ghost btn--sm" @click="setCategoryArchived(category, false)">恢复</button></li>
+        <li v-for="category in archivedCategories" :key="`archived-${category.id}`" class="settings-row"><CategoryIcon :icon-key="category.icon_key" :kind="category.kind" :size="32" class="settings-row__icon" /><span class="settings-row__name">{{ category.name }}</span><span class="settings-row__meta">已归档</span><button v-if="props.permissions.canArchiveResources" type="button" class="btn btn--ghost btn--sm" @click="setCategoryArchived(category, false)">恢复</button></li>
       </ul>
     </section>
   </div>
