@@ -4,11 +4,12 @@
   justify-content: center;
   flex-shrink: 0;
 }
-.category-icon .icon-svg {
+.category-icon .icon-img {
   width: 100%;
   height: 100%;
   display: block;
 }
+/* kind 仅作为容器语义：需要差异化底色时在页面 wxss 里覆盖 */
 .category-icon.expense { color: #3159d7; }
 .category-icon.income { color: #19765d; }
 .category-icon.transfer { color: #697080; }

@@ -1,20 +1,22 @@
 /**
- * 分类图标组件：传入 iconKey，渲染对应的 SVG 路径。
+ * 分类图标组件：传入 iconKey，渲染对应图标。
  *
- * 数据契约：shared/category-icons.ts 维护 icon_key 集合与 SVG path 数据。
+ * 渲染方式：微信小程序 WXML 不支持内联 <svg>，这里改用 <image> 引用
+ * mini/assets/icons/categories/<key>.svg 静态资源（由
+ * scripts/generate-category-icon-svgs.mjs 从 shared/category-icons.ts 生成）。
+ *
+ * 数据契约：mini/lib/category-icons.ts（shared/category-icons.ts 的小程序副本）。
  * 未知 key 自动兜底为 'other'。
  *
  * 用法示例：
  *   <category-icon icon-key="{{category.icon_key}}" kind="expense" />
- *
- * kind 用于着色：expense / income / transfer，分别用支出 / 收入 / 默认色。
  */
-import { getCategoryIconPath, resolveCategoryIconKey } from '../../../shared/category-icons';
+import { resolveCategoryIconKey } from '../../lib/category-icons';
 
-/** 小程序 Component 实例的最小方法集（在 options 之外、observers/lifetimes 内 this 不能直接拿到这些）。 */
+/** 小程序 Component 实例的最小方法集。 */
 interface ComponentInstance {
-  data: { path: string; key: string };
-  setData(data: Partial<{ path: string; key: string }>): void;
+  data: { src: string; key: string };
+  setData(data: Partial<{ src: string; key: string }>): void;
   syncIcon(iconKey: string): void;
 }
 
@@ -24,6 +26,7 @@ Component({
       type: String,
       value: '',
     },
+    /** kind 仅作为容器着色的语义标记，图标本身为单色资源。 */
     kind: {
       type: String,
       value: 'expense',
@@ -35,13 +38,13 @@ Component({
     },
   },
   data: {
-    path: '',
+    src: '/assets/icons/categories/other.svg',
     key: 'other',
   },
   methods: {
     syncIcon(this: ComponentInstance, iconKey: string): void {
       const key = resolveCategoryIconKey(iconKey);
-      this.setData({ key, path: getCategoryIconPath(key) });
+      this.setData({ key, src: `/assets/icons/categories/${key}.svg` });
     },
   },
   observers: {
@@ -51,7 +54,8 @@ Component({
   },
   lifetimes: {
     attached(this: unknown): void {
-      (this as ComponentInstance).syncIcon('');
+      const instance = this as ComponentInstance;
+      instance.syncIcon('');
     },
   },
 });
