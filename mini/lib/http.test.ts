@@ -179,4 +179,47 @@ describe('request', () => {
     });
     await expect(request('/api/ledger')).rejects.toBeInstanceOf(ApiError);
   });
+
+  // 真机上登录失败最常见的原因就是域名没进白名单，此时 wx.request 只走 fail 分支，
+  // 如果不翻译 errMsg，用户永远只看到「登录失败，请重试」，无法自助定位。
+  it('surfaces an un-whitelisted request domain with an actionable message', async () => {
+    setMiniEnvironment('production');
+    vi.mocked(wx.request).mockImplementation(({ fail }) => {
+      fail?.({ errMsg: 'request:fail url not in domain list' });
+      return {} as never;
+    });
+
+    await expect(request('/api/auth/wechat/login', { method: 'POST', data: { code: 'x' } }))
+      .rejects.toMatchObject({ status: 0, code: 'NETWORK_ERROR' });
+    await expect(request('/api/auth/wechat/login')).rejects.toThrow(/request 合法域名/);
+    await expect(request('/api/auth/wechat/login')).rejects.toThrow(
+      new RegExp(MINI_ENVIRONMENTS.production.apiBaseUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+    );
+  });
+
+  it('keeps the raw errMsg for other network failures so it stays diagnosable', async () => {
+    vi.mocked(wx.request).mockImplementation(({ fail }) => {
+      fail?.({ errMsg: 'request:fail timeout' });
+      return {} as never;
+    });
+
+    await expect(request('/api/ledgers')).rejects.toMatchObject({
+      status: 0,
+      code: 'NETWORK_ERROR',
+      message: '网络超时，请检查手机网络后重试',
+    });
+  });
+
+  it('tolerates a fail callback without errMsg', async () => {
+    vi.mocked(wx.request).mockImplementation(({ fail }) => {
+      fail?.({});
+      return {} as never;
+    });
+
+    await expect(request('/api/ledgers')).rejects.toMatchObject({
+      status: 0,
+      code: 'NETWORK_ERROR',
+      message: '网络请求失败，请检查网络后重试',
+    });
+  });
 });

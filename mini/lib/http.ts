@@ -1,8 +1,27 @@
-import type { MiniRequestSuccessResult, RequestOptions } from '../types/api';
+import type { MiniRequestFailResult, MiniRequestSuccessResult, RequestOptions } from '../types/api';
 import { currentLedgerStore } from './currentLedger';
 import { getMiniConfig } from './env';
 import { ApiError } from './errors';
 import { sessionStore } from './session';
+
+/**
+ * 把 wx.request 的 fail 结果翻译成可读错误的文案。
+ * 真机上最常见的三类失败，直接说出来，避免用户只看到「登录失败，请重试」。
+ */
+function networkErrorMessage(result: MiniRequestFailResult | undefined, url: string): string {
+  const raw = typeof result?.errMsg === 'string' ? result.errMsg : '';
+  if (/domain list|not in domain|url not in/i.test(raw)) {
+    return `请求域名未配置：请在微信公众平台「开发管理 → 开发设置 → 服务器域名」把 ${originOf(url)} 加入 request 合法域名`;
+  }
+  if (/timeout/i.test(raw)) return '网络超时，请检查手机网络后重试';
+  if (/fail ssl|ssl handshake/i.test(raw)) return 'HTTPS 证书校验失败，请确认域名证书有效';
+  return raw.length > 0 ? `网络请求失败：${raw}` : '网络请求失败，请检查网络后重试';
+}
+
+function originOf(url: string): string {
+  const match = /^(https?:\/\/[^/]+)/i.exec(url);
+  return match?.[1] ?? url;
+}
 
 function errorFromResponse(status: number, data: unknown): ApiError {
   const body = data !== null && typeof data === 'object' ? data : null;
@@ -43,8 +62,9 @@ export function request<T>(path: string, options: RequestOptions = {}): Promise<
   };
 
   return new Promise<T>((resolve, reject) => {
+    const url = `${getMiniConfig().apiBaseUrl}${path.startsWith('/') ? path : `/${path}`}`;
     wx.request({
-      url: `${getMiniConfig().apiBaseUrl}${path.startsWith('/') ? path : `/${path}`}`,
+      url,
       method: options.method ?? 'GET',
       data: options.data === undefined ? undefined : JSON.stringify(options.data),
       header,
@@ -66,7 +86,9 @@ export function request<T>(path: string, options: RequestOptions = {}): Promise<
         }
         reject(error);
       },
-      fail: reject,
+      fail: (result: unknown) =>
+        reject(new ApiError(0, 'NETWORK_ERROR',
+          networkErrorMessage(result as MiniRequestFailResult | undefined, url))),
     });
   });
 }

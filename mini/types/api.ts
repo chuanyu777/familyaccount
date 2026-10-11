@@ -14,12 +14,19 @@ export interface MiniRequestSuccessResult<T = unknown> {
   header?: Record<string, string | string[]>;
 }
 
+/** wx.request 的 fail 回调结果：真机上最常见的失败信息在 errMsg 里（域名未配置、超时、SSL 等）。 */
+export interface MiniRequestFailResult {
+  errMsg?: string;
+  [key: string]: unknown;
+}
+
 export interface MiniRequestOptions<T = unknown> {
   url: string;
   method?: RequestMethod;
   data?: T;
   header?: Record<string, string>;
   success?: (result: MiniRequestSuccessResult) => void;
+  // 与真实 wx.request 一致：fail 拿到的是平台给的不透明对象，调用方自行收窄
   fail?: (error: unknown) => void;
 }
 

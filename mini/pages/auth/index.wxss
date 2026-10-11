@@ -18,4 +18,5 @@
 .web-binding-link { height: 64rpx; margin-top: 18rpx; padding: 0; border: 0; background: transparent; color: #3159d7; font-size: 24rpx; line-height: 64rpx; }
 .web-binding-link::after { border: 0; }
 .error-message { margin-top: 14rpx; color: #b84543; font-size: 24rpx; text-align: center; }
+.auth-endpoint { margin-top: 14rpx; color: #9aa1ad; font-size: 20rpx; text-align: center; word-break: break-all; }
 .auth-terms { margin-top: auto; color: #9aa1ad; font-size: 20rpx; }
