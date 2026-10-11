@@ -1,70 +1,233 @@
 # 生产部署
 
-Docker Compose 启动 MySQL 8、Spring Boot 后端、Nginx Web 服务和 LangChain Agent Runtime（AI 助手）。浏览器直接访问 `https://<域名>/platform`（预置平台管理员，只读）或 `https://<域名>/ledger`（预置的两位特殊账本 Web 用户）。普通用户没有 Web 登录入口，使用微信小程序。`/platform`、`/ledger` 及其子路径由同一 SPA 入口处理，直接打开和刷新均应正常加载。旧 `/unlock.html` 只保留为跳转到 `/ledger` 的兼容链接，不再是登录或解锁入口。
+单台云服务器（2C4G / CentOS 7 / 115.159.161.178）上的 Docker Compose 部署，域名 `theseven.cc`。
 
-## 配置环境变量
+## 一、架构
 
-在 `deploy/.env` 中填写生产值。真实密码和微信密钥不要提交到 Git：
+```
+公网 ──443(HTTPS) / 80(仅 301 跳转)──▶ tls (Nginx 反代，唯一对外)
+                                          │
+                                          ▼
+                                 web ──▶ app ──▶ mysql
+                                          │
+                                          └──▶ agent ──▶ DeepSeek
+```
+
+| 服务 | 镜像 | 端口 | 说明 |
+| --- | --- | --- | --- |
+| `tls` | nginx:1.27-alpine | **对外 80 + 443** | 终止 TLS；80 只做跳转，不承载业务 |
+| `web` | deploy-web | 仅内网 | Nginx：前端静态文件 + 反代 `/api` 到 app |
+| `app` | deploy-app | 仅内网 3001 | Spring Boot 后端，唯一持有数据库凭证 |
+| `agent` | deploy-agent | 仅内网 8090 | LangChain 助手运行时，不连数据库 |
+| `mysql` | mysql:8.0 | 仅内网 | 数据持久化在卷 `deploy_mysql-data` |
+
+**只有 `tls` 暴露端口**，其余四个仅内部网络可达。这样「用 http 绕过 HTTPS」从根上不成立，也不需要云负载或安全组限制来源。
+
+### 访问地址
+
+- 账本 Web 端：`https://theseven.cc/ledger`
+- 平台管理员（只读）：`https://theseven.cc/platform`
+
+账号密码由 `deploy/.env` 决定，**首次启动时预置**。用 IP 或不带协议访问会被 301 跳到 https 域名。
+
+## 二、目录与关键文件
+
+服务器上的部署目录 `/root/family-ledger/deploy/`：
+
+```
+deploy/
+├── docker-compose.prod.yml   # 五个服务的编排
+├── nginx-tls.conf            # tls 反代配置（证书路径、TLS 版本、upstream 延迟解析）
+├── certs/                    # 证书与私钥（已在 .gitignore，绝不进仓库）
+│   ├── theseven.cc_bundle.crt
+│   └── theseven.cc.key       # 权限必须 600
+├── .env                      # 生产密钥（权限 600，绝不进仓库）
+├── backup.sh / restore.sh    # 备份与恢复
+└── upgrade.sh                # 更新部署（见第五节）
+```
+
+## 三、配置环境变量
+
+`.env` 必填项（缺失时 compose 会直接拒绝启动）：
 
 ```dotenv
-DB_PASSWORD=强数据库密码
-SESSION_SECRET=至少 32 字符的随机字符串
-SESSION_COOKIE_SECURE=true
+DB_PASSWORD=数据库密码
+SESSION_SECRET=会话签名密钥（≥32 字符随机）
+SESSION_COOKIE_SECURE=true          # 生产必须 true
+SPRING_PROFILES_ACTIVE=prod         # 生产必须 prod
 WECHAT_MINI_APP_ID=小程序 AppID
 WECHAT_MINI_APP_SECRET=小程序 AppSecret
-SPECIAL_LEDGER_NAME=夫妻特殊账本
+SPECIAL_LEDGER_NAME=特殊账本名称
 PLATFORM_ADMIN_USERNAME=平台管理员用户名
 PLATFORM_ADMIN_PASSWORD=平台管理员密码
-SPECIAL_LEDGER_OWNER_USERNAME=Web 用户名
-SPECIAL_LEDGER_OWNER_PASSWORD=Web 密码
+SPECIAL_LEDGER_OWNER_USERNAME=账本 Web 用户名
+SPECIAL_LEDGER_OWNER_PASSWORD=账本 Web 密码
 SPECIAL_LEDGER_MEMBER_USERNAME=配偶 Web 用户名
 SPECIAL_LEDGER_MEMBER_PASSWORD=配偶 Web 密码
-SPECIAL_LEDGER_OWNER_DISPLAY_NAME=本人
-SPECIAL_LEDGER_MEMBER_DISPLAY_NAME=配偶
-ASSISTANT_INTERNAL_TOKEN=至少 32 字符的随机字符串
+ASSISTANT_INTERNAL_TOKEN=助手内部令牌（≥32 字符随机）
 DEEPSEEK_API_KEY=DeepSeek API Key
 ```
 
-平台管理员和两位特殊账本用户由后端首次启动时预置。平台管理员只能查询平台账本数据，不能写账本；特殊账本 Web 用户只能访问配置的单一账本。生产环境必须设置非空 `SESSION_SECRET` 和 `SESSION_COOKIE_SECURE=true`，否则后端拒绝启动。更换 `SESSION_SECRET` 会使已签发的会话失效。
+可选：`ASSISTANT_AGENT_URL`（默认 `http://agent:8090`）、`DEEPSEEK_MODEL`（默认 `deepseek-flash`）、`DEEPSEEK_BASE_URL`。
 
-AI 助手另需两项必填配置，缺失时 compose 会直接拒绝启动：`ASSISTANT_INTERNAL_TOKEN` 由后端与 Agent Runtime 共享，用于校验 Agent 调用后端内部工具端点（`/api/assistant/internal/tools/*`），两侧必须一致，可在目标机器上用 `openssl rand -hex 24` 生成；`DEEPSEEK_API_KEY` 供 Agent 调用 DeepSeek。另有 `ASSISTANT_AGENT_URL`（默认 `http://agent:8090`）、`DEEPSEEK_MODEL`（默认 `deepseek-flash`）、`DEEPSEEK_BASE_URL`（默认 `https://api.deepseek.com`）三项，通常无需修改。Agent 容器需要能出网访问 DeepSeek API，若部署环境有出网代理，请在 `deploy/docker-compose.prod.yml` 的 `agent` 服务上补 `HTTP_PROXY`/`HTTPS_PROXY`/`NO_PROXY`。
-
-## 启动与更新
-
-从仓库根目录运行：
+**在服务器上现场生成密钥，不要让明文经过聊天或工单**：
 
 ```bash
-docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml up -d --build
-docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml ps
-docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml logs -f app
+cd /root/family-ledger/deploy
+DBPW=$(openssl rand -hex 24)
+sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=$DBPW|" .env
+# SESSION_SECRET / ASSISTANT_INTERNAL_TOKEN 同理
+chmod 600 .env
 ```
 
-默认启动四个服务：`mysql`、`app`、`web`（Nginx）、`agent`（AI 助手）。只有 Web Nginx 对外暴露主机 80 端口，`app`、`agent`、`mysql` 均只在 compose 内部网络可达——Agent 通过服务名 `app:3001` 访问后端，后端通过 `agent:8090` 访问 Agent，都无需经过公网。先在公网网关或负载均衡器上终止 TLS，并将公网 HTTP 重定向到 HTTPS。容器内 `deploy/nginx.conf` 仅监听 80 端口，不提供 TLS，也不执行 HTTP 到 HTTPS 跳转；按实际网络拓扑保护网关到容器的上游链路。Compose 映射主机 `80:80`，部署时应限制该端口只允许可信网关访问，避免绕过公网 HTTPS 入口。
+> **⚠️ 平台管理员与两位账本用户的密码只在「首次启动」时预置。**
+> 第一次 `up` 之前必须改好；之后再改需要手动改数据库或重建库。
 
-四个服务都设置了 `restart: unless-stopped`，宿主机重启或容器异常退出后会自动拉起；Agent 的对话依赖 DeepSeek，接口不可用时助手会报错但不会影响记账等其它功能。
-
-健康检查：
+## 四、首次部署（全新机器）
 
 ```bash
-curl -i https://your-domain.example/healthz
+# 1. 加 swap（2C4G 上很重要，否则内存吃紧时 OOM killer 会先杀 mysql）
+fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+echo '/swapfile swap swap defaults 0 0' >> /etc/fstab
+sysctl -w vm.swappiness=10
+
+# 2. 上传 deploy/ 目录与证书，私钥设 600
+chmod 600 /root/family-ledger/deploy/certs/*.key
+
+# 3. 确认 build context 占位目录存在（compose v1 在解析期会校验）
+mkdir -p /root/family-ledger/backend /root/family-ledger/agent
+
+# 4. 写 .env（见上一节）
+
+# 5. 搬运镜像（见第五节第 2 步），然后启动
+cd /root/family-ledger/deploy
+docker-compose -f docker-compose.prod.yml up -d
 ```
 
-数据库数据保存在 `mysql-data` 卷中。更新前先备份；不要执行 `docker compose down -v`，否则会删除数据库卷。备份和恢复脚本分别是 `deploy/backup.sh`、`deploy/restore.sh`。
+**不要在服务器上构建镜像**：vite 构建峰值 1~2GB、Maven 编译 1GB+，2C4G 上三个镜像一起构建极易 OOM。镜像一律在本地构建后搬运。
 
-## 同源 API 与会话
+## 五、日常更新部署（★ 历史数据怎么办）
 
-Web 使用相对路径 `/api/*` 并在请求中携带 cookie；浏览器页面和 API 必须处于相同协议、域名和端口，由 Nginx 把 `/api/` 代理到 `app:3001`。当前配置不会改写后端的 `Set-Cookie`。拆分前端/API 域名需要单独设计跨源凭据与 CORS，不能靠放宽 `SameSite` 实现。
+### 三条铁律
 
-- 平台登录：`POST /api/auth/platform/login`，使用 `platform_session`；只读查询 `/api/platform/ledgers` 和 `/api/platform/ledgers/{id}`。
-- 特殊账本登录：`POST /api/auth/web/login`，使用 `ledger_session`；无需先绑定小程序。已登录账本用户可 `POST /api/auth/binding-code` 取得短期绑定码，再在小程序通过 `POST /api/auth/wechat/bind` 绑定。
-- 会话检查：`GET /api/auth/session?kind=platform|ledger`；退出：`POST /api/auth/logout?kind=platform|ledger`，仅清除指定入口的 cookie。小程序使用 `POST /api/auth/wechat/login`。
+1. **数据卷 `deploy_mysql-data` 保存全部生产数据，任何情况下都不要删。**
+   禁止 `docker-compose down -v`、禁止 `docker volume rm`、禁止 `docker volume prune`。
+   （普通的 `down`、`stop`、`up -d` 都不会动卷，是安全的。）
 
-两个 cookie 都使用 `Path=/; HttpOnly; SameSite=Strict`，生产登录 cookie 另带 `Secure`。因此同源请求可能同时携带两个 cookie；服务端根据接口和主体类型鉴权，平台 cookie 不授予账本权限，账本 cookie 不授予平台权限。浏览器只会通过 HTTPS 发送 Secure cookie，不要通过公网 HTTP 登录。
+2. **数据库结构变更由后端启动时自动执行**：`app` 启动会跑 `Migrator` + `backend/src/main/resources/db/migration/V*.sql`，只执行未应用过的版本。
 
-外部网关终止 TLS 时，容器 Nginx 收到 HTTP，当前传给后端的 `X-Forwarded-Proto` 是容器的 `$scheme`（`http`），并不证明浏览器使用了 HTTPS。当前认证签发由 `SESSION_COOKIE_SECURE` 决定，不依赖这个转发头。如未来后端需要识别外部协议，须先配置可信代理链，不能直接信任客户端提供的头。
+3. **⚠️ 已经应用过的迁移文件绝不能再修改。** 迁移表里存了校验和，改动会让后端**拒绝启动**。要改结构就新增一个 `V7__xxx.sql`。
 
-上线验收按 [Web 手工检查清单](../web/docs/manual-test-checklist.md) 执行。
+### 关键认知：迁移是单向的
 
-## 国内网络环境
+系统**没有**迁移回滚脚本（`down`）。所以：
 
-前端镜像的 npm 安装默认使用 `https://registry.npmmirror.com`，可用构建参数 `NPM_REGISTRY` 覆盖；Agent 镜像的 pip 安装默认使用 `https://mirrors.cloud.tencent.com/pypi/simple/`，可用构建参数 `PIP_INDEX_URL` 覆盖。Docker 镜像、Maven 与 pip 依赖首次下载可能较慢，失败后重新执行同一条 `up -d --build` 命令即可复用已完成的层。
+- 备份是回滚的**唯一**手段，更新前必须先备份；
+- 新迁移要保证**旧代码也能容忍新结构**（例如只加可空列），万一要临时回退镜像，旧版本代码不至于立刻崩。
+
+### 更新步骤
+
+**第 1 步：在服务器上备份（不可跳过）**
+
+```bash
+cd /root/family-ledger
+./deploy/backup.sh
+# 输出形如 backups/family_ledger_20261011_120000.sql.gz
+```
+
+**第 2 步：本地构建并搬运镜像**
+
+```bash
+# 本地仓库根目录
+docker compose --env-file deploy/.env -f deploy/docker-compose.prod.yml build app agent web
+docker save deploy-app:latest deploy-agent:latest deploy-web:latest | gzip -1 > /tmp/ledger-images.tar.gz
+scp /tmp/ledger-images.tar.gz root@115.159.161.178:/root/
+```
+
+**第 3 步：服务器上加载并重启**
+
+```bash
+ssh root@115.159.161.178
+cd /root/family-ledger/deploy
+docker load -i /root/ledger-images.tar.gz && rm -f /root/ledger-images.tar.gz
+docker-compose -f docker-compose.prod.yml up -d    # 不删卷、不构建
+```
+
+也可以用 `deploy/upgrade.sh` 把「备份 + load + 重启 + 健康检查」串起来：
+
+```bash
+cd /root/family-ledger
+./deploy/upgrade.sh /root/ledger-images.tar.gz
+```
+
+**第 4 步：验证**
+
+```bash
+cd /root/family-ledger/deploy
+docker-compose -f docker-compose.prod.yml ps        # 五个容器都应为 Up
+docker logs family-ledger-app 2>&1 | tail -30       # 看迁移是否成功、有无报错
+curl -skI --resolve theseven.cc:443:127.0.0.1 https://theseven.cc/healthz   # 应 204
+# 再看一眼数据还在不在（确认迁移没把数据搞丢）
+DBPW=$(grep '^DB_PASSWORD=' .env | cut -d= -f2-)
+docker exec -e MYSQL_PWD="$DBPW" family-ledger-mysql \
+  mysql -uroot -N -e "SELECT COUNT(*) FROM txn;" family_ledger
+```
+
+**第 5 步：出问题就回滚**
+
+```bash
+cd /root/family-ledger
+./deploy/restore.sh backups/family_ledger_<更新前的那个>.sql.gz   # 需输入 yes
+# 再把上一版镜像 load 回来，然后 up -d
+```
+
+`restore.sh` 会先自动备份当前状态，所以回滚本身也是可回滚的。
+
+## 六、备份与恢复
+
+```bash
+./deploy/backup.sh                      # 导出到 backups/，默认保留 14 天
+./deploy/restore.sh backups/xxx.sql.gz  # 覆盖现有数据，需输入 yes
+```
+
+**建议挂定时任务**（服务器上 `crontab -e` 添加）：
+
+```cron
+# 每天凌晨 3:10 备份
+10 3 * * * cd /root/family-ledger && ./deploy/backup.sh >> backups/backup.log 2>&1
+```
+
+备份目前只在本机 `backups/` 目录，**建议再同步一份到对象存储或另一台机器**（本机磁盘坏掉就全没了）。
+
+## 七、常见问题
+
+| 现象 | 原因与处理 |
+| --- | --- |
+| `https` 打不开、`http` 正常 | 云安全组没放行 **443**（入站 TCP 443 允许）。国内小程序还要求域名已 ICP 备案 |
+| `502 Bad Gateway` | 看 `tls` 与 `web` 的日志，确认 `web` 容器在 Up。若来自 `tls`，通常是 `web` 没起来 |
+| app 反复重启，日志 `Access denied for user 'root'` | `mysql` 里的密码与 `.env` 不一致。**只在首次部署且确认无历史数据时**才可删卷重建 |
+| app 启动报迁移校验和不匹配 | 有人改过已应用的 `V*.sql`。恢复原内容；确实要改就新增迁移 |
+| 容器时间不对（凌晨记账日期差一天） | app 需 `TZ=Asia/Shanghai` + `-Duser.timezone=Asia/Shanghai`，compose 里已配 |
+| 磁盘被日志吃满 | 各服务已配 `json-file 10m × 3`；若仍满，检查 `docker system df` |
+
+## 八、证书
+
+- 位置：`deploy/certs/theseven.cc_bundle.crt` + `.key`（私钥 `chmod 600`）
+- 覆盖域名：`theseven.cc`、`www.theseven.cc`
+- **有效期到 2027-01-09**，到期后 HTTPS 会整体失效（浏览器与小程序都会报错）
+
+续期步骤（新证书覆盖同名文件后）：
+
+```bash
+cd /root/family-ledger/deploy
+# 覆盖 certs/ 下的证书与私钥，保持文件名不变
+chmod 600 certs/theseven.cc.key
+docker-compose -f docker-compose.prod.yml restart tls
+```
+
+## 九、资源与运维
+
+- **内存上限**：mysql/app 各 768m、agent 384m、web/tls 各 64m（合计约 2.1GB）
+- **日志上限**：各服务 `json-file`，单文件 10m、保留 3 个
+- **swap**：4GB（已写入 `/etc/fstab`，`vm.swappiness=10`）
+- **不要改 JVM 的 locale**：现为 en_US，改 zh_CN 可能影响金额格式化
