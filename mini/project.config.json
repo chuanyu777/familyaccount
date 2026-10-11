@@ -8,7 +8,7 @@
       "typescript"
     ],
     "es6": true,
-    "minified": true,
+    "minified": false,
     "urlCheck": false,
     "postcss": false,
     "compileWorklet": false,
