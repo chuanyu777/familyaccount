@@ -1,3 +1,3 @@
-<view class="category-icon {{kind}}" style="width:{{size}}px;height:{{size}}px;">
-  <image class="icon-img" src="{{src}}" mode="aspectFit" />
+<view class="category-icon {{kind}}" style="width:{{size}}px;height:{{size}}px;font-size:{{size * 0.62}}px;">
+  <text class="category-icon__emoji">{{emoji}}</text>
 </view>

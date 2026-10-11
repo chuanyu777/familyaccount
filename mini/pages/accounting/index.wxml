@@ -27,7 +27,7 @@
   <view wx:else class="transaction-list">
     <view wx:for="{{items}}" wx:key="id" class="transaction-row" data-id="{{item.id}}" bindtap="openDetail">
       <view wx:if="{{index === 0 || items[index - 1].occurredOn !== item.occurredOn}}" class="transaction-date"><text>{{item.occurredOn}}</text><text>当日流水</text></view>
-      <view class="transaction-icon {{item.type}}"><text>{{item.type === 'income' ? '↗' : item.type === 'transfer' ? '⇄' : '⌁'}}</text></view>
+      <view class="transaction-icon {{item.type}}"><category-icon wx:if="{{item.type !== 'transfer'}}" icon-key="{{item.categoryIconKey || ''}}" kind="{{item.type}}" size="18" /><text wx:else>⇄</text></view>
       <view class="transaction-body"><text class="transaction-title">{{item.note || item.categoryName || (item.sourceType === 'repayment' ? '还款' : '未分类')}}</text><text class="transaction-meta">{{item.occurredOn}} · {{item.accountName || ''}}{{item.toAccountName ? ' → ' + item.toAccountName : ''}}</text></view>
       <text class="transaction-amount {{item.type}}">{{item.type === 'income' ? '+' : item.type === 'expense' ? '-' : ''}}¥ {{item.amount}}</text>
     </view>

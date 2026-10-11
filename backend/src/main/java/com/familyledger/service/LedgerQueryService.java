@@ -42,7 +42,7 @@ public class LedgerQueryService {
     List<Object> pageParams = new ArrayList<>(params); pageParams.add(size); pageParams.add((p - 1) * size);
     List<Map<String, Object>> rows = db.queryForList("SELECT t.id, t.type, t.amount_cents, t.occurred_on, t.note, "
         + "t.account_id, t.to_account_id, t.category_id, t.created_by_user_id, t.source_type, "
-        + "a.name AS account_name, ta.name AS to_account_name, c.name AS category_name "
+        + "a.name AS account_name, ta.name AS to_account_name, c.name AS category_name, c.icon_key AS category_icon_key "
         + "FROM txn t LEFT JOIN account a ON a.id = t.account_id AND a.ledger_id = t.ledger_id "
         + "LEFT JOIN account ta ON ta.id = t.to_account_id AND ta.ledger_id = t.ledger_id "
         + "LEFT JOIN category c ON c.id = t.category_id AND c.ledger_id = t.ledger_id "
@@ -58,7 +58,7 @@ public class LedgerQueryService {
   public Map<String, Object> get(LedgerContext context, long id) {
     List<Map<String, Object>> rows = db.queryForList("SELECT t.id, t.type, t.amount_cents, t.occurred_on, t.note, "
         + "t.account_id, t.to_account_id, t.category_id, t.created_by_user_id, t.source_type, "
-        + "a.name AS account_name, ta.name AS to_account_name, c.name AS category_name "
+        + "a.name AS account_name, ta.name AS to_account_name, c.name AS category_name, c.icon_key AS category_icon_key "
         + "FROM txn t LEFT JOIN account a ON a.id = t.account_id AND a.ledger_id = t.ledger_id "
         + "LEFT JOIN account ta ON ta.id = t.to_account_id AND ta.ledger_id = t.ledger_id "
         + "LEFT JOIN category c ON c.id = t.category_id AND c.ledger_id = t.ledger_id "
@@ -76,6 +76,8 @@ public class LedgerQueryService {
     out.put("accountId", Row.lng(r, "account_id")); out.put("accountName", Row.strOrNull(r, "account_name"));
     out.put("toAccountId", Row.lngOrNull(r, "to_account_id")); out.put("toAccountName", Row.strOrNull(r, "to_account_name"));
     out.put("categoryId", Row.lngOrNull(r, "category_id")); out.put("categoryName", Row.strOrNull(r, "category_name"));
+    // 分类图标代号：直接取分类上的 icon_key；无分类（转账/未分类）为 null，前端渲染兜底
+    out.put("categoryIconKey", Row.strOrNull(r, "category_icon_key"));
     out.put("createdByUserId", Row.lng(r, "created_by_user_id")); out.put("sourceType", Row.str(r, "source_type"));
     return out;
   }

@@ -73,6 +73,28 @@ export const CATEGORY_ICON_PATHS: Record<CategoryIconKey, string> = {
 
 export const CATEGORY_ICON_VIEW_BOX = '0 0 24 24';
 
+/**
+ * icon_key → emoji 映射（当前线上采用的呈现风格，风格 D）。
+ * SVG path 数据保留作为备选风格；切换渲染风格只改前端组件，icon_key 契约不变。
+ */
+export const CATEGORY_ICON_EMOJI: Record<CategoryIconKey, string> = {
+  food: '🍜',
+  transport: '🚗',
+  shopping: '🛒',
+  home: '🏠',
+  utility: '💡',
+  entertainment: '🎮',
+  health: '💊',
+  education: '📚',
+  clothing: '👕',
+  salary: '💰',
+  invest: '📈',
+  gift: '🎁',
+  pet: '🐾',
+  repay: '💳',
+  other: '🏷️',
+};
+
 const DEFAULT_ICON_KEY: CategoryIconKey = 'other';
 
 /**
@@ -89,4 +111,9 @@ export function resolveCategoryIconKey(value: string | null | undefined): Catego
 /** 取 icon 的 SVG path 字符串。未知 key 自动兜底 'other'。 */
 export function getCategoryIconPath(value: string | null | undefined): string {
   return CATEGORY_ICON_PATHS[resolveCategoryIconKey(value)];
+}
+
+/** 取 icon 对应的 emoji 字符串。未知 key 自动兜底 'other'。 */
+export function getCategoryIconEmoji(value: string | null | undefined): string {
+  return CATEGORY_ICON_EMOJI[resolveCategoryIconKey(value)];
 }

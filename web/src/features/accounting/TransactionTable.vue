@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import MoneyText from '../../components/MoneyText.vue';
+import { getCategoryIconEmoji } from '@shared/category-icons';
 import type { Transaction } from './types';
 
 defineProps<{ items: Transaction[] }>();
@@ -12,6 +13,11 @@ function sourceOf(transaction: Transaction): string {
   // 还款自动生成的账目统一显示为「还款」，不再借用「其他」
   if (transaction.sourceType === 'repayment') return '还款';
   return transaction.categoryName || '未分类';
+}
+
+function iconOf(transaction: Transaction): string {
+  if (transaction.type === 'transfer') return '🔁';
+  return getCategoryIconEmoji(transaction.categoryIconKey);
 }
 
 function toneOf(transaction: Transaction): 'income' | 'expense' | 'neutral' {
@@ -46,6 +52,7 @@ function signedCents(transaction: Transaction): number {
         >
           <td>
             <span class="transaction-table__title">
+              <span class="transaction-table__emoji" aria-hidden="true">{{ iconOf(transaction) }}</span>
               {{ sourceOf(transaction) }}
             </span>
             <span class="transaction-table__note">
@@ -125,7 +132,17 @@ function signedCents(transaction: Transaction): number {
 }
 
 .transaction-table__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 600;
+}
+
+.transaction-table__emoji {
+  flex-shrink: 0;
+  font-size: 15px;
+  line-height: 1;
+  user-select: none;
 }
 
 .transaction-table__note {

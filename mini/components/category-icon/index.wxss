@@ -3,11 +3,10 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  line-height: 1;
 }
-.category-icon .icon-img {
-  width: 100%;
-  height: 100%;
-  display: block;
+.category-icon .category-icon__emoji {
+  line-height: 1;
 }
 /* kind 仅作为容器语义：需要差异化底色时在页面 wxss 里覆盖 */
 .category-icon.expense { color: #3159d7; }

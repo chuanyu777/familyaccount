@@ -244,7 +244,8 @@ describe('AccountingPage', () => {
 
     const row = wrapper.get('[data-mobile-transaction="1"]');
     expect(row.classes()).toContain('transaction-mobile-row');
-    expect(row.find('svg').exists()).toBe(true);
+    // 分类图标已从 lucide SVG 换成 emoji 文本
+    expect(row.find('.transaction-mobile-row__emoji').text().length).toBeGreaterThan(0);
     expect(row.text()).toContain('- ¥186.00');
     expect(wrapper.get('[data-desktop-transaction="1"]').text()).toContain('家庭晚餐');
     expect(wrapper.find('.transaction-table button').exists()).toBe(false);

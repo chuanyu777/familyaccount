@@ -1,11 +1,11 @@
 <script setup lang="ts">
 /**
- * 分类图标组件（Web 端）。
- * 数据契约见 ../../../shared/category-icons.ts。
+ * 分类图标组件（Web 端）—— emoji 风格。
+ * 数据契约见 @shared/category-icons.ts：icon_key → emoji 映射。
  * 未知 key 自动兜底为 'other'。
  */
 import { computed } from 'vue';
-import { getCategoryIconPath, resolveCategoryIconKey } from '@shared/category-icons';
+import { getCategoryIconEmoji, resolveCategoryIconKey } from '@shared/category-icons';
 
 interface Props {
   iconKey?: string | null;
@@ -19,28 +19,18 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const key = computed(() => resolveCategoryIconKey(props.iconKey));
-const path = computed(() => getCategoryIconPath(props.iconKey));
+const emoji = computed(() => getCategoryIconEmoji(props.iconKey));
+const style = computed(() => ({
+  width: `${props.size}px`,
+  height: `${props.size}px`,
+  fontSize: `${Math.round(props.size * 0.62)}px`,
+}));
 </script>
 
 <template>
-  <span
-    class="category-icon"
-    :class="[`kind-${kind}`, `key-${key}`]"
-    :style="{ width: `${size}px`, height: `${size}px` }"
-    aria-hidden="true"
-  >
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    >
-      <path :d="path" />
-    </svg>
-  </span>
+  <span class="category-icon" :class="[`kind-${kind}`, `key-${key}`]" :style="style" aria-hidden="true">{{
+    emoji
+  }}</span>
 </template>
 
 <style scoped>
@@ -49,13 +39,7 @@ const path = computed(() => getCategoryIconPath(props.iconKey));
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  line-height: 1;
+  user-select: none;
 }
-.category-icon svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-.category-icon.kind-expense { color: #3159d7; }
-.category-icon.kind-income { color: #19765d; }
-.category-icon.kind-transfer { color: #697080; }
 </style>

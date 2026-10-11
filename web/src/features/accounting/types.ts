@@ -14,6 +14,8 @@ export interface Transaction {
   toAccountName?: string;
   categoryId?: number;
   categoryName?: string;
+  /** 分类图标代号（由后端从分类表带出）；无分类（转账/未分类）为空。 */
+  categoryIconKey?: string | null;
   createdByUserId?: number;
   sourceType?: SourceType;
   /** Legacy response compatibility; the UI never edits or filters by these fields. */

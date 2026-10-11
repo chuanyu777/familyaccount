@@ -2,9 +2,9 @@
  * 分类图标定义（小程序端副本）。
  *
  * ⚠️ 本文件由仓库根的 shared/category-icons.ts 复制而来 —— 小程序打包根是 mini/，
- * 无法引用打包根之外的模块。修改图标请改 shared/category-icons.ts，
- * 然后重新复制到本文件（或跑 scripts/generate-category-icon-svgs.mjs 同步 SVG 资源）。
- * 两边 CATEGORY_ICON_KEYS 必须保持一致，后端 CategoryIconDictionary.VALID_KEYS 同。
+ * 无法引用打包根之外的模块。修改图标（emoji / path）请改 shared/category-icons.ts，
+ * 然后重新复制到本文件。两边 CATEGORY_ICON_KEYS 必须一致，
+ * 后端 CategoryIconDictionary.VALID_KEYS 同。
  */
 
 export const CATEGORY_ICON_KEYS = [
@@ -67,6 +67,28 @@ export const CATEGORY_ICON_PATHS: Record<CategoryIconKey, string> = {
 
 export const CATEGORY_ICON_VIEW_BOX = '0 0 24 24';
 
+/**
+ * icon_key → emoji 映射（当前线上采用的呈现风格，风格 D）。
+ * SVG path 数据保留作为备选风格；切换渲染风格只改前端组件，icon_key 契约不变。
+ */
+export const CATEGORY_ICON_EMOJI: Record<CategoryIconKey, string> = {
+  food: '🍜',
+  transport: '🚗',
+  shopping: '🛒',
+  home: '🏠',
+  utility: '💡',
+  entertainment: '🎮',
+  health: '💊',
+  education: '📚',
+  clothing: '👕',
+  salary: '💰',
+  invest: '📈',
+  gift: '🎁',
+  pet: '🐾',
+  repay: '💳',
+  other: '🏷️',
+};
+
 const DEFAULT_ICON_KEY: CategoryIconKey = 'other';
 
 /**
@@ -83,4 +105,9 @@ export function resolveCategoryIconKey(value: string | null | undefined): Catego
 /** 取 icon 的 SVG path 字符串。未知 key 自动兜底 'other'。 */
 export function getCategoryIconPath(value: string | null | undefined): string {
   return CATEGORY_ICON_PATHS[resolveCategoryIconKey(value)];
+}
+
+/** 取 icon 对应的 emoji 字符串。未知 key 自动兜底 'other'。 */
+export function getCategoryIconEmoji(value: string | null | undefined): string {
+  return CATEGORY_ICON_EMOJI[resolveCategoryIconKey(value)];
 }

@@ -31,6 +31,8 @@ export interface TransactionRecord {
   accountId?: number;
   toAccountId?: number | null;
   categoryId?: number | null;
+  /** 分类图标代号（后端从分类表带出）；无分类（转账/未分类）为空。 */
+  categoryIconKey?: string | null;
   createdByUserId?: number;
   created_by_user_id?: number;
   sourceType?: string;

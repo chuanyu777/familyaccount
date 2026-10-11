@@ -1,34 +1,11 @@
 <script setup lang="ts">
-import { computed, type Component } from 'vue';
-import {
-  ArrowRightLeft,
-  CircleDollarSign,
-  Gamepad2,
-  GraduationCap,
-  House,
-  ShoppingBag,
-  Stethoscope,
-  TrainFront,
-  Utensils,
-  WalletCards,
-} from 'lucide-vue-next';
+import { computed } from 'vue';
 import { dayLabel, formatMoney } from '../../lib/format';
+import { getCategoryIconEmoji } from '@shared/category-icons';
 import type { Transaction } from './types';
 
 const props = defineProps<{ items: Transaction[] }>();
 defineEmits<{ select: [Transaction] }>();
-
-const CATEGORY_ICONS: Record<string, Component> = {
-  餐饮: Utensils,
-  工资: WalletCards,
-  居住: House,
-  住房: House,
-  交通: TrainFront,
-  购物: ShoppingBag,
-  娱乐: Gamepad2,
-  医疗: Stethoscope,
-  教育: GraduationCap,
-};
 
 const groups = computed(() => {
   const byDate = new Map<string, Transaction[]>();
@@ -53,9 +30,9 @@ function sourceOf(transaction: Transaction): string {
   return transaction.categoryName || '未分类';
 }
 
-function iconOf(transaction: Transaction): Component {
-  if (transaction.type === 'transfer') return ArrowRightLeft;
-  return CATEGORY_ICONS[transaction.categoryName ?? ''] ?? CircleDollarSign;
+function iconOf(transaction: Transaction): string {
+  if (transaction.type === 'transfer') return '🔁';
+  return getCategoryIconEmoji(transaction.categoryIconKey);
 }
 
 function metaOf(transaction: Transaction): string {
@@ -93,7 +70,7 @@ function signedAmount(transaction: Transaction): string {
             :data-financial-tone="transaction.type === 'transfer' ? 'neutral' : transaction.type"
             aria-hidden="true"
           >
-            <component :is="iconOf(transaction)" :size="16" :stroke-width="1.9" />
+            <span class="transaction-mobile-row__emoji">{{ iconOf(transaction) }}</span>
           </span>
           <span class="transaction-mobile-row__body">
             <span class="transaction-mobile-row__title">
@@ -180,6 +157,12 @@ function signedAmount(transaction: Transaction): string {
 .transaction-mobile-row__icon.is-transfer {
   background: var(--bg);
   color: var(--muted);
+}
+
+.transaction-mobile-row__emoji {
+  font-size: 17px;
+  line-height: 1;
+  user-select: none;
 }
 
 .transaction-mobile-row__body {
