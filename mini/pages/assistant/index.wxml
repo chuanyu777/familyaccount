@@ -4,6 +4,45 @@
     <view class="assistant-welcome"><view class="assistant-logo">✦</view><view><text class="assistant-title">财务助手</text><text class="assistant-subtitle">我可以帮你记账、查账和解释家庭财务变化。</text></view></view>
     <view class="assistant-quick"><button data-prompt="帮我记一笔" bindtap="sendQuick">帮我记一笔</button><button data-prompt="总结本月" bindtap="sendQuick">总结本月</button><button data-prompt="查最近大额" bindtap="sendQuick">查最近大额</button></view>
     <view wx:for="{{messages}}" wx:key="id" class="message {{item.role === 'user' ? 'message-user' : 'message-assistant'}}"><text>{{item.content}}</text></view>
+    <view wx:for="{{drafts}}" wx:key="actionId" class="draft-card">
+      <view class="draft-card__head">
+        <text>待确认的记账草稿</text>
+        <text class="draft-card__type">{{item.typeLabel}}</text>
+      </view>
+      <text wx:if="{{item.inferred.length}}" class="draft-card__tag">含 AI 补充的字段</text>
+      <view class="draft-card__row"><text class="draft-card__label">金额</text>
+        <input wx:if="{{item.editing}}" class="draft-card__input" type="digit" value="{{form.amount}}" data-field="amount" bindinput="handleFormInput"/>
+        <text wx:else class="draft-card__value">¥{{item.amount}}</text>
+      </view>
+      <view class="draft-card__row"><text class="draft-card__label">日期</text>
+        <input wx:if="{{item.editing}}" class="draft-card__input" type="date" value="{{form.occurredOn}}" data-field="occurredOn" bindinput="handleFormInput"/>
+        <text wx:else class="draft-card__value">{{item.occurredOn}}</text>
+      </view>
+      <view class="draft-card__row"><text class="draft-card__label">账户</text><text class="draft-card__value">{{item.accountName}}</text></view>
+      <view wx:if="{{item.toAccountName}}" class="draft-card__row"><text class="draft-card__label">转入</text><text class="draft-card__value">{{item.toAccountName}}</text></view>
+      <view class="draft-card__row"><text class="draft-card__label">分类</text>
+        <input wx:if="{{item.editing}}" class="draft-card__input" value="{{form.categoryName}}" data-field="categoryName" bindinput="handleFormInput"/>
+        <text wx:else class="draft-card__value">{{item.categoryName}}</text>
+      </view>
+      <view class="draft-card__row"><text class="draft-card__label">备注</text>
+        <input wx:if="{{item.editing}}" class="draft-card__input" value="{{form.note}}" data-field="note" bindinput="handleFormInput"/>
+        <text wx:else class="draft-card__value">{{item.note}}</text>
+      </view>
+      <text wx:if="{{item.error}}" class="draft-card__error">{{item.error}}</text>
+      <text wx:if="{{item.status === 'confirmed'}}" class="draft-card__done">已记入账本</text>
+      <text wx:elif="{{item.status === 'cancelled'}}" class="draft-card__done">已取消，没有对账本做任何修改</text>
+      <view wx:else class="draft-card__actions">
+        <block wx:if="{{item.editing}}">
+          <button class="draft-btn draft-btn--primary" disabled="{{item.busy}}" data-id="{{item.actionId}}" bindtap="saveDraft">保存修改</button>
+          <button class="draft-btn" disabled="{{item.busy}}" data-id="{{item.actionId}}" bindtap="stopDraftEdit">放弃</button>
+        </block>
+        <block wx:else>
+          <button class="draft-btn draft-btn--primary" disabled="{{item.busy}}" data-id="{{item.actionId}}" bindtap="confirmDraft">确认记账</button>
+          <button class="draft-btn" disabled="{{item.busy}}" data-id="{{item.actionId}}" bindtap="startDraftEdit">修改</button>
+          <button class="draft-btn" disabled="{{item.busy}}" data-id="{{item.actionId}}" bindtap="cancelDraft">取消</button>
+        </block>
+      </view>
+    </view>
     <view wx:if="{{loading}}" class="message message-assistant">正在查看账本…</view><text wx:if="{{error}}" class="error">{{error}}</text>
   </scroll-view>
   <view class="assistant-composer"><button class="attach">＋</button><input value="{{input}}" placeholder="问问你的家庭账本" bindinput="handleInput" confirm-type="send" bindconfirm="submit"/><button class="send" bindtap="submit" disabled="{{loading || !input}}">↑</button></view>

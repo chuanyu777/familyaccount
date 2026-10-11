@@ -5,3 +5,22 @@ page {
 }
 
 button::after { border: 0; }
+
+/* 业务页共用的「问问助手」悬浮入口（需求 6：各业务页右下角都提供）。 */
+.page-assistant-fab {
+  position: fixed;
+  right: 28rpx;
+  bottom: 226rpx;
+  z-index: 10;
+  height: 62rpx;
+  margin: 0;
+  padding: 0 22rpx;
+  border: 1rpx solid #3159d7;
+  border-radius: 32rpx;
+  color: #3159d7;
+  background: #fff;
+  box-shadow: 0 10rpx 20rpx rgba(19, 23, 34, .12);
+  font-size: 22rpx;
+  font-weight: 600;
+  line-height: 62rpx;
+}

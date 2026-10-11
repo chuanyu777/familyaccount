@@ -1,13 +1,37 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue';
+import { nextTick, reactive, ref, watch } from 'vue';
 import { ArrowUp, ChartSpline, Paperclip, ReceiptText, Search, Sparkles, SquarePen, X } from 'lucide-vue-next';
-import { apiGet, apiPost } from '../../lib/api';
+import { apiGet, apiPatch, apiPost } from '../../lib/api';
+import { publishResources } from '../../lib/resourceInvalidation';
+
+interface DraftFields {
+  type: string;
+  amount: string;
+  occurredOn: string;
+  accountId?: number | null;
+  accountName?: string | null;
+  toAccountId?: number | null;
+  toAccountName?: string | null;
+  categoryName?: string | null;
+  note?: string | null;
+}
+
+/** 记账草稿卡：用户确认后才会真正写入账本。 */
+interface DraftBlock {
+  type: 'transaction_draft';
+  actionId: number;
+  version: number;
+  fields: DraftFields;
+  inferredFields?: string[];
+}
+
+type MessageBlock = { type: 'metric'; data?: unknown; suggestions?: string[] } | DraftBlock;
 
 interface Message {
   id: number;
   role: 'user' | 'assistant';
   content: string;
-  blocks?: Array<{ type: string; data?: unknown; suggestions?: string[] }>;
+  blocks?: MessageBlock[];
 }
 
 const props = withDefaults(defineProps<{ open: boolean; contextLabel?: string }>(), {
@@ -19,6 +43,12 @@ const input = ref('');
 const conversationId = ref<number | null>(null);
 const messages = ref<Message[]>([]);
 const scroller = ref<HTMLElement>();
+
+// 草稿卡的本地交互状态：编辑中的表单、按钮忙碌、操作结果与错误。
+const draftEdits = reactive<Record<number, DraftFields>>({});
+const draftBusy = reactive<Record<number, boolean>>({});
+const draftStatus = reactive<Record<number, 'proposed' | 'confirmed' | 'cancelled'>>({});
+const draftError = reactive<Record<number, string>>({});
 
 // 每次登录用一个新会话；同一标签页内（含刷新、切 Tab）沿用同一会话，保证多轮上下文。
 const CONVERSATION_KEY = 'family-ledger.assistant-conversation';
@@ -86,7 +116,7 @@ function quickSummary() { void send('总结本月'); }
 function quickSearch() { void send('查最近大额'); }
 function insightRows(message: Message): Array<{ label: string; value: string }> {
   const block = message.blocks?.[0];
-  const data = block?.data;
+  const data = block && block.type === 'metric' ? block.data : undefined;
   if (!data || typeof data !== 'object') return [];
   const values = data as Record<string, unknown>;
   const format = (value: unknown) => value == null || value === '' ? '—' : `¥${String(value)}`;
@@ -107,9 +137,90 @@ function insightRows(message: Message): Array<{ label: string; value: string }> 
   return [];
 }
 function insightPeriod(message: Message): string {
-  const data = message.blocks?.[0]?.data;
+  const block = message.blocks?.[0];
+  const data = block && block.type === 'metric' ? block.data : undefined;
   return data && typeof data === 'object' && 'month' in data ? String(data.month) : '当前账本';
 }
+
+// —— 记账确认卡（需求 4.1 / 7：先出草稿，用户可修改、取消、确认后才写入账本）——
+
+const TYPE_LABELS: Record<string, string> = { expense: '支出', income: '收入', transfer: '转账' };
+function typeLabel(type: string): string { return TYPE_LABELS[type] ?? type; }
+
+function draftsOf(message: Message): DraftBlock[] {
+  return (message.blocks ?? []).filter((block): block is DraftBlock => block.type === 'transaction_draft');
+}
+function isInferred(block: DraftBlock, field: string): boolean {
+  return (block.inferredFields ?? []).includes(field);
+}
+function draftValue(block: DraftBlock, key: keyof DraftFields): string {
+  const editing = draftEdits[block.actionId];
+  const value = editing ? editing[key] : block.fields[key];
+  return value == null ? '' : String(value);
+}
+function draftEditing(block: DraftBlock): boolean { return Boolean(draftEdits[block.actionId]); }
+function draftState(block: DraftBlock): 'proposed' | 'confirmed' | 'cancelled' {
+  return draftStatus[block.actionId] ?? 'proposed';
+}
+function startDraftEdit(block: DraftBlock) {
+  draftEdits[block.actionId] = { ...block.fields };
+  draftError[block.actionId] = '';
+}
+function stopDraftEdit(block: DraftBlock) {
+  delete draftEdits[block.actionId];
+  draftError[block.actionId] = '';
+}
+/** 确认卡上只允许改这几个文本字段；账户与类型不在卡上编辑。 */
+type EditableDraftField = 'amount' | 'occurredOn' | 'categoryName' | 'note';
+function updateDraftField(block: DraftBlock, key: EditableDraftField, value: string) {
+  const editing = draftEdits[block.actionId];
+  if (editing) editing[key] = value;
+}
+async function saveDraft(block: DraftBlock) {
+  const form = draftEdits[block.actionId];
+  if (!form || draftBusy[block.actionId]) return;
+  draftBusy[block.actionId] = true;
+  draftError[block.actionId] = '';
+  try {
+    const updated = await apiPatch<{ version: number; payload?: DraftFields }>(
+      `/assistant/actions/${block.actionId}`,
+      { amount: form.amount, occurredOn: form.occurredOn, categoryName: form.categoryName, note: form.note },
+    );
+    // 用后端返回的最新预览覆盖卡片，保证看到的就是将要写入的内容。
+    Object.assign(block.fields, updated.payload ?? form);
+    block.version = updated.version ?? block.version + 1;
+    delete draftEdits[block.actionId];
+  } catch (error) {
+    draftError[block.actionId] = error instanceof Error ? error.message : '保存草稿失败';
+  } finally { draftBusy[block.actionId] = false; }
+}
+async function confirmDraft(block: DraftBlock) {
+  if (draftBusy[block.actionId]) return;
+  draftBusy[block.actionId] = true;
+  draftError[block.actionId] = '';
+  try {
+    await apiPost(`/assistant/actions/${block.actionId}/confirm`, {});
+    draftStatus[block.actionId] = 'confirmed';
+    delete draftEdits[block.actionId];
+    // 记账成功后让账目、账户与统计重新拉取。
+    publishResources(['transactions', 'accounts', 'statistics']);
+  } catch (error) {
+    draftError[block.actionId] = error instanceof Error ? error.message : '确认失败';
+  } finally { draftBusy[block.actionId] = false; }
+}
+async function cancelDraft(block: DraftBlock) {
+  if (draftBusy[block.actionId]) return;
+  draftBusy[block.actionId] = true;
+  draftError[block.actionId] = '';
+  try {
+    await apiPost(`/assistant/actions/${block.actionId}/cancel`, {});
+    draftStatus[block.actionId] = 'cancelled';
+    delete draftEdits[block.actionId];
+  } catch (error) {
+    draftError[block.actionId] = error instanceof Error ? error.message : '取消失败';
+  } finally { draftBusy[block.actionId] = false; }
+}
+
 watch(() => props.open, open => { if (open) void reveal(); }, { immediate: true });
 </script>
 
@@ -149,6 +260,46 @@ watch(() => props.open, open => { if (open) void reveal(); }, { immediate: true 
             <div class="assistant-insight-card__period"><span>账本摘要</span><span>{{ insightPeriod(message) }}</span></div>
             <div class="assistant-insight-card__metrics"><div v-for="row in insightRows(message)" :key="row.label"><span>{{ row.label }}</span><strong>{{ row.value }}</strong></div></div>
           </div>
+          <div v-for="draft in draftsOf(message)" :key="`draft-${draft.actionId}`" class="assistant-card assistant-draft-card">
+            <div class="assistant-draft-card__head"><span>待确认的记账草稿</span><span class="assistant-draft-card__type">{{ typeLabel(draft.fields.type) }}</span></div>
+            <ul class="assistant-draft-card__rows">
+              <li><span>金额</span>
+                <input v-if="draftEditing(draft)" class="assistant-draft-card__input" inputmode="decimal" :value="draftValue(draft, 'amount')" @input="updateDraftField(draft, 'amount', ($event.target as HTMLInputElement).value)" />
+                <strong v-else>¥{{ draft.fields.amount }}</strong>
+                <em v-if="isInferred(draft, 'amount')">AI 补充</em>
+              </li>
+              <li><span>日期</span>
+                <input v-if="draftEditing(draft)" class="assistant-draft-card__input" type="date" :value="draftValue(draft, 'occurredOn')" @input="updateDraftField(draft, 'occurredOn', ($event.target as HTMLInputElement).value)" />
+                <strong v-else>{{ draft.fields.occurredOn }}</strong>
+                <em v-if="isInferred(draft, 'occurred_on')">AI 补充</em>
+              </li>
+              <li><span>账户</span><strong>{{ draft.fields.accountName || draft.fields.accountId || '默认账户' }}</strong></li>
+              <li v-if="draft.fields.toAccountName"><span>转入</span><strong>{{ draft.fields.toAccountName }}</strong></li>
+              <li><span>分类</span>
+                <input v-if="draftEditing(draft)" class="assistant-draft-card__input" :value="draftValue(draft, 'categoryName')" @input="updateDraftField(draft, 'categoryName', ($event.target as HTMLInputElement).value)" />
+                <strong v-else>{{ draft.fields.categoryName || '未指定' }}</strong>
+                <em v-if="isInferred(draft, 'category_name')">AI 补充</em>
+              </li>
+              <li><span>备注</span>
+                <input v-if="draftEditing(draft)" class="assistant-draft-card__input" :value="draftValue(draft, 'note')" @input="updateDraftField(draft, 'note', ($event.target as HTMLInputElement).value)" />
+                <strong v-else>{{ draft.fields.note || '—' }}</strong>
+              </li>
+            </ul>
+            <p v-if="draftError[draft.actionId]" class="assistant-draft-card__error" role="alert">{{ draftError[draft.actionId] }}</p>
+            <p v-if="draftState(draft) === 'confirmed'" class="assistant-draft-card__done">已记入账本</p>
+            <p v-else-if="draftState(draft) === 'cancelled'" class="assistant-draft-card__done">已取消，没有对账本做任何修改</p>
+            <div v-else class="assistant-draft-card__actions">
+              <template v-if="draftEditing(draft)">
+                <button type="button" class="assistant-draft-btn assistant-draft-btn--primary" :disabled="draftBusy[draft.actionId]" @click="saveDraft(draft)">保存修改</button>
+                <button type="button" class="assistant-draft-btn" :disabled="draftBusy[draft.actionId]" @click="stopDraftEdit(draft)">放弃</button>
+              </template>
+              <template v-else>
+                <button type="button" class="assistant-draft-btn assistant-draft-btn--primary" :disabled="draftBusy[draft.actionId]" @click="confirmDraft(draft)">确认记账</button>
+                <button type="button" class="assistant-draft-btn" :disabled="draftBusy[draft.actionId]" @click="startDraftEdit(draft)">修改</button>
+                <button type="button" class="assistant-draft-btn" :disabled="draftBusy[draft.actionId]" @click="cancelDraft(draft)">取消</button>
+              </template>
+            </div>
+          </div>
         </div>
         <div v-if="loading" class="assistant-message assistant-message--assistant"><div class="assistant-message__bubble">正在查看账本…</div></div>
       </div>
@@ -180,4 +331,21 @@ watch(() => props.open, open => { if (open) void reveal(); }, { immediate: true 
   /* 移动端面板接近全宽，没有可让位的空间；收起改由面板内的关闭按钮完成。 */
   .assistant-fab--active { display: none; }
 }
+
+/* —— 记账确认卡（需求 7：展示字段、标出 AI 补全项，并提供修改/取消/确认）—— */
+.assistant-draft-card { display: grid; gap: 9px; padding: 13px; }
+.assistant-draft-card__head { display: flex; align-items: center; justify-content: space-between; color: var(--ink); font-size: 12px; font-weight: 500; }
+.assistant-draft-card__type { padding: 2px 8px; border-radius: var(--radius-pill); background: var(--surface-accent); color: var(--primary); font-size: 10px; font-weight: 400; }
+.assistant-draft-card__rows { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.assistant-draft-card__rows li { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+.assistant-draft-card__rows li > span:first-child { flex: 0 0 34px; color: var(--muted); }
+.assistant-draft-card__rows strong { flex: 1; min-width: 0; overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.assistant-draft-card__rows em { padding: 1px 6px; border-radius: var(--radius-pill); background: var(--surface-accent); color: var(--primary); font-size: 9px; font-style: normal; }
+.assistant-draft-card__input { flex: 1; min-width: 0; min-height: 30px; padding: 0 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); font-size: 11px; }
+.assistant-draft-card__actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.assistant-draft-btn { min-height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-pill); background: var(--surface); color: var(--ink); font-size: 11px; cursor: pointer; }
+.assistant-draft-btn--primary { border-color: var(--primary); background: var(--primary); color: #fff; }
+.assistant-draft-btn:disabled { opacity: .45; cursor: not-allowed; }
+.assistant-draft-card__error { margin: 0; color: var(--expense); font-size: 10px; }
+.assistant-draft-card__done { margin: 0; color: var(--muted); font-size: 11px; }
 </style>

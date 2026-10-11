@@ -1,4 +1,5 @@
 <view class="screen-page analysis-page">
+  <button class="page-assistant-fab" bindtap="openAssistant">✦ 问问助手</button>
   <view class="ledger-head"><button class="ledger-selector" bindtap="openLedgerSwitcher">{{ledgerName}} <text class="chevron">⌄</text></button><picker mode="date" fields="month" value="{{month}}" bindchange="handleMonthInput"><view class="month-button">{{month}} <text class="chevron">⌄</text></view></picker></view>
   <view wx:if="{{loading}}" class="empty-state">正在加载分析…</view>
   <view wx:elif="{{errorMessage}}" class="empty-state state-error">{{errorMessage}}<button size="mini" bindtap="onShow">重试</button></view>

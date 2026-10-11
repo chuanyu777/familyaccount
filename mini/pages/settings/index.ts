@@ -66,6 +66,7 @@ Page({
   openWebLedgerImport(): void { wx.navigateTo({ url: '/pages/bind-web/index' }); },
   openLedgerSwitcher(): void { (this as unknown as SettingsPageContext).setData({ switcherOpen: true }); },
   closeLedgerSwitcher(): void { (this as unknown as SettingsPageContext).setData({ switcherOpen: false }); },
+  openAssistant(): void { wx.navigateTo({ url: '/pages/assistant/index' }); },
   onShareAppMessage(): { title: string; path: string } {
     const invitation = (this as unknown as SettingsPageContext).data.invitation;
     return invitation

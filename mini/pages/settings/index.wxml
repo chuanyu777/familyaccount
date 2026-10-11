@@ -1,4 +1,5 @@
 <view class="screen-page settings-page">
+  <button class="page-assistant-fab" bindtap="openAssistant">✦ 问问助手</button>
   <view wx:if="{{loading}}" class="empty-state">正在加载设置…</view>
   <view wx:elif="{{errorMessage && !ledger}}" class="empty-state state-error">{{errorMessage}}</view>
   <block wx:elif="{{ledger}}">
