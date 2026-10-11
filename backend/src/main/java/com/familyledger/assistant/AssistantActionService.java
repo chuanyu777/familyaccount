@@ -86,6 +86,23 @@ public class AssistantActionService {
     if (changed == 0) throw ApiException.conflict("ASSISTANT_ACTION_NOT_CANCELABLE", "该助手操作当前不能取消");
   }
 
+  /** 需求第 7 节：确认卡提供「修改」，改完重新展示最新预览（version 递增）。 */
+  @Transactional
+  public Map<String, Object> update(long id, Map<String, Object> patch, Long userId, Long ledgerId) {
+    Map<String, Object> action = get(id, userId, ledgerId);
+    if (!"PROPOSED".equals(Row.str(action, "status"))) {
+      throw ApiException.conflict("ASSISTANT_ACTION_NOT_EDITABLE", "该助手操作当前不能修改");
+    }
+    Map<String, Object> merged = new LinkedHashMap<>();
+    if (action.get("payload") instanceof Map<?, ?> existing) {
+      existing.forEach((key, value) -> merged.put(String.valueOf(key), value));
+    }
+    if (patch != null) merged.putAll(patch);
+    db.update("UPDATE assistant_action SET payload_json=?, version=version+1 "
+        + "WHERE id=? AND status='PROPOSED'", stringify(merged), id);
+    return get(id, userId, ledgerId);
+  }
+
   private void requireOwnedConversation(long conversationId, Long userId, Long ledgerId) {
     Long owned = db.queryForObject(
         "SELECT COUNT(*) FROM assistant_conversation WHERE id = ? AND user_id = ? AND ledger_id = ?",

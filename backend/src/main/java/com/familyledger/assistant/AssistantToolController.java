@@ -36,12 +36,15 @@ public class AssistantToolController {
     AssistantContext context = new AssistantContext(
         String.valueOf(requestContext.getOrDefault("run_id", "runtime")),
         number(requestContext.get("user_id")), number(requestContext.get("ledger_id")),
-        java.time.ZoneId.of("Asia/Shanghai"), string(requestParams.get("month")));
+        java.time.ZoneId.of("Asia/Shanghai"), string(requestParams.get("month")),
+        number(requestContext.get("conversation_id")));
     return switch (name) {
       case "get_period_summary" -> tools.getPeriodSummary(context, string(requestParams.get("month")));
       case "get_category_breakdown" -> tools.getCategoryBreakdown(context, string(requestParams.get("month")));
       case "list_accounts" -> tools.listAccounts(context);
+      case "list_categories" -> tools.listCategories(context, string(requestParams.get("kind")));
       case "get_ledger_overview" -> tools.getLedgerOverview(context);
+      case "propose_create_transaction" -> tools.proposeCreateTransaction(context, requestParams);
       default -> throw new ResponseStatusException(HttpStatus.NOT_FOUND, "unknown assistant tool");
     };
   }

@@ -39,6 +39,8 @@ public class AssistantAgentClient {
     contextBody.put("user_id", context.userId());
     contextBody.put("ledger_id", context.ledgerId());
     contextBody.put("month", context.month());
+    // 会话标识要原样带给 Agent，否则它无法在创建记账草稿时说明草稿属于哪次对话。
+    contextBody.put("conversation_id", context.conversationId());
     return client.post().uri(baseUrl + "/runs").contentType(MediaType.APPLICATION_JSON)
         .body(Map.of("messages", messages, "context", contextBody))
         .retrieve().body(Map.class);

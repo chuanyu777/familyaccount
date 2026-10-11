@@ -11,6 +11,7 @@ import com.familyledger.common.MonthUtil;
 import java.util.List;
 import java.util.Map;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -95,6 +96,26 @@ public class AssistantController {
     return Map.of("ok", true);
   }
 
+  /** 需求第 7 节：确认卡需提供「修改」，改完重新展示最新预览。 */
+  @PatchMapping("/actions/{id}")
+  public Map<String, Object> updateAction(@PathVariable long id, HttpServletRequest request,
+      @RequestBody Map<String, Object> patch) {
+    return applyActionUpdate(id, request, patch);
+  }
+
+  /** 微信小程序的 wx.request 不支持 PATCH，额外提供 POST 变体，逻辑完全一致。 */
+  @PostMapping("/actions/{id}/update")
+  public Map<String, Object> updateActionByPost(@PathVariable long id, HttpServletRequest request,
+      @RequestBody Map<String, Object> patch) {
+    return applyActionUpdate(id, request, patch);
+  }
+
+  private Map<String, Object> applyActionUpdate(long id, HttpServletRequest request,
+      Map<String, Object> patch) {
+    LedgerContext context = ledgerContext(request);
+    return actions.update(id, patch, context.userId(), context.ledgerId());
+  }
+
   private LedgerContext ledgerContext(HttpServletRequest request) {
     return LedgerRequest.context(request, null, guard, authorization);
   }
@@ -103,7 +124,7 @@ public class AssistantController {
     AuthPrincipal principal = guard.requireLedgerUser(request);
     LedgerContext context = ledgerContext(request);
     return new AssistantContext("local-" + conversationId, principal.userId(), context.ledgerId(),
-        ZoneId.of("Asia/Shanghai"), MonthUtil.currentMonth());
+        ZoneId.of("Asia/Shanghai"), MonthUtil.currentMonth(), conversationId);
   }
 
   public record CreateConversationRequest(String title) {}

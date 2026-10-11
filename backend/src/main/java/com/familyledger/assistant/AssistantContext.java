@@ -13,7 +13,8 @@ public record AssistantContext(
     Long userId,
     Long ledgerId,
     ZoneId timezone,
-    String month) {
+    String month,
+    Long conversationId) {
 
   public AssistantContext {
     if (timezone == null) timezone = ZoneId.of("Asia/Shanghai");

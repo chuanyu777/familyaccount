@@ -117,6 +117,63 @@ class AssistantControllerTest {
     assertThat(count).isEqualTo(1L);
   }
 
+  /** 需求 10：草稿未确认前不改变账目；需求 7：确认卡可修改后重新预览。 */
+  @Test
+  void draftStaysOutOfLedgerUntilConfirmedAndCanBeEdited() throws Exception {
+    long conversationId = call("POST", "/api/assistant/conversations", Map.of(), 200).get("id").asLong();
+    long accountId = jdbc.queryForObject("SELECT id FROM account WHERE is_default = 1", Long.class);
+    long actionId = call("POST", "/api/assistant/conversations/" + conversationId + "/actions", Map.of(
+        "actionType", "create_transaction",
+        "payload", Map.of("type", "expense", "amount", 10, "accountId", accountId,
+            "categoryName", "日用品", "occurredOn", "2026-10-05", "note", "草稿不入账")), 200)
+        .get("id").asLong();
+
+    // 只出草稿：账目数量保持 reset() 预置的 3 笔，草稿记录本身不落账
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM txn WHERE ledger_id = ?", Long.class, ledgerId))
+        .isEqualTo(3L);
+
+    // 修改草稿：金额 10 → 25.50，version 递增，仍不落账
+    JsonNode edited = call("POST", "/api/assistant/actions/" + actionId + "/update",
+        Map.of("amount", "25.50", "note", "改过的草稿"), 200);
+    assertThat(edited.get("version").asLong()).isEqualTo(1L);
+    assertThat(edited.get("payload").get("amount").asText()).isEqualTo("25.50");
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM txn WHERE ledger_id = ?", Long.class, ledgerId))
+        .isEqualTo(3L);
+
+    // 确认后才写入，且写入的是修改后的金额
+    JsonNode executed = call("POST", "/api/assistant/actions/" + actionId + "/confirm", Map.of(), 200);
+    assertThat(executed.get("status").asText()).isEqualTo("EXECUTED");
+    assertThat(executed.get("result").get("transaction").get("amountCents").asLong()).isEqualTo(2_550L);
+
+    // 已确认的草稿不能再改
+    call("POST", "/api/assistant/actions/" + actionId + "/update", Map.of("amount", "1.00"), 409);
+  }
+
+  /** 内部工具要挡住非法参数，避免把不可执行的草稿端到用户面前。 */
+  @Test
+  void proposeToolValidatesDraftPayload() throws Exception {
+    long conversationId = call("POST", "/api/assistant/conversations", Map.of(), 200).get("id").asLong();
+    long accountId = jdbc.queryForObject("SELECT id FROM account WHERE is_default = 1", Long.class);
+    Map<String, Object> context = Map.of("run_id", "run-validate", "user_id", owner.userId(),
+        "ledger_id", ledgerId, "conversation_id", conversationId);
+
+    call("POST", "/api/assistant/internal/tools/propose_create_transaction", Map.of(
+        "context", context, "params", Map.of("type", "expense", "amount", "0")), 400);
+    call("POST", "/api/assistant/internal/tools/propose_create_transaction", Map.of(
+        "context", context, "params", Map.of("type", "refund", "amount", "10")), 400);
+    // 账户必须属于当前账本：不属于（或不存在）的账户在本账本内查不到，返回 404
+    call("POST", "/api/assistant/internal/tools/propose_create_transaction", Map.of(
+        "context", context, "params", Map.of("type", "expense", "amount", "10", "accountId", 999_999)), 404);
+
+    JsonNode created = call("POST", "/api/assistant/internal/tools/propose_create_transaction", Map.of(
+        "context", context, "params", Map.of("type", "expense", "amount", "36.00",
+            "accountId", accountId, "categoryName", "交通")), 200);
+    assertThat(created.get("data").get("status").asText()).isEqualTo("PROPOSED");
+    assertThat(created.get("data").get("draft").get("accountName").asText()).isNotBlank();
+    assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM txn WHERE ledger_id = ?", Long.class, ledgerId))
+        .isEqualTo(3L);
+  }
+
   @Test
   void cancelledDraftCannotBeConfirmed() throws Exception {
     long conversationId = call("POST", "/api/assistant/conversations", Map.of(), 200).get("id").asLong();
