@@ -1,15 +1,14 @@
 package com.familyledger.assistant;
 
+import com.familyledger.common.ApiException;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
 
 /** Agent Runtime 的内部工具适配器。生产环境必须配置 assistant.internal-token。 */
 @RestController
@@ -29,7 +28,7 @@ public class AssistantToolController {
       @RequestHeader(value = "X-Assistant-Internal-Token", required = false) String token,
       @RequestBody ToolRequest request) {
     if (!internalToken.isBlank() && !internalToken.equals(token)) {
-      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid assistant runtime token");
+      throw ApiException.unauthorized("ASSISTANT_INTERNAL_UNAUTHORIZED", "助手内部鉴权失败");
     }
     Map<String, Object> requestContext = request.context() == null ? Map.of() : request.context();
     Map<String, Object> requestParams = request.params() == null ? Map.of() : request.params();
@@ -55,9 +54,10 @@ public class AssistantToolController {
       case "propose_investment_buy" -> tools.proposeInvestmentBuy(context, requestParams);
       case "list_pending_actions" -> tools.listPendingActions(context);
       case "confirm_pending_action" -> tools.confirmPendingAction(context);
+      case "cancel_pending_action" -> tools.cancelPendingAction(context);
       case "get_year_summary" -> tools.getYearSummary(context, string(requestParams.get("year")));
       case "get_net_worth_trend" -> tools.getNetWorthTrend(context, string(requestParams.get("year")));
-      default -> throw new ResponseStatusException(HttpStatus.NOT_FOUND, "unknown assistant tool");
+      default -> throw ApiException.notFound("ASSISTANT_TOOL_NOT_FOUND", "助手工具不存在");
     };
   }
 

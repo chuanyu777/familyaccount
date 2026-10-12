@@ -224,6 +224,21 @@ public class AssistantActionService {
     if (changed == 0) throw ApiException.conflict("ASSISTANT_ACTION_NOT_CANCELABLE", "该助手操作当前不能取消");
   }
 
+  /** 取消会话内最近一张待确认草稿（用户在对话里说「取消」时走这里）。 */
+  @Transactional
+  public Map<String, Object> cancelLatest(long conversationId, Long userId, Long ledgerId) {
+    requireOwnedConversation(conversationId, userId, ledgerId);
+    List<Map<String, Object>> rows = db.queryForList(
+        "SELECT id FROM assistant_action WHERE conversation_id = ? AND status = 'PROPOSED' "
+            + "ORDER BY id DESC LIMIT 1", conversationId);
+    if (rows.isEmpty()) {
+      throw ApiException.notFound("ASSISTANT_NO_PENDING_ACTION", "当前没有待确认的草稿");
+    }
+    long id = Row.lng(rows.get(0), "id");
+    cancel(id, userId, ledgerId);
+    return get(id, userId, ledgerId);
+  }
+
   /** 需求第 7 节：确认卡提供「修改」，改完重新展示最新预览（version 递增）。 */
   @Transactional
   public Map<String, Object> update(long id, Map<String, Object> patch, Long userId, Long ledgerId) {

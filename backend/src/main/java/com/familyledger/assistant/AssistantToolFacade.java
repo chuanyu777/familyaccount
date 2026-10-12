@@ -286,10 +286,13 @@ public class AssistantToolFacade {
   /** 投资买入组合草稿：新建/更新资产条目 + 扣减资金账户余额，一次确认两步执行。 */
   public Map<String, Object> proposeInvestmentBuy(AssistantContext context,
       Map<String, Object> params) {
+    LedgerContext ledger = ledger(context);
+    Map<String, Object> account = resolveAccount(ledger, params.get("accountId"));
     Map<String, Object> payload = new LinkedHashMap<>();
     payload.put("name", textOr(params.get("name"), null));
     payload.put("value", String.valueOf(params.get("value")));
-    payload.put("accountId", requireLong(params, "accountId"));
+    payload.put("accountId", ((Number) account.get("id")).longValue());
+    payload.put("accountName", account.get("name"));
     if (params.get("kind") != null) payload.put("kind", params.get("kind"));
     if (payload.get("name") == null) {
       throw ApiException.badRequest("VALIDATION_FAILED", "缺少投资标的名称");
@@ -314,6 +317,16 @@ public class AssistantToolFacade {
     Map<String, Object> data = actions.confirmLatest(context.conversationId(),
         com.familyledger.auth.AuthPrincipal.ledgerUser(context.userId()), ledger(context));
     return result("confirm_pending_action", context, data);
+  }
+
+  /** 用户在对话里明确取消时，取消会话内最近一张待确认草稿。 */
+  public Map<String, Object> cancelPendingAction(AssistantContext context) {
+    if (context.conversationId() == null) {
+      throw ApiException.badRequest("ASSISTANT_CONTEXT_REQUIRED", "助手请求缺少会话上下文");
+    }
+    Map<String, Object> data = actions.cancelLatest(context.conversationId(),
+        context.userId(), context.ledgerId());
+    return result("cancel_pending_action", context, data);
   }
 
   // ---------- 聚合查询工具（P2） ----------

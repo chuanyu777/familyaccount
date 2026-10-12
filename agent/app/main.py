@@ -45,6 +45,18 @@ def today_in_business_timezone() -> str:
     return datetime.now(BUSINESS_TIMEZONE).strftime("%Y-%m-%d")
 
 
+def format_pending_summary(items: list[dict[str, Any]]) -> str:
+    """把待确认草稿转换成可供模型理解的简短上下文。"""
+    if not items:
+        return ""
+    lines = ["【当前待确认草稿】用户说「确认」即执行最近一张，说「取消」即取消最近一张："]
+    for item in items:
+        payload = item.get("payload") or {}
+        brief = ", ".join(f"{key}={value}" for key, value in list(payload.items())[:6])
+        lines.append(f"- 草稿#{item.get('id')}（{item.get('action_type')}）：{brief}")
+    return "\n".join(lines) + "\n"
+
+
 class RunContext(BaseModel):
     run_id: str
     user_id: int | None = None
@@ -159,6 +171,7 @@ def build_agent(context: RunContext, drafts: list[dict[str, Any]], pending_summa
         amount: str,
         occurred_on: str | None = None,
         account_id: int | None = None,
+        to_account_id: int | None = None,
         category_name: str | None = None,
         note: str | None = None,
         inferred_fields: list[str] | None = None,
@@ -168,6 +181,7 @@ def build_agent(context: RunContext, drafts: list[dict[str, Any]], pending_summa
         type 只能是 expense（支出）、income（收入）或 transfer（转账）。
         amount 传元的字符串，例如 "36.00"。
         account_id 传 list_accounts 返回的账户 id；不确定就省略，会用默认账户。
+        type 为 transfer 时必须把转入账户 id 传给 to_account_id。
         occurred_on 传 2026-10-08 这种日期；不确定就省略。
         category_name 传分类名字；不确定就省略。
         inferred_fields 列出哪些字段是你替用户补的，例如 ["category_name", "occurred_on"]。
@@ -177,6 +191,7 @@ def build_agent(context: RunContext, drafts: list[dict[str, Any]], pending_summa
             "amount": amount,
             "occurredOn": normalize_date(occurred_on),
             "accountId": account_id,
+            "toAccountId": to_account_id,
             "categoryName": category_name,
             "note": note,
         })
@@ -274,6 +289,7 @@ def build_agent(context: RunContext, drafts: list[dict[str, Any]], pending_summa
         """生成一笔「投资买入」组合草稿：新建/更新对应资产条目，并从指定资金账户扣减等额余额。
 
         用户确认后一步执行两个动作。这适合「买入 xx 股票花了 x 万」这类现金换资产的记录；
+        account_id 省略时后端使用账本默认账户；
         不要用它记录市值波动（那应该用 propose_upsert_asset）。
         """
         return register_draft(await gateway.call("propose_investment_buy", context, {
@@ -287,6 +303,11 @@ def build_agent(context: RunContext, drafts: list[dict[str, Any]], pending_summa
         用户否定或要修改时不要调用，先按新要求重新 propose。
         """
         return await gateway.call("confirm_pending_action", context)
+
+    @tool
+    async def cancel_pending_action() -> Any:
+        """用户明确表示「取消」「不要了」「别记这笔」时调用：取消本会话最近一张待确认草稿。"""
+        return await gateway.call("cancel_pending_action", context)
 
     @tool
     async def list_pending_actions() -> Any:
@@ -312,7 +333,8 @@ def build_agent(context: RunContext, drafts: list[dict[str, Any]], pending_summa
         "propose_* 工具生成草稿，然后告诉用户草稿已生成、请在卡片上确认。"
         "草稿不会写入账本，绝对不能说「已经记好了」「已记入账本」这类话。"
         "用户回复「确认」「对，就这笔」「可以」这类肯定表述时，调用 confirm_pending_action 执行最近一张待确认草稿，"
-        "并告诉用户执行结果；用户否定或要修改时，按新要求重新调用 propose_* 生成新草稿。"
+        "并告诉用户执行结果；用户明确说取消、不要或别记时，调用 cancel_pending_action 取消最近一张草稿；"
+        "用户要求修改时，按新要求重新调用 propose_* 生成新草稿。"
         + pending_summary +
         "【能力清单】"
         "改账用 propose_update_transaction（先用 search_transactions 找 id）；删账用 propose_delete_transaction；"
@@ -358,6 +380,7 @@ def build_agent(context: RunContext, drafts: list[dict[str, Any]], pending_summa
             propose_investment_buy,
             list_pending_actions,
             confirm_pending_action,
+            cancel_pending_action,
         ],
         system_prompt=system,
     )
@@ -412,13 +435,8 @@ async def run(request: RunRequest) -> dict[str, Any]:
         try:
             pending = await gateway.call("list_pending_actions", request.context)
             items = pending.get("data") if isinstance(pending, dict) else None
-            if isinstance(items, list) and items:
-                lines = ["【当前待确认草稿】用户说「确认」即执行最近一张："]
-                for item in items:
-                    payload = item.get("payload") or {}
-                    brief = ", ".join(f"{{k}}={{v}}" for k, v in list(payload.items())[:6])
-                    lines.append(f"- 草稿#{{item.get('id')}}（{{item.get('action_type')}}）：{{brief}}")
-                pending_summary = "\n".join(lines) + "\n"
+            if isinstance(items, list):
+                pending_summary = format_pending_summary(items)
         except Exception:
             pending_summary = ""
         agent = build_agent(request.context, drafts, pending_summary)
