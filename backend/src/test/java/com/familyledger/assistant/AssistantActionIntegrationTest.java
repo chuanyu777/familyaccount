@@ -93,6 +93,16 @@ class AssistantActionIntegrationTest {
   }
 
   @Test
+  void upsertAssetWithoutKindKeepsKindEmpty() {
+    // 类型可选：不填就存空值，不再伪造「其他」
+    propose("upsert_asset", Map.of("name", "未填类型资产", "value", "100"));
+    confirmLatest();
+    Object kind = db.queryForMap("SELECT kind FROM asset WHERE ledger_id = ? AND name = '未填类型资产'",
+        context.ledgerId()).get("kind");
+    assertThat(String.valueOf(kind == null ? "" : kind)).isEmpty();
+  }
+
+  @Test
   void upsertAssetDraftCreatesAssetWithSnapshot() {
     propose("upsert_asset", Map.of("name", "某股票", "value", "100000", "kind", "投资"));
     confirmLatest();

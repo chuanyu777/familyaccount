@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import AppSheet from '../../components/AppSheet.vue';
 import { apiPatch, apiPost } from '../../lib/api';
-import { parseYuanToCents, centsToInput } from './util';
+import { ASSET_KIND_OPTIONS, parseYuanToCents, centsToInput } from './util';
 import type { Asset } from './types';
 
 const props = defineProps<{
@@ -15,6 +15,17 @@ const emit = defineEmits<{ close: []; saved: [] }>();
 const name = ref(props.initial?.name ?? '');
 const value = ref(props.initial ? centsToInput(props.initial.valueCents ?? props.initial.value_cents ?? 0) : '');
 const kind = ref(props.initial?.kind ?? '');
+/** 下拉选项：标准项 + 存量历史值（不清理数据，编辑时原样保留为一项）。 */
+const kindOptions = computed(() => {
+  const current = (props.initial?.kind ?? '').trim();
+  const options = [...ASSET_KIND_OPTIONS];
+  if (current && !options.includes(current)) options.push(`${current}（原值）`);
+  return options;
+});
+/** v-model 用：存量原值项在 select 里对应原文本。 */
+function kindValue(option: string): string {
+  return option.endsWith('（原值）') ? option.slice(0, -4) : option;
+}
 const error = ref<string | null>(null);
 const saving = ref(false);
 
@@ -74,8 +85,11 @@ async function save() {
     </label>
 
     <label class="field">
-      <span class="field__label">类型</span>
-      <input v-model="kind" class="field__control" type="text" aria-label="类型" placeholder="如 不动产 / 投资" />
+      <span class="field__label">类型（可选）</span>
+      <select class="field__control" aria-label="类型" :value="kind" @change="kind = ($event.target as HTMLSelectElement).value">
+        <option value="">不选</option>
+        <option v-for="option in kindOptions" :key="option" :value="kindValue(option)">{{ option }}</option>
+      </select>
     </label>
 
     <p v-if="error" class="form-error">{{ error }}</p>

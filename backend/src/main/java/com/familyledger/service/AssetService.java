@@ -40,8 +40,8 @@ public class AssetService {
   public Map<String, Object> create(LedgerContext context, Map<String, Object> input) {
     String name = requiredName(input.get("name"));
     long value = input.get("value") == null ? 0 : parseValueCents(input.get("value"));
-    String kind = input.get("kind") == null ? "其他" : String.valueOf(input.get("kind")).trim();
-    if (kind.isEmpty()) kind = "其他";
+    // 类型可选：不填就存空值，不伪造「其他」（2026-10-12 起，避免用户没填却被塞值）
+    String kind = input.get("kind") == null ? "" : String.valueOf(input.get("kind")).trim();
     long id = Db.insert(db, "INSERT INTO asset (ledger_id, name, value_cents, kind, archived, updated_at) "
         + "VALUES (?, ?, ?, ?, 0, ?)", context.ledgerId(), name, value, kind, Time.now());
     upsertSnapshot(context, id, MonthUtil.currentMonth(), Money.toYuanString(value), "建项");
@@ -54,7 +54,7 @@ public class AssetService {
     if (patch.containsKey("name")) db.update("UPDATE asset SET name = ? WHERE id = ? AND ledger_id = ?",
         requiredName(patch.get("name")), id, context.ledgerId());
     if (patch.containsKey("kind")) db.update("UPDATE asset SET kind = ? WHERE id = ? AND ledger_id = ?",
-        String.valueOf(patch.get("kind")), id, context.ledgerId());
+        patch.get("kind") == null ? "" : String.valueOf(patch.get("kind")).trim(), id, context.ledgerId());
     if (patch.containsKey("value")) {
       long value = parseValueCents(patch.get("value"));
       db.update("UPDATE asset SET value_cents = ?, updated_at = ? WHERE id = ? AND ledger_id = ?",
