@@ -172,7 +172,7 @@ public class AssistantActionService {
     Map<String, Object> assetPayload = new LinkedHashMap<>(payload);
     Map<String, Object> assetResult;
     List<Map<String, Object>> existing = db.queryForList(
-        "SELECT id FROM asset WHERE ledger_id = ? AND name = ? AND archived = 0",
+        "SELECT id, value_cents FROM asset WHERE ledger_id = ? AND name = ? AND archived = 0",
         context.ledgerId(), payload.get("name"));
     if (existing.isEmpty()) {
       Map<String, Object> input = new LinkedHashMap<>();
@@ -181,8 +181,14 @@ public class AssistantActionService {
       if (payload.get("kind") != null) input.put("kind", payload.get("kind"));
       assetResult = assets.create(context, input);
     } else {
+      long updatedValueCents;
+      try {
+        updatedValueCents = Math.addExact(Row.lng(existing.get(0), "value_cents"), costCents);
+      } catch (ArithmeticException exception) {
+        throw ApiException.badRequest("VALIDATION_FAILED", "投资买入后资产市值超出支持范围");
+      }
       assetResult = assets.update(context, Row.lng(existing.get(0), "id"),
-          Map.of("value", String.valueOf(payload.get("value"))));
+          Map.of("value", Money.toYuanString(updatedValueCents)));
     }
     Map<String, Object> calib = accounts.calibrate(context, accountId, balanceCents - costCents);
     Map<String, Object> out = new LinkedHashMap<>();

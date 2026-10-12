@@ -32,6 +32,7 @@ class AssistantActionIntegrationTest {
   @Autowired Seeder seeder;
   @Autowired LedgerService ledgers;
   @Autowired com.familyledger.service.LedgerService transactions;
+  @Autowired com.familyledger.service.AssetService assets;
   @Autowired LedgerAuthorization authorization;
   @Autowired AssistantActionService actions;
 
@@ -113,6 +114,28 @@ class AssistantActionIntegrationTest {
         context.ledgerId())).isNotEmpty();
     // 账户 -100000
     assertThat(accountBalance(accountId)).isEqualTo(balanceBefore - 100000);
+  }
+
+  @Test
+  void investmentBuyDraftAddsPurchaseToExistingAssetValue() {
+    assets.create(context, Map.of("name", "基金", "value", "560000", "kind", "投资"));
+    double balanceBefore = accountBalance(accountId);
+
+    propose("investment_buy", Map.of("name", "基金", "value", "39999", "accountId", accountId));
+    confirmLatest();
+
+    Map<String, Object> asset = db.queryForMap(
+        "SELECT id, value_cents FROM asset WHERE ledger_id = ? AND name = '基金'",
+        context.ledgerId());
+    assertThat(((Number) asset.get("value_cents")).longValue()).isEqualTo(59999900L);
+    assertThat(db.queryForObject(
+        "SELECT COUNT(*) FROM asset WHERE ledger_id = ? AND name = '基金'",
+        Long.class, context.ledgerId())).isEqualTo(1L);
+    assertThat(db.queryForObject(
+        "SELECT value_cents FROM asset_snapshot WHERE ledger_id = ? AND asset_id = ?",
+        Long.class, context.ledgerId(), ((Number) asset.get("id")).longValue()))
+        .isEqualTo(59999900L);
+    assertThat(accountBalance(accountId)).isEqualTo(balanceBefore - 39999);
   }
 
   @Test
