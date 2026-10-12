@@ -36,6 +36,10 @@ defineEmits<{
 <style scoped>
 .desktop-nav {
   display: none;
+  /* 固定顶部：页面内容变长/展开下拉时导航栏不随滚动移出视口 */
+  position: sticky;
+  top: 0;
+  z-index: 30;
   min-height: 64px;
   background: var(--nav);
   color: var(--surface);

@@ -30,7 +30,21 @@ public class CategoryService {
         .stream().map(this::toLedgerRow).toList();
   }
 
+  /** 按名称获取或创建分类；同名不存在时会做相似归并（记账自动归类场景使用）。 */
   public Map<String, Object> upsert(LedgerContext context, String kind, String name) {
+    return doUpsert(context, kind, name, true);
+  }
+
+  /**
+   * 仅按精确名称获取或创建分类，不做相似归并。
+   * 用户手动创建分类时使用——用户明确要建「交通出行」就应该建出来，而不是被并进「交通」。
+   */
+  public Map<String, Object> upsertExact(LedgerContext context, String kind, String name) {
+    return doUpsert(context, kind, name, false);
+  }
+
+  private Map<String, Object> doUpsert(LedgerContext context, String kind, String name,
+      boolean mergeSimilar) {
     String normalized = requiredName(name);
     List<Map<String, Object>> existing = db.queryForList(
         "SELECT id, kind, name, icon_key, archived, created_at FROM category "
@@ -43,6 +57,12 @@ public class CategoryService {
       }
       return toLedgerRow(existing.get(0));
     }
+    // 相似归并优先于新建：把「交通出行」这类名称归到账本里已有的「交通」，
+    // 避免同一语义在账本里裂成多个近似分类。
+    if (mergeSimilar) {
+      Map<String, Object> similar = findSimilar(context, kind, normalized);
+      if (similar != null) return toLedgerRow(similar);
+    }
     String iconKey = CategoryIconDictionary.lookup(normalized);
     long id = Db.insert(db, "INSERT INTO category (ledger_id, kind, name, icon_key, archived, created_at) "
             + "VALUES (?, ?, ?, ?, 0, ?)",
@@ -50,6 +70,54 @@ public class CategoryService {
     return toLedgerRow(db.queryForMap(
         "SELECT id, kind, name, icon_key, archived, created_at FROM category "
             + "WHERE id = ? AND ledger_id = ?", id, context.ledgerId()));
+  }
+
+  /**
+   * 在账本已有分类中查找与 name 语义相近的分类（仅同 kind、未归档）。
+   *
+   * <p>规则按优先级：①已有分类名是 name 的真子串（如「交通」⊂「交通出行」），取最长者；
+   * ②name 是已有分类名的真子串（如「其他」⊂「其他收入」），取最短者；
+   * ③按关键词词典映射到同一 icon_key 时，归并到同类中名字最短、创建最早的分类
+   * （「加油」→ transport → 归入「交通」；兜底的 other 不参与，避免所有未识别名称
+   * 都被并进「其他」）。</p>
+   */
+  private Map<String, Object> findSimilar(LedgerContext context, String kind, String name) {
+    List<Map<String, Object>> rows = db.queryForList(
+        "SELECT id, kind, name, icon_key, archived, created_at FROM category "
+            + "WHERE ledger_id = ? AND kind = ? AND archived = 0",
+        context.ledgerId(), kind);
+    Map<String, Object> best = null;
+    // ①已有名是传入名的真子串 → 取最长命中（最长 = 最贴近语义的已有分类）
+    for (Map<String, Object> row : rows) {
+      String candidate = Row.str(row, "name");
+      if (candidate.isEmpty() || candidate.equals(name)) continue;
+      if (name.contains(candidate) && (best == null
+          || candidate.length() > Row.str(best, "name").length())) {
+        best = row;
+      }
+    }
+    if (best != null) return best;
+    // ②传入名是已有名的真子串 → 取最短命中（避免命中过宽的「杂项」类长名）
+    for (Map<String, Object> row : rows) {
+      String candidate = Row.str(row, "name");
+      if (candidate.isEmpty() || candidate.equals(name)) continue;
+      if (candidate.contains(name) && (best == null
+          || candidate.length() < Row.str(best, "name").length())) {
+        best = row;
+      }
+    }
+    if (best != null) return best;
+    // ③词典 icon_key 命中：归并到同类中「名字最短、创建最早」的分类
+    // （如「加油」→ transport，账本有「交通」「交通出行」时归入标准名「交通」）。
+    // 兜底的 other 不参与，避免未识别名称被并进「其他」。
+    String iconKey = CategoryIconDictionary.lookup(name);
+    if (CategoryIconDictionary.DEFAULT_KEY.equals(iconKey)) return null;
+    return rows.stream()
+        .filter(row -> iconKey.equals(Row.strOrNull(row, "icon_key")))
+        .min(java.util.Comparator
+            .comparingInt((Map<String, Object> row) -> Row.str(row, "name").length())
+            .thenComparingLong(row -> Row.lng(row, "id")))
+        .orElse(null);
   }
 
   public Map<String, Object> ensureDefault(LedgerContext context, String kind) {

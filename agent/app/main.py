@@ -183,7 +183,8 @@ def build_agent(context: RunContext, drafts: list[dict[str, Any]], pending_summa
         account_id 传 list_accounts 返回的账户 id；不确定就省略，会用默认账户。
         type 为 transfer 时必须把转入账户 id 传给 to_account_id。
         occurred_on 传 2026-10-08 这种日期；不确定就省略。
-        category_name 传分类名字；不确定就省略。
+        category_name 传分类名字；优先复用 list_categories 返回的已有分类名（例如账本已有「交通」就传「交通」，
+        不要编造「交通出行」这类新名字）；确实没有合适的再给新名字。
         inferred_fields 列出哪些字段是你替用户补的，例如 ["category_name", "occurred_on"]。
         """
         result = await gateway.call("propose_create_transaction", context, {
@@ -343,6 +344,9 @@ def build_agent(context: RunContext, drafts: list[dict[str, Any]], pending_summa
         "还款用 propose_create_repayment；买入投资品用 propose_investment_buy（一步完成建资产+扣账户）；"
         "市值涨跌用 propose_upsert_asset 更新估值。"
         "用户一次报多笔账时，逐笔调用 propose_create_transaction 生成多张草稿，让用户在卡片上逐一确认。"
+        "【分类规则】记账前若不确定该用什么分类，先调用 list_categories 查看账本已有分类，"
+        "尽量把金额归入语义最接近的已有分类（如「加油」归入「交通」、「买菜」归入「餐饮」）；"
+        "不要在已有相近分类时另造新名字；确实没有合适的分类时才提出新分类名。"
         "【投资记账口径】"
         "买入股票/基金是「现金 → 资产」的转换：用 propose_investment_buy 记录，绝不能记成支出（会让收支失真）；"
         "市值涨跌不是收支，用 propose_upsert_asset 更新估值即可。"

@@ -33,7 +33,8 @@ public class CategoryController {
   public Map<String, Object> create(HttpServletRequest request, @RequestBody Map<String, Object> body) {
     LedgerContext context = LedgerRequest.context(request, body, guard, authorization);
     String name = body.get("name") == null ? null : String.valueOf(body.get("name"));
-    return service.upsert(context, Params.parseEnum(body.get("kind"), "kind", "expense", "income"), name);
+    // 手动创建不做相似归并：用户明确要建的名字就按原样创建
+    return service.upsertExact(context, Params.parseEnum(body.get("kind"), "kind", "expense", "income"), name);
   }
   @PatchMapping("/{id}")
   public Map<String, Object> update(@PathVariable Object id, HttpServletRequest request,
