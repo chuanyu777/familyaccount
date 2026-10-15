@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import AppSheet from '../../components/AppSheet.vue';
+import DatePicker from '../../components/DatePicker.vue';
 import { apiPost, apiPut } from '../../lib/api';
 import { parseYuanToCents, centsToInput } from './util';
 import type { Account, Liability, Repayment } from './types';
@@ -87,7 +88,7 @@ async function save() {
 
     <label class="field">
       <span class="field__label">还款日期</span>
-      <input v-model="date" class="field__control" type="date" aria-label="还款日期" />
+      <DatePicker v-model="date" />
     </label>
 
     <label class="field">

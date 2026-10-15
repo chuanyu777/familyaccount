@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import AppSheet from '../../components/AppSheet.vue';
+import DatePicker from '../../components/DatePicker.vue';
 import SegmentedControl from '../../components/SegmentedControl.vue';
 import CategoryIcon from '../../components/CategoryIcon.vue';
 import { apiPatch, apiPost } from '../../lib/api';
@@ -317,7 +318,7 @@ async function handleSubmit() {
       </label>
       <label class="attr">
         <span class="attr__label">日期</span>
-        <input v-model="occurredOn" class="attr__control" type="date" aria-label="日期" />
+        <DatePicker v-model="occurredOn" />
       </label>
     </div>
 
@@ -523,10 +524,6 @@ async function handleSubmit() {
 
 select.attr__control {
   appearance: none;
-}
-
-input[type='date'].attr__control {
-  font-variant-numeric: tabular-nums;
 }
 
 /* —— 备注 —— */

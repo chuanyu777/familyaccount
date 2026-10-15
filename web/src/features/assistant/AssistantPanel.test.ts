@@ -107,7 +107,7 @@ describe('助手确认卡', () => {
     await buttons()[1]!.trigger('click');           // 修改
     await flushPromises();
     const inputs = wrapper.findAll('.assistant-draft-card input');
-    expect(inputs.length).toBe(4);                   // 金额 / 日期 / 分类 / 备注
+    expect(inputs.length).toBe(3);                   // 金额 / 分类 / 备注（日期是 DatePicker 按钮）
     await inputs[0]!.setValue('40.00');
     mockedApiPatch.mockResolvedValue({ version: 1, payload: { ...DRAFT_MESSAGE.blocks[0]!.fields, amount: '40.00' } });
 

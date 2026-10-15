@@ -16,7 +16,7 @@
         <text wx:else class="draft-card__value">¥{{item.amount}}</text>
       </view>
       <view class="draft-card__row"><text class="draft-card__label">日期</text>
-        <input wx:if="{{item.editing}}" class="draft-card__input" type="date" value="{{form.occurredOn}}" data-field="occurredOn" bindinput="handleFormInput"/>
+        <picker wx:if="{{item.editing}}" mode="date" value="{{form.occurredOn}}" data-field="occurredOn" bindchange="handleFormInput"><view class="draft-card__input">{{form.occurredOn}}</view></picker>
         <text wx:else class="draft-card__value">{{item.occurredOn}}</text>
       </view>
       <view class="draft-card__row"><text class="draft-card__label">账户</text><text class="draft-card__value">{{item.accountName}}</text></view>

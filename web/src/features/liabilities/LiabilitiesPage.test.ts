@@ -456,8 +456,13 @@ describe('AC-03 还一笔', () => {
     await settle();
     const amountInput = fieldInput('还款金额') as HTMLInputElement;
     expect(amountInput.value).toBe('3000');
-    const dateInput = fieldInput('还款日期') as HTMLInputElement;
-    expect(dateInput.value).toBe(todayISO());
+    // 日期已改为 DatePicker 触发按钮：按钮文本即当前日期
+    const dateLabel = Array.from(document.body.querySelectorAll('label')).find((l) =>
+      (l.querySelector('.field__label')?.textContent ?? '').includes('还款日期')
+    );
+    expect(dateLabel).toBeTruthy();
+    const triggerText = dateLabel?.querySelector('button')?.textContent ?? '';
+    expect(triggerText).toContain(todayISO());
     const accountSelect = fieldInput('还款账户') as unknown as HTMLSelectElement;
     expect(accountSelect.value).toBe('1');
   });

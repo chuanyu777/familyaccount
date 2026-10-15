@@ -291,7 +291,7 @@ watch(() => props.open, open => { if (open) void reveal(); }, { immediate: true 
                 <em v-if="isInferred(draft, 'amount')">AI 补充</em>
               </li>
               <li><span>日期</span>
-                <input v-if="draftEditing(draft)" class="assistant-draft-card__input" type="date" :value="draftValue(draft, 'occurredOn')" @input="updateDraftField(draft, 'occurredOn', ($event.target as HTMLInputElement).value)" />
+                <DatePicker v-if="draftEditing(draft)" class="assistant-draft-card__input" :model-value="draftValue(draft, 'occurredOn')" @update:model-value="updateDraftField(draft, 'occurredOn', $event)" />
                 <strong v-else>{{ draft.fields.occurredOn }}</strong>
                 <em v-if="isInferred(draft, 'occurred_on')">AI 补充</em>
               </li>

@@ -53,7 +53,7 @@
 .amount-placeholder { color: #b8bec9; }
 .quick-category { display: flex; gap: 12rpx; margin: -4rpx 0 18rpx; }.quick-category input { flex: 1; height: 66rpx; padding: 0 18rpx; border: 1rpx solid #dce1e9; border-radius: 11rpx; background: #f7f8fa; box-sizing: border-box; font-size: 22rpx; }.quick-category button { flex: none; height: 66rpx; margin: 0; padding: 0 18rpx; border-radius: 11rpx; color: #3159d7; background: #eef2ff; font-size: 21rpx; line-height: 66rpx; }
 .form-row { display: flex; align-items: center; justify-content: space-between; min-height: 76rpx; margin-bottom: 16rpx; padding: 0 20rpx; border-bottom: 1rpx solid #e6eaf0; color: #5f6878; }
-.form-row input { flex: 1; margin-left: 20rpx; color: #151820; text-align: right; }
+.form-row input { flex: 1; margin-left: 20rpx; color: #151820; text-align: right; }.form-row picker { flex: 1; margin-left: 20rpx; }.picker-value { color: #151820; text-align: right; }
 .submit-button { width: 100%; margin-top: 20rpx; }
 .detail-title { display: block; font-size: 34rpx; font-weight: 700; }
 .hint { display: block; margin-top: 18rpx; color: #8a92a1; font-size: 23rpx; }

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
-import { formatMoney } from '../../lib/format';
+import { currentMonth, formatMoney } from '../../lib/format';
 import { cachedGet, apiPost, apiPatch, apiDelete, ApiError } from '../../lib/api';
 import { publishResources } from '../../lib/resourceInvalidation';
 import AssetsPage from './AssetsPage.vue';
@@ -442,15 +442,20 @@ describe('AC-02 资金账户区', () => {
     expect(mockedApiPatch).not.toHaveBeenCalledWith('/api/accounts/1/calibrate', expect.anything());
   });
 
-  it('编辑账户不提供不存在的余额校准接口', async () => {
+  it('编辑账户可修改余额（变动通过校准接口生效）', async () => {
+    // 2026-10-09 起（3c9207c）编辑账户允许直接改余额，内部走 /calibrate
     wrapper = mount(AssetsPage, { attachTo: document.body });
     await settle();
     openRow('银行卡');
     await settle();
     clickBtnInSheet('编辑');
     await settle();
-    expect(fieldInput('余额')).toBeNull();
-    expect(mockedApiPatch).not.toHaveBeenCalledWith('/api/accounts/2/calibrate', expect.anything());
+    const balanceInput = fieldInput('余额') as HTMLInputElement;
+    expect(balanceInput).toBeTruthy();
+    setInput(balanceInput, '500');
+    clickBtn('保存');
+    await settle();
+    expect(mockedApiPatch).toHaveBeenCalledWith('/api/accounts/2/calibrate', { balance: 500 });
   });
 
   it('不提供后端未实现的默认账户切换操作', async () => {
@@ -519,12 +524,12 @@ describe('AC-03 资产项区', () => {
     await settle();
     setInput(fieldInput('资产名称')!, '基金');
     setInput(fieldInput('市值')!, '8000');
-    setInput(fieldInput('类型')!, '投资');
+    setInput(fieldInput('类型')!, '金融投资');
     clickBtn('保存');
     await settle();
     expect(mockedApiPost).toHaveBeenCalledWith(
       '/api/assets',
-      expect.objectContaining({ name: '基金', value: 8000, kind: '投资' }),
+      expect.objectContaining({ name: '基金', value: 8000, kind: '金融投资' }),
     );
   });
 
@@ -654,16 +659,14 @@ describe('AC-05 资产市值历史', () => {
     clickBtnInSheet('更新市值');
     await settle();
 
-    const monthInput = fieldInput('记账月份');
-    expect(monthInput).toBeTruthy();
-    setInput(monthInput!, '2026-09');
+    // 记账月份是 MonthPicker 组件（日历式交互），测试直接用默认当月提交
     setInput(document.querySelector<HTMLInputElement>('[aria-label="市值"]')!, '1010000');
     await settle();
     clickBtn('保存');
     await settle();
 
     expect(mockedApiPost).toHaveBeenCalledWith('/api/assets/1/snapshots', {
-      month: '2026-09',
+      month: currentMonth(),
       value: 1010000,
       note: null,
     });

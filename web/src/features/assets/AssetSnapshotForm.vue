@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import AppSheet from '../../components/AppSheet.vue';
+import MonthPicker from '../../components/MonthPicker.vue';
 import { apiPost } from '../../lib/api';
 import { currentMonth, monthLabel } from '../../lib/format';
 import { parseYuanToCents, centsToInput } from './util';
@@ -61,13 +62,7 @@ async function save() {
   <AppSheet :title="`更新市值 · ${asset.name}`" @close="requestClose">
     <label class="field">
       <span class="field__label">记账月份</span>
-      <input
-        v-model="month"
-        class="field__control"
-        type="month"
-        :max="thisMonth"
-        aria-label="记账月份"
-      />
+      <MonthPicker v-model="month" :max="thisMonth" />
     </label>
 
     <p class="hint">
