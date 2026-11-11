@@ -16,5 +16,4 @@
 .wechat-icon view { position: absolute; width: 27rpx; height: 22rpx; border: 3rpx solid #fff; border-radius: 50%; }
 .wechat-icon view:last-child { right: 0; bottom: 0; width: 23rpx; height: 19rpx; background: #07c160; }
 .error-message { margin-top: 14rpx; color: #b84543; font-size: 24rpx; text-align: center; }
-.auth-endpoint { margin-top: 14rpx; color: #9aa1ad; font-size: 20rpx; text-align: center; word-break: break-all; }
 .auth-terms { margin-top: auto; color: #9aa1ad; font-size: 20rpx; }

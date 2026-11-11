@@ -12,6 +12,5 @@
     <view class="wechat-icon"><view></view><view></view></view><text>微信一键登录</text>
   </button>
   <text wx:if="{{errorMessage}}" class="error-message">{{errorMessage}}</text>
-  <text class="auth-endpoint">当前接口：{{endpoint}}</text>
   <text class="auth-terms">登录即表示你同意服务条款和隐私政策</text>
 </view>

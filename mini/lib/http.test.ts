@@ -1,10 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  ACTIVE_ENVIRONMENT,
   MINI_CONFIG,
-  MINI_ENVIRONMENTS,
-  setMiniEnvironment,
 } from './env';
 import { ApiError } from './errors';
 import { request } from './http';
@@ -21,7 +18,6 @@ function response(body: unknown, status = 200, header?: Record<string, string | 
 
 beforeEach(() => {
   vi.restoreAllMocks();
-  setMiniEnvironment(ACTIVE_ENVIRONMENT);
   const storage = new Map<string, unknown>();
   vi.stubGlobal('wx', {
     request: vi.fn(),
@@ -36,13 +32,12 @@ beforeEach(() => {
 
 describe('request', () => {
   it('uses the selected environment configuration without embedding secrets', () => {
-    expect(MINI_CONFIG).toBe(MINI_ENVIRONMENTS[ACTIVE_ENVIRONMENT]);
+    // 2026-11-11 起固定生产环境
     expect(MINI_CONFIG.appId).toBe('wx29eb27ce3ac94f23');
-    expect(MINI_CONFIG.apiBaseUrl).toMatch(/^https?:\/\//);
+    expect(MINI_CONFIG.apiBaseUrl).toBe('https://theseven.cc');
   });
 
   it('uses the explicitly selected production API entry point', async () => {
-    setMiniEnvironment('production');
     vi.mocked(wx.request).mockImplementation(({ success }) => {
       success?.(response({ ok: true }));
       return {} as never;
@@ -51,7 +46,7 @@ describe('request', () => {
     await request('/api/ledgers');
 
     expect(vi.mocked(wx.request).mock.calls[0]?.[0].url)
-      .toBe(`${MINI_ENVIRONMENTS.production.apiBaseUrl}/api/ledgers`);
+      .toBe(`${MINI_CONFIG.apiBaseUrl}/api/ledgers`);
   });
 
   it('serializes JSON and attaches session and ledger context', async () => {
@@ -183,7 +178,6 @@ describe('request', () => {
   // 真机上登录失败最常见的原因就是域名没进白名单，此时 wx.request 只走 fail 分支，
   // 如果不翻译 errMsg，用户永远只看到「登录失败，请重试」，无法自助定位。
   it('surfaces an un-whitelisted request domain with an actionable message', async () => {
-    setMiniEnvironment('production');
     vi.mocked(wx.request).mockImplementation(({ fail }) => {
       fail?.({ errMsg: 'request:fail url not in domain list' });
       return {} as never;
@@ -193,7 +187,7 @@ describe('request', () => {
       .rejects.toMatchObject({ status: 0, code: 'NETWORK_ERROR' });
     await expect(request('/api/auth/wechat/login')).rejects.toThrow(/request 合法域名/);
     await expect(request('/api/auth/wechat/login')).rejects.toThrow(
-      new RegExp(MINI_ENVIRONMENTS.production.apiBaseUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+      new RegExp(MINI_CONFIG.apiBaseUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
     );
   });
 
