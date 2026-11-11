@@ -12,6 +12,7 @@ interface LegalDoc {
 }
 
 const UPDATED = '2026 年 11 月 11 日';
+const CONTACT_EMAIL = '331719898@qq.com';
 
 const DOCS: Record<'terms' | 'privacy', LegalDoc> = {
   terms: {
@@ -63,7 +64,7 @@ const DOCS: Record<'terms' | 'privacy', LegalDoc> = {
       },
       {
         heading: '七、联系我们',
-        paragraphs: ['如对本条款有疑问，可通过账本管理员或小程序内的反馈入口与我们联系。'],
+        paragraphs: [`如对本条款有疑问，或需要咨询账号与数据相关问题，可发送邮件至 ${CONTACT_EMAIL} 与我们联系。`],
       },
     ],
   },
@@ -111,7 +112,7 @@ const DOCS: Record<'terms' | 'privacy', LegalDoc> = {
         paragraphs: [
           '你可以随时在小程序内查看、更正、导出或删除自己的记账数据。',
           '你可以退出账本、删除账本数据，或申请注销账号，我们将按约定处理你的个人信息。',
-          '如你希望行使上述权利或对我们的处理方式有疑问，可通过账本管理员或小程序内的反馈入口联系我们。',
+          `如你希望行使上述权利或对我们的处理方式有疑问，可发送邮件至 ${CONTACT_EMAIL} 联系我们。`,
         ],
       },
       {
@@ -121,7 +122,13 @@ const DOCS: Record<'terms' | 'privacy', LegalDoc> = {
         ],
       },
       {
-        heading: '七、政策更新',
+        heading: '七、联系我们',
+        paragraphs: [
+          `如对本政策有任何疑问、意见或投诉，或希望行使上述权利，可发送邮件至 ${CONTACT_EMAIL}，我们会在合理期限内回复。`,
+        ],
+      },
+      {
+        heading: '八、政策更新',
         paragraphs: [
           `本政策更新于 ${UPDATED}。如有重大变更，我们将在小程序内提示；继续使用即表示你接受更新后的政策。`,
         ],
