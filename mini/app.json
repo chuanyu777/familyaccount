@@ -2,6 +2,7 @@
   "lazyCodeLoading": "requiredComponents",
   "pages": [
     "pages/auth/index",
+    "pages/legal/index",
     "pages/bind-web/index",
     "pages/ledger/empty",
     "pages/ledger/list",

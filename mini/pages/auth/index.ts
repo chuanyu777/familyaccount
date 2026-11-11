@@ -13,6 +13,14 @@ Page({
   onLoad(options: Record<string, unknown>): void {
     captureInvitationToken(options);
   },
+  openTerms(): void {
+    wx.navigateTo({ url: '/pages/legal/index?type=terms' });
+  },
+
+  openPrivacy(): void {
+    wx.navigateTo({ url: '/pages/legal/index?type=privacy' });
+  },
+
   async handleLogin(): Promise<void> {
     const page = this as unknown as AuthPageContext;
     if (page.data.loading) return;

@@ -54,6 +54,7 @@ export interface MiniProgramApi {
   navigateTo(options: { url: string }): unknown;
   reLaunch(options: { url: string }): unknown;
   showToast(options: { title: string; icon?: 'none' | 'success'; duration?: number }): unknown;
+  setNavigationBarTitle(options: { title: string }): unknown;
   uploadFile(options: MiniUploadFileOptions): unknown;
 }
 

@@ -17,3 +17,4 @@
 .wechat-icon view:last-child { right: 0; bottom: 0; width: 23rpx; height: 19rpx; background: #07c160; }
 .error-message { margin-top: 14rpx; color: #b84543; font-size: 24rpx; text-align: center; }
 .auth-terms { margin-top: auto; color: #9aa1ad; font-size: 20rpx; }
+.auth-terms__link { color: #3159d7; }
