@@ -1,4 +1,5 @@
 import { currentLedgerStore } from '../../lib/currentLedger';
+import { isGuest } from '../../lib/guest';
 import { createInvitation, leaveLedger, listLedgers, switchLedger } from '../../services/ledgers';
 import type { InvitationView, LedgerSummary } from '../../types/domain';
 
@@ -11,6 +12,7 @@ Page({
   data: { ledgers: [], currentId: null, loading: false, errorMessage: '', invitation: null },
   async onShow(): Promise<void> {
     const page = this as unknown as LedgerListPageContext;
+    if (isGuest()) { wx.reLaunch({ url: '/pages/accounting/index' }); return; }
     page.setData({ loading: true, errorMessage: '' });
     try {
       const ledgers = await listLedgers();

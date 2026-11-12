@@ -9,5 +9,6 @@
     <view class="category-section"><view class="section-title"><text>支出分类</text><text class="section-title__meta">本月</text></view><view class="category-layout"><view class="donut"><view><text>本月支出</text><strong>¥{{snapshot ? snapshot.expense : '0.00'}}</strong></view></view><view class="category-rank"><view wx:for="{{breakdown}}" wx:key="categoryId" class="category-row"><view class="category-dot dot-{{index % 3}}"></view><view class="rank-name"><text>{{item.name}}</text><small>{{item.percent}}%</small></view><text class="category-amount">¥{{item.amount}}</text></view></view></view><view wx:if="{{!breakdown.length}}" class="empty-inline">本月暂无分类数据</view></view>
   </block>
   <ledger-switcher visible="{{switcherOpen}}" bindclose="closeLedgerSwitcher" />
+  <login-bar wx:if="{{guest}}" />
   <tabbar current="analysis" />
 </view>

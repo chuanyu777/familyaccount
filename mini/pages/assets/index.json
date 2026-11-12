@@ -1,1 +1,1 @@
-{"usingComponents":{"money-input":"/components/money-input/index","ledger-switcher":"/components/ledger-switcher/index","tabbar":"/components/tabbar/index"}}
+{"usingComponents":{"money-input":"/components/money-input/index","ledger-switcher":"/components/ledger-switcher/index","tabbar":"/components/tabbar/index","login-bar":"/components/login-bar/index"}}

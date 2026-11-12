@@ -1,4 +1,5 @@
 import { currentMonth } from '../../services/business-state';
+import { isGuest } from '../../lib/guest';
 import {
   cancelAssistantAction, confirmAssistantAction, listAssistantMessages, openAssistantConversation,
   sendAssistantMessage, updateAssistantAction,
@@ -99,6 +100,18 @@ Page({
   },
   async onLoad(): Promise<void> {
     const page = this as unknown as Context;
+    if (isGuest()) {
+      wx.showModal({
+        title: '需要登录',
+        content: 'AI 助手需登录后使用，是否前往登录？',
+        confirmText: '去登录',
+        success: (result) => {
+          if (result.confirm) wx.redirectTo({ url: '/pages/auth/index' });
+          else wx.navigateBack();
+        },
+      });
+      return;
+    }
     page.setData({ loading: true, error: '' });
     try {
       const conversation = await openAssistantConversation();

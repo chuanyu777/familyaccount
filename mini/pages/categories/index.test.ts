@@ -1,6 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { currentLedgerStore } from '../../lib/currentLedger';
+import { sessionStore } from '../../lib/session';
 import { archiveSharedResource, restoreSharedResource } from '../../services/business-state';
 import { createCategory, listCategories, updateCategory } from '../../services/categories';
 
@@ -39,6 +40,15 @@ beforeAll(async () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  const storage = new Map<string, unknown>();
+  vi.stubGlobal('wx', {
+    getStorageSync: vi.fn((key: string) => storage.get(key)),
+    setStorageSync: vi.fn((key: string, value: unknown) => storage.set(key, value)),
+    removeStorageSync: vi.fn((key: string) => storage.delete(key)),
+    showModal: vi.fn(),
+    navigateTo: vi.fn(),
+  });
+  sessionStore.set({ cookie: 'ledger_session=test-session' });
   vi.mocked(currentLedgerStore.get).mockReturnValue({ id: 9, name: '我家', role: 'OWNER' });
   vi.mocked(listCategories).mockImplementation(async (kind) => [
     { id: kind === 'expense' ? 5 : 6, kind, name: kind === 'expense' ? '餐饮' : '工资', archived: false },

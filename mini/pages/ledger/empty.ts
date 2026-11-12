@@ -1,4 +1,5 @@
 import { invitationTokenStore } from '../../services/auth';
+import { isGuest } from '../../lib/guest';
 
 interface EmptyPageContext {
   setData(data: { hasInvitation: boolean }): void;
@@ -7,6 +8,7 @@ interface EmptyPageContext {
 Page({
   data: { hasInvitation: false },
   onShow(): void {
+    if (isGuest()) { wx.reLaunch({ url: '/pages/accounting/index' }); return; }
     (this as unknown as EmptyPageContext).setData({ hasInvitation: Boolean(invitationTokenStore.get()) });
   },
   handleCreateLedger(): void {

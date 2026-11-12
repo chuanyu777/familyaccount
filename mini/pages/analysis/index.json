@@ -1,1 +1,1 @@
-{"usingComponents":{"ledger-switcher":"/components/ledger-switcher/index","tabbar":"/components/tabbar/index"}}
+{"usingComponents":{"ledger-switcher":"/components/ledger-switcher/index","tabbar":"/components/tabbar/index","login-bar":"/components/login-bar/index"}}

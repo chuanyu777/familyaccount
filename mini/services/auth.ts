@@ -93,10 +93,15 @@ export function importWebLedger(bindingCode: string): Promise<WebLedgerImportPre
 }
 
 export async function logout(): Promise<void> {
-  await request<void>('/api/auth/logout', { method: 'POST' });
-  sessionStore.clear();
-  currentLedgerStore.clear();
-  resetAssistantConversation();
+  try {
+    await request<void>('/api/auth/logout', { method: 'POST' });
+  } catch {
+    // 后端登出失败也必须能退回游客态，本地会话一定要清干净，避免「退不出」。
+  } finally {
+    sessionStore.clear();
+    currentLedgerStore.clear();
+    resetAssistantConversation();
+  }
 }
 
 export function getPostAuthRoute(ledgers: LedgerSummary[]): string {

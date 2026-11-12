@@ -1,6 +1,7 @@
 {
   "lazyCodeLoading": "requiredComponents",
   "pages": [
+    "pages/accounting/index",
     "pages/auth/index",
     "pages/legal/index",
     "pages/bind-web/index",
@@ -11,7 +12,6 @@
     "pages/invitation/detail",
     "pages/settings/index",
     "pages/categories/index",
-    "pages/accounting/index",
     "pages/assistant/index",
     "pages/assets/index",
     "pages/liabilities/index",

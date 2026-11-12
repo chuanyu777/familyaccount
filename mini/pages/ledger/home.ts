@@ -1,4 +1,5 @@
 import { currentLedgerStore } from '../../lib/currentLedger';
+import { isGuest } from '../../lib/guest';
 import { listLedgers } from '../../services/ledgers';
 import { loadLedgerContext, type LedgerContext } from '../../services/members';
 import type { LedgerSummary } from '../../types/domain';
@@ -31,6 +32,7 @@ Page({
     ],
   },
   async onShow(): Promise<void> {
+    if (isGuest()) { wx.reLaunch({ url: '/pages/accounting/index' }); return; }
     if (currentLedgerStore.get()) {
       wx.redirectTo({ url: '/pages/accounting/index' });
       return;

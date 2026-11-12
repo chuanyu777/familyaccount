@@ -25,6 +25,7 @@ beforeEach(() => {
     setStorageSync: vi.fn((key: string, value: unknown) => storage.set(key, value)),
     getStorageSync: vi.fn((key: string) => storage.get(key)),
     redirectTo: vi.fn(),
+    reLaunch: vi.fn(),
   });
   sessionStore.clear();
   currentLedgerStore.clear();
@@ -116,8 +117,9 @@ describe('request', () => {
     expect(vi.mocked(wx.request).mock.calls[0]?.[0].header).not.toHaveProperty('X-Ledger-Id');
   });
 
-  it('clears session and redirects to auth after 401', async () => {
+  it('clears session and returns to the guest home after 401', async () => {
     sessionStore.set({ cookie: 'ledger_session=signed-session', userId: 7 });
+    currentLedgerStore.set({ id: 9, name: '我家', role: 'OWNER' });
     vi.mocked(wx.request).mockImplementation(({ success }) => {
       success?.(response({ error: { code: 'AUTH_REQUIRED', message: '请登录' } }, 401));
       return {} as never;
@@ -126,7 +128,24 @@ describe('request', () => {
     await expect(request('/api/ledger')).rejects.toBeInstanceOf(ApiError);
 
     expect(sessionStore.get()).toBeNull();
-    expect(wx.redirectTo).toHaveBeenCalledWith({ url: '/pages/auth/index' });
+    expect(currentLedgerStore.get()).toBeNull();
+    expect(wx.reLaunch).toHaveBeenCalledWith({ url: '/pages/accounting/index' });
+    expect(wx.redirectTo).not.toHaveBeenCalled();
+  });
+
+  it('does not redirect on a 401 from the login endpoint', async () => {
+    sessionStore.set({ cookie: 'ledger_session=signed-session', userId: 7 });
+    vi.mocked(wx.request).mockImplementation(({ success }) => {
+      success?.(response({ error: { code: 'AUTH_REQUIRED', message: '登录失败' } }, 401));
+      return {} as never;
+    });
+
+    await expect(request('/api/auth/wechat/login', { method: 'POST', data: { code: 'x' } }))
+      .rejects.toBeInstanceOf(ApiError);
+
+    expect(sessionStore.get()).toBeNull();
+    expect(wx.reLaunch).not.toHaveBeenCalled();
+    expect(wx.redirectTo).not.toHaveBeenCalled();
   });
 
   it('clears ledger and redirects to ledger list after membership denial', async () => {

@@ -50,9 +50,21 @@ export interface MiniProgramApi {
   getStorageSync(key: string): unknown;
   setStorageSync(key: string, value: unknown): void;
   removeStorageSync(key: string): void;
+  getSystemInfoSync?(): { windowWidth?: number; statusBarHeight?: number };
+  getMenuButtonBoundingClientRect?(): { top?: number; left?: number; height?: number; width?: number };
   redirectTo(options: { url: string }): unknown;
   navigateTo(options: { url: string }): unknown;
+  navigateBack(options?: { delta?: number }): unknown;
   reLaunch(options: { url: string }): unknown;
+  showModal(options: {
+    title?: string;
+    content?: string;
+    confirmText?: string;
+    cancelText?: string;
+    showCancel?: boolean;
+    success?: (result: { confirm: boolean; cancel: boolean }) => void;
+    fail?: (error: unknown) => void;
+  }): unknown;
   showToast(options: { title: string; icon?: 'none' | 'success'; duration?: number }): unknown;
   setNavigationBarTitle(options: { title: string }): unknown;
   uploadFile(options: MiniUploadFileOptions): unknown;

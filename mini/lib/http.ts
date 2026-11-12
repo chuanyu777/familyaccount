@@ -79,7 +79,12 @@ export function request<T>(path: string, options: RequestOptions = {}): Promise<
         const error = errorFromResponse(result.statusCode, result.data);
         if (result.statusCode === 401) {
           sessionStore.clear();
-          wx.redirectTo({ url: '/pages/auth/index' });
+          currentLedgerStore.clear();
+          // 登录/绑定接口的 401 交给登录页自己提示；其余视为会话失效，退回游客态，
+          // 避免把用户硬踢到登录页（改造后游客态才是默认入口）。
+          if (!path.startsWith('/api/auth/')) {
+            wx.reLaunch({ url: '/pages/accounting/index' });
+          }
         } else if (result.statusCode === 403 && error.code === 'LEDGER_MEMBERSHIP_REQUIRED') {
           currentLedgerStore.clear();
           wx.redirectTo({ url: '/pages/ledger/list' });

@@ -1,0 +1,5 @@
+<view class="login-bar-spacer"></view>
+<view class="login-bar">
+  <text class="login-bar__text">登录后可记录自己的账本</text>
+  <view class="login-bar__action" bindtap="goLogin">去登录 ›</view>
+</view>

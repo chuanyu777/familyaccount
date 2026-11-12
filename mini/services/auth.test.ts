@@ -135,6 +135,17 @@ describe('auth service', () => {
     expect(currentLedgerStore.get()).toBeNull();
   });
 
+  it('clears local state even when the logout request fails', async () => {
+    sessionStore.set({ cookie: 'ledger_session=valid-session', userId: 7 });
+    currentLedgerStore.set({ id: 9, name: '我家', role: 'OWNER' });
+    requestMock.mockRejectedValueOnce(new Error('network down'));
+
+    await expect(logout()).resolves.toBeUndefined();
+
+    expect(sessionStore.get()).toBeNull();
+    expect(currentLedgerStore.get()).toBeNull();
+  });
+
   it('keeps an invitation token from launch or share query for the next flow', () => {
     captureInvitationToken({ token: 'invite-token' });
 

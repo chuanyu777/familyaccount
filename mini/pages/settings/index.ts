@@ -2,18 +2,21 @@ import { currentLedgerStore } from '../../lib/currentLedger';
 import { createInvitation } from '../../services/ledgers';
 import { canRemoveMember, leaveMemberLedger, listMembers, loadLedgerContext, removeMember, updateLedgerName, type LedgerContext, type LedgerMember } from '../../services/members';
 import { getProfile, updateProfile, uploadAvatar, type UserProfile } from '../../services/profile';
+import { logout } from '../../services/auth';
+import { isGuest } from '../../lib/guest';
 import type { InvitationView } from '../../types/domain';
 
 type DisplayMember = LedgerMember & { initial: string; isMe: boolean };
-interface SettingsPageContext { data: { ledger: LedgerContext | null; members: DisplayMember[]; profile: UserProfile | null; profileName: string; profileInitial: string; profileSaving: boolean; switcherOpen: boolean; renameOpen: boolean; loading: boolean; nameDraft: string; invitation: InvitationView | null }; setData(data: Record<string, unknown>): void; onShow(): Promise<void>; }
+interface SettingsPageContext { data: { ledger: LedgerContext | null; members: DisplayMember[]; profile: UserProfile | null; profileName: string; profileInitial: string; profileSaving: boolean; switcherOpen: boolean; renameOpen: boolean; loading: boolean; nameDraft: string; invitation: InvitationView | null; guest: boolean }; setData(data: Record<string, unknown>): void; onShow(): Promise<void>; }
 function errorMessage(error: unknown, fallback: string): string { return error instanceof Error ? error.message : fallback; }
 function initial(name: string): string { return name.trim().slice(0, 1) || '家'; }
 function displayMembers(members: LedgerMember[], userId: number): DisplayMember[] { return members.map((member) => ({ ...member, initial: initial(member.displayName), isMe: member.userId === userId })).sort((a, b) => Number(b.isMe) - Number(a.isMe)); }
 
 Page({
-  data: { ledger: null, members: [], profile: null, profileName: '', profileInitial: '家', profileSaving: false, switcherOpen: false, renameOpen: false, loading: false, errorMessage: '', invitation: null, nameDraft: '' },
+  data: { ledger: null, members: [], profile: null, profileName: '', profileInitial: '家', profileSaving: false, switcherOpen: false, renameOpen: false, loading: false, errorMessage: '', invitation: null, nameDraft: '', guest: false },
   async onShow(): Promise<void> {
     const page = this as unknown as SettingsPageContext;
+    if (isGuest()) { page.setData({ guest: true, loading: false, errorMessage: '', ledger: null, members: [], profile: null }); return; }
     const selected = currentLedgerStore.get();
     if (!selected) { page.setData({ errorMessage: '请先选择账本' }); return; }
     page.setData({ loading: true, errorMessage: '' });
@@ -67,11 +70,26 @@ Page({
   openLedgerSwitcher(): void { (this as unknown as SettingsPageContext).setData({ switcherOpen: true }); },
   closeLedgerSwitcher(): void { (this as unknown as SettingsPageContext).setData({ switcherOpen: false }); },
   openAssistant(): void { wx.navigateTo({ url: '/pages/assistant/index' }); },
+  goLogin(): void { wx.navigateTo({ url: '/pages/auth/index' }); },
+  handleLogout(): void {
+    const page = this as unknown as SettingsPageContext;
+    wx.showModal({
+      title: '退出登录',
+      content: '退出后将以游客身份浏览示例数据。',
+      confirmText: '退出',
+      success: async (result) => {
+        if (!result.confirm) return;
+        page.setData({ loading: true });
+        await logout();
+        wx.reLaunch({ url: '/pages/accounting/index' });
+      },
+    });
+  },
   onShareAppMessage(): { title: string; path: string } {
     const invitation = (this as unknown as SettingsPageContext).data.invitation;
     return invitation
       ? { title: '邀请你加入家庭账本', path: `/pages/invitation/detail?token=${encodeURIComponent(invitation.token)}` }
-      : { title: '家庭记账', path: '/pages/auth/index' };
+      : { title: '家庭记账', path: '/pages/accounting/index' };
   },
   handleSharedEdit(event: { currentTarget: { dataset: { tab: string } } }): void { const routes: Record<string, string> = { accounting: '/pages/accounting/index', assets: '/pages/assets/index', liabilities: '/pages/liabilities/index' }; const url = routes[event.currentTarget.dataset.tab]; if (url) wx.navigateTo({ url }); },
 });

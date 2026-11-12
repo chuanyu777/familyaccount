@@ -1,0 +1,37 @@
+/* 占位块：登录条是 fixed，不参与文档流，用它把页面最后一段内容顶上去，避免被遮。 */
+.login-bar-spacer {
+  height: 92rpx;
+}
+
+.login-bar {
+  position: fixed;
+  right: 0;
+  left: 0;
+  bottom: calc(132rpx + env(safe-area-inset-bottom));
+  z-index: 19;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 92rpx;
+  padding: 0 32rpx;
+  box-sizing: border-box;
+  border-top: 1rpx solid #d6e2ff;
+  background: #eef3ff;
+}
+
+.login-bar__text {
+  font-size: 24rpx;
+  color: #3159d7;
+}
+
+.login-bar__action {
+  flex-shrink: 0;
+  height: 56rpx;
+  padding: 0 24rpx;
+  border-radius: 28rpx;
+  background: #3159d7;
+  color: #fff;
+  font-size: 23rpx;
+  font-weight: 600;
+  line-height: 56rpx;
+}

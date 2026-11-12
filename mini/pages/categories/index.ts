@@ -1,6 +1,9 @@
 import { currentLedgerStore } from '../../lib/currentLedger';
 import { archiveSharedResource, booleanLike, restoreSharedResource } from '../../services/business-state';
 import { createCategory, listCategories, updateCategory, type Category, type CategoryKind } from '../../services/categories';
+import { isGuest } from '../../lib/guest';
+import { requireLogin } from '../../lib/requireLogin';
+import { demoExpenseCategories, demoIncomeCategories } from '../../lib/demo-data';
 
 interface Data {
   kind: CategoryKind;
@@ -13,14 +16,16 @@ interface Data {
   loading: boolean;
   saving: boolean;
   errorMessage: string;
+  guest: boolean;
 }
 interface PageContext { data: Data; setData(data: Partial<Data>): void; onShow(): Promise<void>; }
 const message = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback;
 
 Page({
-  data: { kind: 'expense', expense: [], income: [], editorOpen: false, editingId: null, nameDraft: '', isOwner: false, loading: false, saving: false, errorMessage: '' },
+  data: { kind: 'expense', expense: [], income: [], editorOpen: false, editingId: null, nameDraft: '', isOwner: false, loading: false, saving: false, errorMessage: '', guest: false },
   async onShow(): Promise<void> {
     const page = this as unknown as PageContext;
+    if (isGuest()) { page.setData({ loading: false, errorMessage: '', isOwner: false, guest: true, expense: demoExpenseCategories, income: demoIncomeCategories }); return; }
     page.setData({ loading: true, errorMessage: '', isOwner: currentLedgerStore.get()?.role === 'OWNER' });
     try {
       const [expense, income] = await Promise.all([listCategories('expense'), listCategories('income')]);
@@ -29,12 +34,13 @@ Page({
     finally { page.setData({ loading: false }); }
   },
   switchKind(event: { currentTarget: { dataset: { kind: CategoryKind } } }): void { (this as unknown as PageContext).setData({ kind: event.currentTarget.dataset.kind }); },
-  openCreate(): void { (this as unknown as PageContext).setData({ editorOpen: true, editingId: null, nameDraft: '', errorMessage: '' }); },
-  openEdit(event: { currentTarget: { dataset: { id: number; name: string } } }): void { (this as unknown as PageContext).setData({ editorOpen: true, editingId: Number(event.currentTarget.dataset.id), nameDraft: event.currentTarget.dataset.name, errorMessage: '' }); },
+  openCreate(): void { if (!requireLogin()) return; (this as unknown as PageContext).setData({ editorOpen: true, editingId: null, nameDraft: '', errorMessage: '' }); },
+  openEdit(event: { currentTarget: { dataset: { id: number; name: string } } }): void { if (!requireLogin()) return; (this as unknown as PageContext).setData({ editorOpen: true, editingId: Number(event.currentTarget.dataset.id), nameDraft: event.currentTarget.dataset.name, errorMessage: '' }); },
   closeEditor(): void { const page = this as unknown as PageContext; if (!page.data.saving) page.setData({ editorOpen: false }); },
   noop(): void {},
   handleName(event: { detail: { value: string } }): void { (this as unknown as PageContext).setData({ nameDraft: event.detail.value }); },
   async saveCategory(): Promise<void> {
+    if (!requireLogin()) return;
     const page = this as unknown as PageContext;
     const name = page.data.nameDraft.trim();
     if (!name || page.data.saving) return;
@@ -48,6 +54,7 @@ Page({
     finally { page.setData({ saving: false }); }
   },
   async toggleArchive(event: { currentTarget: { dataset: { id: number; archived: unknown } } }): Promise<void> {
+    if (!requireLogin()) return;
     const page = this as unknown as PageContext;
     if (!page.data.isOwner || page.data.saving) return;
     page.setData({ saving: true, errorMessage: '' });
